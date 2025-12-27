@@ -349,6 +349,103 @@ export type Database = {
           },
         ]
       }
+      library_usage: {
+        Row: {
+          created_at: string | null
+          id: string
+          library_image_id: string
+          outcome_recorded_at: string | null
+          project_id: string
+          render_approved: boolean | null
+          render_completed: boolean | null
+          render_cost: number | null
+          render_quality_score: number | null
+          room_id: string
+          selected_at: string | null
+          smart_default_used: Json | null
+          updated_at: string | null
+          user_id: string
+          variation_used: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          library_image_id: string
+          outcome_recorded_at?: string | null
+          project_id: string
+          render_approved?: boolean | null
+          render_completed?: boolean | null
+          render_cost?: number | null
+          render_quality_score?: number | null
+          room_id: string
+          selected_at?: string | null
+          smart_default_used?: Json | null
+          updated_at?: string | null
+          user_id: string
+          variation_used?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          library_image_id?: string
+          outcome_recorded_at?: string | null
+          project_id?: string
+          render_approved?: boolean | null
+          render_completed?: boolean | null
+          render_cost?: number | null
+          render_quality_score?: number | null
+          room_id?: string
+          selected_at?: string | null
+          smart_default_used?: Json | null
+          updated_at?: string | null
+          user_id?: string
+          variation_used?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_usage_library_image_id_fkey"
+            columns: ["library_image_id"]
+            isOneToOne: false
+            referencedRelation: "library_performance_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_usage_library_image_id_fkey"
+            columns: ["library_image_id"]
+            isOneToOne: false
+            referencedRelation: "library_top_performers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_usage_library_image_id_fkey"
+            columns: ["library_image_id"]
+            isOneToOne: false
+            referencedRelation: "style_library"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_usage_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_usage_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_usage_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -813,6 +910,200 @@ export type Database = {
         }
         Relationships: []
       }
+      style_library: {
+        Row: {
+          analysis_data: Json | null
+          approval_rate: number | null
+          city: string | null
+          color_palette: Json | null
+          created_at: string | null
+          curator_notes: string | null
+          curator_verified: boolean | null
+          curator_verified_at: string | null
+          curator_verified_by: string | null
+          design_style: string
+          furniture_list: Json | null
+          generated_at: string | null
+          generation_cost: number | null
+          id: string
+          image_url: string
+          initial_performance_known: boolean | null
+          is_duplicate_of: string | null
+          last_ranked_at: string | null
+          last_used_at: string | null
+          layout_pattern: Json | null
+          matched_elements: Json | null
+          original_uploader_id: string | null
+          perceptual_hash: string | null
+          quality_score: number | null
+          ranking_score: number | null
+          renderer_anonymous_id: string | null
+          room_type: string
+          search_vector: unknown
+          similarity_score: number | null
+          source_project_hash: string | null
+          source_room_id: string | null
+          source_type: Database["public"]["Enums"]["library_source_type"]
+          status: Database["public"]["Enums"]["library_status"] | null
+          storage_path: string | null
+          tags: string[] | null
+          thumbnail_url: string | null
+          tier: Database["public"]["Enums"]["library_tier"] | null
+          times_led_to_approval: number | null
+          times_led_to_rejection: number | null
+          times_selected: number | null
+          times_viewed: number | null
+          updated_at: string | null
+          upload_project_id: string | null
+          upload_source: string | null
+          uploaded_at: string | null
+        }
+        Insert: {
+          analysis_data?: Json | null
+          approval_rate?: number | null
+          city?: string | null
+          color_palette?: Json | null
+          created_at?: string | null
+          curator_notes?: string | null
+          curator_verified?: boolean | null
+          curator_verified_at?: string | null
+          curator_verified_by?: string | null
+          design_style: string
+          furniture_list?: Json | null
+          generated_at?: string | null
+          generation_cost?: number | null
+          id?: string
+          image_url: string
+          initial_performance_known?: boolean | null
+          is_duplicate_of?: string | null
+          last_ranked_at?: string | null
+          last_used_at?: string | null
+          layout_pattern?: Json | null
+          matched_elements?: Json | null
+          original_uploader_id?: string | null
+          perceptual_hash?: string | null
+          quality_score?: number | null
+          ranking_score?: number | null
+          renderer_anonymous_id?: string | null
+          room_type: string
+          search_vector?: unknown
+          similarity_score?: number | null
+          source_project_hash?: string | null
+          source_room_id?: string | null
+          source_type: Database["public"]["Enums"]["library_source_type"]
+          status?: Database["public"]["Enums"]["library_status"] | null
+          storage_path?: string | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          tier?: Database["public"]["Enums"]["library_tier"] | null
+          times_led_to_approval?: number | null
+          times_led_to_rejection?: number | null
+          times_selected?: number | null
+          times_viewed?: number | null
+          updated_at?: string | null
+          upload_project_id?: string | null
+          upload_source?: string | null
+          uploaded_at?: string | null
+        }
+        Update: {
+          analysis_data?: Json | null
+          approval_rate?: number | null
+          city?: string | null
+          color_palette?: Json | null
+          created_at?: string | null
+          curator_notes?: string | null
+          curator_verified?: boolean | null
+          curator_verified_at?: string | null
+          curator_verified_by?: string | null
+          design_style?: string
+          furniture_list?: Json | null
+          generated_at?: string | null
+          generation_cost?: number | null
+          id?: string
+          image_url?: string
+          initial_performance_known?: boolean | null
+          is_duplicate_of?: string | null
+          last_ranked_at?: string | null
+          last_used_at?: string | null
+          layout_pattern?: Json | null
+          matched_elements?: Json | null
+          original_uploader_id?: string | null
+          perceptual_hash?: string | null
+          quality_score?: number | null
+          ranking_score?: number | null
+          renderer_anonymous_id?: string | null
+          room_type?: string
+          search_vector?: unknown
+          similarity_score?: number | null
+          source_project_hash?: string | null
+          source_room_id?: string | null
+          source_type?: Database["public"]["Enums"]["library_source_type"]
+          status?: Database["public"]["Enums"]["library_status"] | null
+          storage_path?: string | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          tier?: Database["public"]["Enums"]["library_tier"] | null
+          times_led_to_approval?: number | null
+          times_led_to_rejection?: number | null
+          times_selected?: number | null
+          times_viewed?: number | null
+          updated_at?: string | null
+          upload_project_id?: string | null
+          upload_source?: string | null
+          uploaded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_library_curator_verified_by_fkey"
+            columns: ["curator_verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_library_is_duplicate_of_fkey"
+            columns: ["is_duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "library_performance_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_library_is_duplicate_of_fkey"
+            columns: ["is_duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "library_top_performers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_library_is_duplicate_of_fkey"
+            columns: ["is_duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "style_library"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_library_original_uploader_id_fkey"
+            columns: ["original_uploader_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_library_source_room_id_fkey"
+            columns: ["source_room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_library_upload_project_id_fkey"
+            columns: ["upload_project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_sessions: {
         Row: {
           client_id: string | null
@@ -986,7 +1277,109 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      library_performance_summary: {
+        Row: {
+          approval_rate: number | null
+          city: string | null
+          created_at: string | null
+          design_style: string | null
+          id: string | null
+          image_url: string | null
+          last_used_at: string | null
+          performance_label: string | null
+          quality_score: number | null
+          room_type: string | null
+          source_type: Database["public"]["Enums"]["library_source_type"] | null
+          status: Database["public"]["Enums"]["library_status"] | null
+          tier: Database["public"]["Enums"]["library_tier"] | null
+          times_led_to_approval: number | null
+          times_led_to_rejection: number | null
+          times_selected: number | null
+          trust_score: number | null
+        }
+        Insert: {
+          approval_rate?: number | null
+          city?: string | null
+          created_at?: string | null
+          design_style?: string | null
+          id?: string | null
+          image_url?: string | null
+          last_used_at?: string | null
+          performance_label?: never
+          quality_score?: number | null
+          room_type?: string | null
+          source_type?:
+            | Database["public"]["Enums"]["library_source_type"]
+            | null
+          status?: Database["public"]["Enums"]["library_status"] | null
+          tier?: Database["public"]["Enums"]["library_tier"] | null
+          times_led_to_approval?: number | null
+          times_led_to_rejection?: number | null
+          times_selected?: number | null
+          trust_score?: never
+        }
+        Update: {
+          approval_rate?: number | null
+          city?: string | null
+          created_at?: string | null
+          design_style?: string | null
+          id?: string | null
+          image_url?: string | null
+          last_used_at?: string | null
+          performance_label?: never
+          quality_score?: number | null
+          room_type?: string | null
+          source_type?:
+            | Database["public"]["Enums"]["library_source_type"]
+            | null
+          status?: Database["public"]["Enums"]["library_status"] | null
+          tier?: Database["public"]["Enums"]["library_tier"] | null
+          times_led_to_approval?: number | null
+          times_led_to_rejection?: number | null
+          times_selected?: number | null
+          trust_score?: never
+        }
+        Relationships: []
+      }
+      library_top_performers: {
+        Row: {
+          approval_rate: number | null
+          city: string | null
+          design_style: string | null
+          id: string | null
+          image_url: string | null
+          quality_score: number | null
+          ranking_score: number | null
+          room_type: string | null
+          source_type: Database["public"]["Enums"]["library_source_type"] | null
+          thumbnail_url: string | null
+          tier: Database["public"]["Enums"]["library_tier"] | null
+          times_selected: number | null
+        }
+        Relationships: []
+      }
+      user_library_contributions: {
+        Row: {
+          avg_approval_rate: number | null
+          featured_count: number | null
+          last_contribution_at: string | null
+          standard_count: number | null
+          total_approvals: number | null
+          total_contributions: number | null
+          total_times_selected: number | null
+          unverified_count: number | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_library_original_uploader_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       apply_style_to_all_rooms: {
@@ -1017,6 +1410,7 @@ export type Database = {
           total_count: number
         }[]
       }
+      auto_archive_poor_performers: { Args: never; Returns: number }
       auto_assign_best_vendors: {
         Args: { p_project_id: string; p_user_id: string }
         Returns: {
@@ -1026,6 +1420,7 @@ export type Database = {
           total_count: number
         }[]
       }
+      auto_promote_tier: { Args: { lib_id: string }; Returns: string }
       claim_job: { Args: { p_job_id: string }; Returns: boolean }
       cleanup_expired_sessions: { Args: never; Returns: number }
       cleanup_old_events: { Args: never; Returns: number }
@@ -1123,6 +1518,18 @@ export type Database = {
         }
         Returns: string
       }
+      record_library_usage_outcome: {
+        Args: {
+          p_approved: boolean
+          p_quality_score?: number
+          p_usage_id: string
+        }
+        Returns: undefined
+      }
+      update_library_approval_rate: {
+        Args: { lib_id: string }
+        Returns: undefined
+      }
       upsert_user_session: {
         Args: {
           p_client_id?: string
@@ -1159,6 +1566,9 @@ export type Database = {
         | "Jaipur"
         | "Surat"
         | "Lucknow"
+      library_source_type: "user_upload" | "houspire_generated"
+      library_status: "active" | "archived" | "flagged" | "pending_review"
+      library_tier: "featured" | "standard" | "learning" | "unverified"
       project_status:
         | "draft"
         | "in_progress"
@@ -1329,6 +1739,9 @@ export const Constants = {
         "Surat",
         "Lucknow",
       ],
+      library_source_type: ["user_upload", "houspire_generated"],
+      library_status: ["active", "archived", "flagged", "pending_review"],
+      library_tier: ["featured", "standard", "learning", "unverified"],
       project_status: [
         "draft",
         "in_progress",
