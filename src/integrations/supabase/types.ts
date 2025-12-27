@@ -1027,6 +1027,7 @@ export type Database = {
         }[]
       }
       claim_job: { Args: { p_job_id: string }; Returns: boolean }
+      cleanup_expired_sessions: { Args: never; Returns: number }
       cleanup_old_events: { Args: never; Returns: number }
       complete_job: {
         Args: { p_job_id: string; p_result?: Json }
@@ -1129,6 +1130,14 @@ export type Database = {
           p_room_id?: string
         }
         Returns: string
+      }
+      validate_file_upload: {
+        Args: {
+          p_content_type: string
+          p_file_name: string
+          p_file_size: number
+        }
+        Returns: boolean
       }
     }
     Enums: {
