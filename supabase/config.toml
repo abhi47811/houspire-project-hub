@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.catalog-user-upload]
 verify_jwt = false
+
+[functions.auto-catalog-renders]
+verify_jwt = false
