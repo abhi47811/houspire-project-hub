@@ -327,6 +327,12 @@ export default function ProjectDetail() {
                   View Budget
                 </Button>
               </Link>
+              <Link to={`/projects/${id}/vendors`}>
+                <Button variant="outline">
+                  <Users className="mr-2 h-4 w-4" />
+                  Vendors
+                </Button>
+              </Link>
               <Button
                 onClick={() => updateProjectStatus.mutate('approved')}
                 disabled={project.status === 'approved' || project.status === 'completed'}

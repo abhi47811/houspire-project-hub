@@ -434,6 +434,123 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_matches: {
+        Row: {
+          budget_item_id: string
+          created_at: string
+          id: string
+          match_score: number
+          notes: string | null
+          price_quote: number | null
+          status: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          budget_item_id: string
+          created_at?: string
+          id?: string
+          match_score?: number
+          notes?: string | null
+          price_quote?: number | null
+          status?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          budget_item_id?: string
+          created_at?: string
+          id?: string
+          match_score?: number
+          notes?: string | null
+          price_quote?: number | null
+          status?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_matches_budget_item_id_fkey"
+            columns: ["budget_item_id"]
+            isOneToOne: false
+            referencedRelation: "budget_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_matches_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendors: {
+        Row: {
+          address: string | null
+          business_name: string
+          categories: string[]
+          city: string | null
+          contact_name: string | null
+          created_at: string
+          discount_percentage: number | null
+          email: string | null
+          id: string
+          is_curated: boolean
+          is_verified: boolean
+          lead_time_days: number | null
+          min_order_amount: number | null
+          on_time_percentage: number | null
+          phone: string | null
+          projects_completed: number | null
+          rating: number | null
+          total_reviews: number | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          business_name: string
+          categories?: string[]
+          city?: string | null
+          contact_name?: string | null
+          created_at?: string
+          discount_percentage?: number | null
+          email?: string | null
+          id?: string
+          is_curated?: boolean
+          is_verified?: boolean
+          lead_time_days?: number | null
+          min_order_amount?: number | null
+          on_time_percentage?: number | null
+          phone?: string | null
+          projects_completed?: number | null
+          rating?: number | null
+          total_reviews?: number | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          business_name?: string
+          categories?: string[]
+          city?: string | null
+          contact_name?: string | null
+          created_at?: string
+          discount_percentage?: number | null
+          email?: string | null
+          id?: string
+          is_curated?: boolean
+          is_verified?: boolean
+          lead_time_days?: number | null
+          min_order_amount?: number | null
+          on_time_percentage?: number | null
+          phone?: string | null
+          projects_completed?: number | null
+          rating?: number | null
+          total_reviews?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
