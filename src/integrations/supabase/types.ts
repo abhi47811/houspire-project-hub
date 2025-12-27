@@ -95,6 +95,59 @@ export type Database = {
           },
         ]
       }
+      bulk_operations: {
+        Row: {
+          affected_rooms: string[] | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          failed_count: number
+          id: string
+          operation_type: Database["public"]["Enums"]["bulk_operation_type"]
+          project_id: string
+          status: Database["public"]["Enums"]["bulk_operation_status"]
+          success_count: number
+          total_count: number
+        }
+        Insert: {
+          affected_rooms?: string[] | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          failed_count?: number
+          id?: string
+          operation_type: Database["public"]["Enums"]["bulk_operation_type"]
+          project_id: string
+          status?: Database["public"]["Enums"]["bulk_operation_status"]
+          success_count?: number
+          total_count?: number
+        }
+        Update: {
+          affected_rooms?: string[] | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          failed_count?: number
+          id?: string
+          operation_type?: Database["public"]["Enums"]["bulk_operation_type"]
+          project_id?: string
+          status?: Database["public"]["Enums"]["bulk_operation_status"]
+          success_count?: number
+          total_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_operations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_reference: {
         Row: {
           base_rate: number
@@ -556,12 +609,55 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_style_to_all_rooms: {
+        Args: {
+          p_design_style: string
+          p_project_id: string
+          p_user_id: string
+        }
+        Returns: {
+          operation_id: string
+          success_count: number
+          total_count: number
+        }[]
+      }
+      approve_all_analysis: {
+        Args: { p_project_id: string; p_user_id: string }
+        Returns: {
+          operation_id: string
+          success_count: number
+          total_count: number
+        }[]
+      }
+      approve_all_budget_items: {
+        Args: { p_category?: string; p_project_id: string; p_user_id: string }
+        Returns: {
+          operation_id: string
+          success_count: number
+          total_count: number
+        }[]
+      }
+      auto_assign_best_vendors: {
+        Args: { p_project_id: string; p_user_id: string }
+        Returns: {
+          failed_count: number
+          operation_id: string
+          success_count: number
+          total_count: number
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
     }
     Enums: {
+      bulk_operation_status: "pending" | "processing" | "completed" | "failed"
+      bulk_operation_type:
+        | "approve_all_analysis"
+        | "apply_style_to_all"
+        | "approve_all_budget_items"
+        | "auto_assign_best_vendors"
       city_enum:
         | "Mumbai"
         | "Delhi"
@@ -724,6 +820,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      bulk_operation_status: ["pending", "processing", "completed", "failed"],
+      bulk_operation_type: [
+        "approve_all_analysis",
+        "apply_style_to_all",
+        "approve_all_budget_items",
+        "auto_assign_best_vendors",
+      ],
       city_enum: [
         "Mumbai",
         "Delhi",
