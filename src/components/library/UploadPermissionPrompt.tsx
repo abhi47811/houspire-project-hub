@@ -83,9 +83,9 @@ export function UploadPermissionPrompt({
                 <Badge 
                   variant="secondary"
                   className={cn(
-                    analysis.confidence >= 0.9 ? "bg-green-500/20 text-green-700" :
-                    analysis.confidence >= 0.7 ? "bg-yellow-500/20 text-yellow-700" :
-                    "bg-red-500/20 text-red-700"
+                    analysis.confidence >= 0.9 ? "bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300" :
+                    analysis.confidence >= 0.7 ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300" :
+                    "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300"
                   )}
                 >
                   {analysis.confidence >= 0.9 ? "High" : analysis.confidence >= 0.7 ? "Medium" : "Low"}

@@ -310,10 +310,10 @@ function LibraryImageCard({
     if (image.times_selected === 0) return { label: 'New', color: 'bg-muted text-muted-foreground' };
     if (!image.approval_rate) return { label: 'New', color: 'bg-muted text-muted-foreground' };
     
-    if (image.approval_rate >= 0.9) return { label: 'Excellent', color: 'bg-green-500/20 text-green-700' };
-    if (image.approval_rate >= 0.8) return { label: 'Good', color: 'bg-green-500/20 text-green-700' };
-    if (image.approval_rate >= 0.7) return { label: 'Fair', color: 'bg-yellow-500/20 text-yellow-700' };
-    return { label: 'Poor', color: 'bg-red-500/20 text-red-700' };
+    if (image.approval_rate >= 0.9) return { label: 'Excellent', color: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300' };
+    if (image.approval_rate >= 0.8) return { label: 'Good', color: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300' };
+    if (image.approval_rate >= 0.7) return { label: 'Fair', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300' };
+    return { label: 'Poor', color: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300' };
   };
 
   const performance = getPerformanceLabel();
