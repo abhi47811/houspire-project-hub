@@ -526,9 +526,11 @@ function RoomCard({
         </div>
 
         {/* View Room Button */}
-        <Button variant="outline" className="w-full" size="sm">
-          View Room
-        </Button>
+        <Link to={`/projects/${room.project_id}/rooms/${room.id}`}>
+          <Button variant="outline" className="w-full" size="sm">
+            View Room
+          </Button>
+        </Link>
       </CardContent>
     </Card>
   );

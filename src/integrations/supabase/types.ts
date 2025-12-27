@@ -122,6 +122,93 @@ export type Database = {
           },
         ]
       }
+      room_analysis: {
+        Row: {
+          ceiling_fan_count: number | null
+          created_at: string | null
+          detected_height_feet: number | null
+          detected_length_feet: number | null
+          detected_width_feet: number | null
+          door_count: number | null
+          door_positions: Json | null
+          id: string
+          is_verified: boolean | null
+          measurement_confidence: number | null
+          other_features: Json | null
+          outlet_count: number | null
+          raw_analysis_data: Json | null
+          room_id: string
+          selected_style: string | null
+          suggested_styles: Json | null
+          updated_at: string | null
+          verified_at: string | null
+          verified_by: string | null
+          window_count: number | null
+          window_positions: Json | null
+        }
+        Insert: {
+          ceiling_fan_count?: number | null
+          created_at?: string | null
+          detected_height_feet?: number | null
+          detected_length_feet?: number | null
+          detected_width_feet?: number | null
+          door_count?: number | null
+          door_positions?: Json | null
+          id?: string
+          is_verified?: boolean | null
+          measurement_confidence?: number | null
+          other_features?: Json | null
+          outlet_count?: number | null
+          raw_analysis_data?: Json | null
+          room_id: string
+          selected_style?: string | null
+          suggested_styles?: Json | null
+          updated_at?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+          window_count?: number | null
+          window_positions?: Json | null
+        }
+        Update: {
+          ceiling_fan_count?: number | null
+          created_at?: string | null
+          detected_height_feet?: number | null
+          detected_length_feet?: number | null
+          detected_width_feet?: number | null
+          door_count?: number | null
+          door_positions?: Json | null
+          id?: string
+          is_verified?: boolean | null
+          measurement_confidence?: number | null
+          other_features?: Json | null
+          outlet_count?: number | null
+          raw_analysis_data?: Json | null
+          room_id?: string
+          selected_style?: string | null
+          suggested_styles?: Json | null
+          updated_at?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+          window_count?: number | null
+          window_positions?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_analysis_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: true
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_analysis_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rooms: {
         Row: {
           created_at: string | null
