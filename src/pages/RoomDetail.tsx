@@ -25,6 +25,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useSessionTracking } from '@/hooks/useSessionTracking';
+import { useRealtimeSubscriptions } from '@/hooks/useRealtimeSubscriptions';
 import {
   ArrowLeft,
   CheckCircle,
@@ -109,6 +111,18 @@ export default function RoomDetail() {
   const [activePhase, setActivePhase] = useState(1);
   const [zoom, setZoom] = useState(100);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // Session tracking - track user viewing this room
+  useSessionTracking({ projectId, roomId });
+  
+  // Realtime subscriptions for live updates
+  useRealtimeSubscriptions({ 
+    projectId,
+    roomIds: roomId ? [roomId] : [],
+    enableNotifications: true,
+    enableChangeEvents: true,
+    enableJobUpdates: true,
+  });
 
   // Fetch room
   const { data: room, isLoading: roomLoading } = useQuery({
