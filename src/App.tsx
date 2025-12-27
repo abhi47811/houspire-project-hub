@@ -13,6 +13,7 @@ import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
 import RoomDetail from "./pages/RoomDetail";
 import Budget from "./pages/Budget";
+import Vendors from "./pages/Vendors";
 import Team from "./pages/Team";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
@@ -43,6 +44,7 @@ const App = () => (
               <Route path="/projects/:id" element={<ProjectDetail />} />
               <Route path="/projects/:projectId/rooms/:roomId" element={<RoomDetail />} />
               <Route path="/projects/:projectId/budget" element={<Budget />} />
+              <Route path="/projects/:projectId/vendors" element={<Vendors />} />
               <Route path="/team" element={<Team />} />
               <Route
                 path="/admin"
