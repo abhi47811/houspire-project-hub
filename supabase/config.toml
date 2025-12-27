@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.generate-ai]
 verify_jwt = true
+
+[functions.process-room-phase]
+verify_jwt = true
