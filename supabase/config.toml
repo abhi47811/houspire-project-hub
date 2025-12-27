@@ -1,1 +1,4 @@
 project_id = "nvnxptkgksuhfcpmungq"
+
+[functions.generate-budget]
+verify_jwt = false
