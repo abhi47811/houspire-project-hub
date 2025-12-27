@@ -217,6 +217,81 @@ export type Database = {
           },
         ]
       }
+      job_queue: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          job_type: string
+          max_retries: number
+          payload: Json | null
+          priority: number
+          project_id: string
+          result: Json | null
+          retry_count: number
+          room_id: string
+          scheduled_at: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          job_type: string
+          max_retries?: number
+          payload?: Json | null
+          priority?: number
+          project_id: string
+          result?: Json | null
+          retry_count?: number
+          room_id: string
+          scheduled_at?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          max_retries?: number
+          payload?: Json | null
+          priority?: number
+          project_id?: string
+          result?: Json | null
+          retry_count?: number
+          room_id?: string
+          scheduled_at?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_queue_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_queue_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -795,6 +870,11 @@ export type Database = {
           total_count: number
         }[]
       }
+      claim_job: { Args: { p_job_id: string }; Returns: boolean }
+      complete_job: {
+        Args: { p_job_id: string; p_result?: Json }
+        Returns: boolean
+      }
       copy_room_settings: {
         Args: {
           p_copy_requirements?: boolean
@@ -808,6 +888,38 @@ export type Database = {
           success_count: number
           total_count: number
         }[]
+      }
+      fail_job: {
+        Args: { p_error_message: string; p_job_id: string }
+        Returns: boolean
+      }
+      get_next_job: {
+        Args: { p_project_id?: string }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          job_type: string
+          max_retries: number
+          payload: Json | null
+          priority: number
+          project_id: string
+          result: Json | null
+          retry_count: number
+          room_id: string
+          scheduled_at: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "job_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_user_role: {
         Args: { _user_id: string }
