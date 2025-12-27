@@ -2,7 +2,6 @@ import { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { trackError } from '@/lib/error-tracking';
 
 interface Props {
@@ -75,11 +74,12 @@ export class ErrorBoundary extends Component<Props, State> {
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Refresh Page
                 </Button>
-                <Button variant="outline" asChild className="w-full">
-                  <Link to="/" onClick={this.handleReset}>
-                    <Home className="mr-2 h-4 w-4" />
-                    Go to Dashboard
-                  </Link>
+                <Button variant="outline" className="w-full" onClick={() => {
+                  this.handleReset();
+                  window.location.href = '/';
+                }}>
+                  <Home className="mr-2 h-4 w-4" />
+                  Go to Dashboard
                 </Button>
               </div>
             </CardContent>
