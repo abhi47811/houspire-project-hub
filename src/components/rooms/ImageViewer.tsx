@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -34,13 +34,14 @@ interface ImageViewerProps {
   className?: string;
 }
 
-export function ImageViewer({
-  roomId,
-  phase,
-  imageType = 'original',
-  showControls = true,
-  className,
-}: ImageViewerProps) {
+export const ImageViewer = React.forwardRef<HTMLDivElement, ImageViewerProps>(
+  function ImageViewer({
+    roomId,
+    phase,
+    imageType = 'original',
+    showControls = true,
+    className,
+  }, ref) {
   const [zoom, setZoom] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -226,7 +227,9 @@ export function ImageViewer({
       </div>
     </div>
   );
-}
+});
+
+ImageViewer.displayName = 'ImageViewer';
 
 // Before/After Comparison Slider
 interface BeforeAfterSliderProps {
