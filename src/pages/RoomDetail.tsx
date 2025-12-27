@@ -66,6 +66,7 @@ interface Room {
   selected_style: string | null;
   final_quality_score: number | null;
   retry_count: number;
+  smart_default_id: string | null;
 }
 
 interface Project {
