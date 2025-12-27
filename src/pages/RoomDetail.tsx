@@ -65,6 +65,7 @@ interface Room {
   phase_5_completed: boolean;
   selected_style: string | null;
   final_quality_score: number | null;
+  retry_count: number;
 }
 
 interface Project {
