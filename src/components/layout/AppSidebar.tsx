@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -7,6 +8,8 @@ import {
   Settings,
   LogOut,
   ChevronDown,
+  Menu,
+  X,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -16,7 +19,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 import logo from '@/assets/logo.png';
 
 const navigation = [
@@ -26,7 +32,7 @@ const navigation = [
   { name: 'Admin', href: '/admin', icon: Settings, adminOnly: true },
 ];
 
-export function AppSidebar() {
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const { profile, signOut, user } = useAuth();
 
@@ -48,40 +54,52 @@ export function AppSidebar() {
   });
 
   return (
-    <aside className="flex h-screen w-[260px] flex-col border-r border-sidebar-border bg-sidebar">
+    <>
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
         <img src={logo} alt="Houspire" className="h-8 w-auto" />
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="flex-1 space-y-1 px-3 py-4" role="navigation" aria-label="Main navigation">
         {filteredNavigation.map((item) => {
           const isActive = location.pathname === item.href;
           return (
             <NavLink
               key={item.name}
               to={item.href}
+              onClick={onNavigate}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-target',
                 isActive
                   ? 'bg-sidebar-accent text-sidebar-primary'
                   : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
               )}
+              aria-current={isActive ? 'page' : undefined}
             >
-              <item.icon className="h-5 w-5" />
-              {item.name}
+              <item.icon className="h-5 w-5" aria-hidden="true" />
+              <span>{item.name}</span>
             </NavLink>
           );
         })}
       </nav>
 
+      {/* Keyboard Shortcuts Hint */}
+      <div className="px-6 py-2 border-t border-sidebar-border hidden md:block">
+        <p className="text-xs text-muted-foreground">
+          <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">⌘K</kbd> to search
+        </p>
+      </div>
+
       {/* User Profile */}
       <div className="border-t border-sidebar-border p-3">
         <DropdownMenu>
-          <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-sidebar-accent">
+          <DropdownMenuTrigger 
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="User menu"
+          >
             <Avatar className="h-9 w-9">
-              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarImage src={profile?.avatar_url || undefined} alt="" />
               <AvatarFallback className="bg-primary text-primary-foreground text-sm">
                 {getInitials(profile?.full_name)}
               </AvatarFallback>
@@ -94,24 +112,68 @@ export function AppSidebar() {
                 {profile?.role || 'User'}
               </p>
             </div>
-            <ChevronDown className="h-4 w-4 text-sidebar-foreground/60" />
+            <ChevronDown className="h-4 w-4 text-sidebar-foreground/60" aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
+              <Settings className="h-4 w-4" aria-hidden="true" />
+              <span>Settings</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="flex items-center gap-2 text-destructive focus:text-destructive"
               onClick={signOut}
             >
-              <LogOut className="h-4 w-4" />
-              Sign out
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              <span>Sign out</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+    </>
+  );
+}
+
+export function AppSidebar() {
+  const isMobile = useIsMobile();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const location = useLocation();
+
+  // Close mobile sidebar on navigation
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  if (isMobile) {
+    return (
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="fixed top-3 left-3 z-50 md:hidden touch-target"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="w-[280px] p-0">
+          <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+          <div className="flex h-full flex-col bg-sidebar">
+            <SidebarContent onNavigate={() => setMobileOpen(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  return (
+    <aside 
+      className="hidden md:flex h-screen w-[260px] flex-col border-r border-sidebar-border bg-sidebar"
+      role="complementary"
+      aria-label="Sidebar"
+    >
+      <SidebarContent />
     </aside>
   );
 }

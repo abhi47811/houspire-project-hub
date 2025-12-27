@@ -132,4 +132,41 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Focus visible styles for accessibility */
+  .focus-visible-ring:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Touch-friendly minimum size */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Skip to main content link for screen readers */
+  .skip-to-main {
+    @apply absolute -top-10 left-0 bg-primary text-primary-foreground px-4 py-2 z-50 transition-all;
+  }
+  .skip-to-main:focus {
+    @apply top-0;
+  }
+
+  /* Reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    :root {
+      --border: 228 30% 30%;
+    }
+  }
 }

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,63 +7,80 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { GlobalSearch } from "@/components/GlobalSearch";
+import { PageLoader } from "@/components/ui/loading-spinner";
 
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Projects from "./pages/Projects";
-import ProjectDetail from "./pages/ProjectDetail";
-import RoomDetail from "./pages/RoomDetail";
-import Budget from "./pages/Budget";
-import Vendors from "./pages/Vendors";
-import Team from "./pages/Team";
-import Admin from "./pages/Admin";
-import NotFound from "./pages/NotFound";
+// Lazy load pages for code splitting
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Projects = lazy(() => import("./pages/Projects"));
+const ProjectDetail = lazy(() => import("./pages/ProjectDetail"));
+const RoomDetail = lazy(() => import("./pages/RoomDetail"));
+const Budget = lazy(() => import("./pages/Budget"));
+const Vendors = lazy(() => import("./pages/Vendors"));
+const Team = lazy(() => import("./pages/Team"));
+const Admin = lazy(() => import("./pages/Admin"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 30000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <GlobalSearch />
+            <Suspense fallback={<PageLoader text="Loading..." />}>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/login" element={<Login />} />
 
-            {/* Protected Routes with App Layout */}
-            <Route
-              element={
-                <ProtectedRoute>
-                  <AppLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/projects" element={<Projects />} />
-              <Route path="/projects/:id" element={<ProjectDetail />} />
-              <Route path="/projects/:projectId/rooms/:roomId" element={<RoomDetail />} />
-              <Route path="/projects/:projectId/budget" element={<Budget />} />
-              <Route path="/projects/:projectId/vendors" element={<Vendors />} />
-              <Route path="/team" element={<Team />} />
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute allowedRoles={['admin']}>
-                    <Admin />
-                  </ProtectedRoute>
-                }
-              />
-            </Route>
+                {/* Protected Routes with App Layout */}
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/projects" element={<Projects />} />
+                  <Route path="/projects/:id" element={<ProjectDetail />} />
+                  <Route path="/projects/:projectId/rooms/:roomId" element={<RoomDetail />} />
+                  <Route path="/projects/:projectId/budget" element={<Budget />} />
+                  <Route path="/projects/:projectId/vendors" element={<Vendors />} />
+                  <Route path="/team" element={<Team />} />
+                  <Route
+                    path="/admin"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <Admin />
+                      </ProtectedRoute>
+                    }
+                  />
+                </Route>
 
-            {/* Catch-all */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+                {/* Catch-all */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
