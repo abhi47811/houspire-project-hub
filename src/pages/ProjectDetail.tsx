@@ -16,7 +16,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
+import { useProjectApiCostBadge } from '@/hooks/useApiCost';
 import {
   ArrowLeft,
   MapPin,
@@ -31,6 +38,7 @@ import {
   Image,
   Sparkles,
   Users,
+  Zap,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AddRoomForm } from '@/components/projects/AddRoomForm';
@@ -122,6 +130,9 @@ export default function ProjectDetail() {
   const queryClient = useQueryClient();
   const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
+  
+  // API Cost tracking
+  const { formattedCost, callCount } = useProjectApiCostBadge(id || '');
 
   // Fetch project
   const { data: project, isLoading: projectLoading } = useQuery({
@@ -285,6 +296,20 @@ export default function ProjectDetail() {
                     {format(new Date(project.deadline), 'MMM d, yyyy')}
                   </span>
                 )}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary cursor-help">
+                        <Zap className="h-3.5 w-3.5" />
+                        <span className="font-medium">{formattedCost}</span>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>API Cost: {formattedCost}</p>
+                      <p className="text-xs text-muted-foreground">{callCount} API calls</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
 
               {/* Phase Progress */}
