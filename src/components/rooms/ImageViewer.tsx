@@ -44,6 +44,7 @@ export const ImageViewer = React.forwardRef<HTMLDivElement, ImageViewerProps>(
   }, ref) {
   const [zoom, setZoom] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: image, isLoading } = useQuery({
@@ -114,15 +115,25 @@ export const ImageViewer = React.forwardRef<HTMLDivElement, ImageViewerProps>(
     );
   }
 
-  if (!image) {
+  if (!image || imageError) {
     return (
       <div
         className={cn(
-          'aspect-square rounded-lg bg-muted flex items-center justify-center',
+          'aspect-square rounded-lg bg-muted flex flex-col items-center justify-center gap-2',
           className
         )}
       >
-        <p className="text-sm text-muted-foreground">No image available</p>
+        <div className="h-12 w-12 rounded-full bg-muted-foreground/10 flex items-center justify-center">
+          <Maximize2 className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {imageError ? 'Failed to load image' : 'No image available'}
+        </p>
+        {image && imageError && (
+          <p className="text-xs text-muted-foreground/70 max-w-[200px] truncate">
+            {image.file_name}
+          </p>
+        )}
       </div>
     );
   }
@@ -153,6 +164,7 @@ export const ImageViewer = React.forwardRef<HTMLDivElement, ImageViewerProps>(
             maxWidth: isFullscreen ? '100vw' : '100%',
             maxHeight: isFullscreen ? '100vh' : '100%',
           }}
+          onError={() => setImageError(true)}
         />
       </div>
 
