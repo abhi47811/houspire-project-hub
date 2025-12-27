@@ -39,6 +39,24 @@ export interface LibraryImage {
   ranking_score: number;
 }
 
+export interface AutoCatalogResult {
+  project_id: string;
+  total_rooms: number;
+  cataloged: number;
+  featured: number;
+  standard: number;
+  learning: number;
+  skipped: number;
+  results: {
+    room_id: string;
+    cataloged: boolean;
+    reason?: string;
+    library_id?: string;
+    tier?: string;
+    message: string;
+  }[];
+}
+
 export const libraryService = {
   /**
    * Catalog a user-uploaded reference image to the library
@@ -81,6 +99,40 @@ export const libraryService = {
         reason: 'network_error',
         message: 'Network error. Using for this project only.'
       };
+    }
+  },
+
+  /**
+   * Auto-catalog all approved renders from a project after Phase 7 export
+   */
+  async autoCatalogProjectRenders(projectId: string): Promise<AutoCatalogResult | null> {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      console.error('Not authenticated for auto-catalog');
+      return null;
+    }
+
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/auto-catalog-renders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ projectId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Auto-catalog failed:', error);
+        return null;
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Auto-catalog error:', error);
+      return null;
     }
   },
 
