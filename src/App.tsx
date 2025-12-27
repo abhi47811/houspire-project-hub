@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
+import RoomDetail from "./pages/RoomDetail";
 import Team from "./pages/Team";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="/" element={<Dashboard />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/projects/:id" element={<ProjectDetail />} />
+              <Route path="/projects/:projectId/rooms/:roomId" element={<RoomDetail />} />
               <Route path="/team" element={<Team />} />
               <Route
                 path="/admin"
