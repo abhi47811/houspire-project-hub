@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { trackError } from '@/lib/error-tracking';
 
 interface Props {
   children: ReactNode;
@@ -29,6 +30,12 @@ export class ErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     this.setState({ errorInfo });
+    
+    // Track error with our error tracking service
+    trackError(error, {
+      component: 'ErrorBoundary',
+      metadata: { componentStack: errorInfo.componentStack },
+    });
   }
 
   private handleReset = () => {

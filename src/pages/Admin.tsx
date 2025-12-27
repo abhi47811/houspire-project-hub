@@ -1,10 +1,11 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LayoutDashboard, Users, Building2, IndianRupee, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, IndianRupee, BarChart3, Activity } from 'lucide-react';
 import { SystemDashboard } from '@/components/admin/SystemDashboard';
 import { UserManagement } from '@/components/admin/UserManagement';
 import { VendorManagement } from '@/components/admin/VendorManagement';
 import { PricingManagement } from '@/components/admin/PricingManagement';
 import { AnalyticsView } from '@/components/admin/AnalyticsView';
+import { MonitoringDashboard } from '@/components/admin/MonitoringDashboard';
 
 export default function Admin() {
   return (
@@ -36,6 +37,10 @@ export default function Admin() {
             <BarChart3 className="h-4 w-4" />
             Analytics
           </TabsTrigger>
+          <TabsTrigger value="monitoring" className="gap-2">
+            <Activity className="h-4 w-4" />
+            Monitoring
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard">
@@ -56,6 +61,10 @@ export default function Admin() {
 
         <TabsContent value="analytics">
           <AnalyticsView />
+        </TabsContent>
+
+        <TabsContent value="monitoring">
+          <MonitoringDashboard />
         </TabsContent>
       </Tabs>
     </div>
