@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_logs: {
+        Row: {
+          cost_usd: number
+          created_at: string
+          created_by: string | null
+          endpoint: string
+          error_message: string | null
+          id: string
+          input_tokens: number | null
+          latency_ms: number | null
+          metadata: Json | null
+          model: string | null
+          output_tokens: number | null
+          project_id: string | null
+          room_id: string | null
+          service: string
+          status: string
+        }
+        Insert: {
+          cost_usd?: number
+          created_at?: string
+          created_by?: string | null
+          endpoint: string
+          error_message?: string | null
+          id?: string
+          input_tokens?: number | null
+          latency_ms?: number | null
+          metadata?: Json | null
+          model?: string | null
+          output_tokens?: number | null
+          project_id?: string | null
+          room_id?: string | null
+          service: string
+          status?: string
+        }
+        Update: {
+          cost_usd?: number
+          created_at?: string
+          created_by?: string | null
+          endpoint?: string
+          error_message?: string | null
+          id?: string
+          input_tokens?: number | null
+          latency_ms?: number | null
+          metadata?: Json | null
+          model?: string | null
+          output_tokens?: number | null
+          project_id?: string | null
+          room_id?: string | null
+          service?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_logs_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_items: {
         Row: {
           amount: number | null
