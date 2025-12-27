@@ -148,6 +148,39 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          link: string | null
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message: string
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pricing_reference: {
         Row: {
           base_rate: number
@@ -646,9 +679,27 @@ export type Database = {
           total_count: number
         }[]
       }
+      copy_room_settings: {
+        Args: {
+          p_copy_requirements?: boolean
+          p_copy_style?: boolean
+          p_copy_vastu?: boolean
+          p_source_room_id: string
+          p_target_room_ids: string[]
+          p_user_id?: string
+        }
+        Returns: {
+          success_count: number
+          total_count: number
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      mark_notifications_read: {
+        Args: { p_notification_ids: string[] }
+        Returns: number
       }
     }
     Enums: {
