@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Home, Mail, Lock, User } from 'lucide-react';
+import { Loader2, Mail, Lock, User } from 'lucide-react';
 import { z } from 'zod';
+import logo from '@/assets/logo.png';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -108,11 +109,8 @@ export default function Login() {
     <div className="flex min-h-screen">
       {/* Left Panel - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-primary flex-col justify-between p-12">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-foreground/20">
-            <Home className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <span className="text-2xl font-bold text-primary-foreground">Houspire</span>
+        <div className="flex items-center">
+          <img src={logo} alt="Houspire" className="h-10 brightness-0 invert" />
         </div>
         
         <div className="space-y-6">
@@ -133,11 +131,8 @@ export default function Login() {
       <div className="flex w-full lg:w-1/2 items-center justify-center p-8 bg-background">
         <Card className="w-full max-w-md border-0 shadow-none lg:border lg:shadow-sm">
           <CardHeader className="space-y-1 text-center">
-            <div className="flex items-center justify-center gap-2 lg:hidden mb-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-                <Home className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <span className="text-2xl font-bold text-foreground">Houspire</span>
+            <div className="flex items-center justify-center lg:hidden mb-4">
+              <img src={logo} alt="Houspire" className="h-10" />
             </div>
             <CardTitle className="text-2xl font-bold">
               {isLogin ? 'Welcome back' : 'Create an account'}

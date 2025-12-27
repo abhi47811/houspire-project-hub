@@ -68,6 +68,11 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Brand colors
+        terracotta: "hsl(var(--terracotta))",
+        mocha: "hsl(var(--mocha))",
+        ivory: "hsl(var(--ivory))",
+        midnight: "hsl(var(--midnight))",
       },
       borderRadius: {
         lg: "var(--radius)",
