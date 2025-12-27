@@ -1457,6 +1457,20 @@ export type Database = {
         Args: { p_error_message: string; p_job_id: string }
         Returns: boolean
       }
+      find_library_duplicates: {
+        Args: {
+          p_design_style: string
+          p_image_url: string
+          p_perceptual_hash?: string
+          p_room_type: string
+        }
+        Returns: {
+          id: string
+          image_url: string
+          is_exact_match: boolean
+          perceptual_hash: string
+        }[]
+      }
       get_next_job: {
         Args: { p_project_id?: string }
         Returns: {
@@ -1490,6 +1504,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["user_role"]
       }
       heartbeat_session: { Args: { p_client_id: string }; Returns: boolean }
+      increment_library_views: { Args: { lib_id: string }; Returns: undefined }
       mark_notifications_read: {
         Args: { p_notification_ids: string[] }
         Returns: number
@@ -1525,6 +1540,17 @@ export type Database = {
           p_usage_id: string
         }
         Returns: undefined
+      }
+      track_library_selection: {
+        Args: {
+          p_library_image_id: string
+          p_project_id: string
+          p_room_id: string
+          p_smart_default_used?: Json
+          p_user_id: string
+          p_variation_used?: Json
+        }
+        Returns: string
       }
       update_library_approval_rate: {
         Args: { lib_id: string }

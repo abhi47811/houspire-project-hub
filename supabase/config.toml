@@ -14,3 +14,6 @@ verify_jwt = true
 
 [functions.process-room-phase]
 verify_jwt = true
+
+[functions.catalog-user-upload]
+verify_jwt = false
