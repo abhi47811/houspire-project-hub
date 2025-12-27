@@ -1,12 +1,6 @@
 import { useLocation, Link } from 'react-router-dom';
-import { Bell, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { ChevronRight } from 'lucide-react';
+import { NotificationCenter } from '@/components/dialogs';
 
 const routeNames: Record<string, string> = {
   '/': 'Dashboard',
@@ -59,25 +53,7 @@ export function AppHeader() {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <span className="font-semibold">Notifications</span>
-              <Button variant="ghost" size="sm" className="text-xs">
-                Mark all as read
-              </Button>
-            </div>
-            <div className="py-4 text-center text-sm text-muted-foreground">
-              No new notifications
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <NotificationCenter />
       </div>
     </header>
   );
