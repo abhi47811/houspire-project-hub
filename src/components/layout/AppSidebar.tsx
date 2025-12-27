@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import logo from '@/assets/logo.png';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
@@ -50,10 +51,7 @@ export function AppSidebar() {
     <aside className="flex h-screen w-[260px] flex-col border-r border-sidebar-border bg-sidebar">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-          <Home className="h-5 w-5 text-primary-foreground" />
-        </div>
-        <span className="text-xl font-bold text-sidebar-foreground">Houspire</span>
+        <img src={logo} alt="Houspire" className="h-8 w-auto" />
       </div>
 
       {/* Navigation */}
