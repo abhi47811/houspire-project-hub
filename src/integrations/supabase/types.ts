@@ -14,6 +14,120 @@ export type Database = {
   }
   public: {
     Tables: {
+      budget_items: {
+        Row: {
+          amount: number | null
+          assigned_vendor_id: string | null
+          category: string
+          created_at: string
+          gst_amount: number | null
+          gst_percent: number
+          id: string
+          item_name: string
+          project_id: string
+          quantity: number
+          rate: number
+          room_id: string | null
+          sort_order: number | null
+          specification: string | null
+          status: string
+          total: number | null
+          unit: string
+          updated_at: string
+          vendor_name: string | null
+        }
+        Insert: {
+          amount?: number | null
+          assigned_vendor_id?: string | null
+          category: string
+          created_at?: string
+          gst_amount?: number | null
+          gst_percent?: number
+          id?: string
+          item_name: string
+          project_id: string
+          quantity?: number
+          rate?: number
+          room_id?: string | null
+          sort_order?: number | null
+          specification?: string | null
+          status?: string
+          total?: number | null
+          unit?: string
+          updated_at?: string
+          vendor_name?: string | null
+        }
+        Update: {
+          amount?: number | null
+          assigned_vendor_id?: string | null
+          category?: string
+          created_at?: string
+          gst_amount?: number | null
+          gst_percent?: number
+          id?: string
+          item_name?: string
+          project_id?: string
+          quantity?: number
+          rate?: number
+          room_id?: string | null
+          sort_order?: number | null
+          specification?: string | null
+          status?: string
+          total?: number | null
+          unit?: string
+          updated_at?: string
+          vendor_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_items_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pricing_reference: {
+        Row: {
+          base_rate: number
+          category: string
+          city_multipliers: Json | null
+          created_at: string
+          id: string
+          item_name: string
+          specification: string | null
+          unit: string
+        }
+        Insert: {
+          base_rate: number
+          category: string
+          city_multipliers?: Json | null
+          created_at?: string
+          id?: string
+          item_name: string
+          specification?: string | null
+          unit?: string
+        }
+        Update: {
+          base_rate?: number
+          category?: string
+          city_multipliers?: Json | null
+          created_at?: string
+          id?: string
+          item_name?: string
+          specification?: string | null
+          unit?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

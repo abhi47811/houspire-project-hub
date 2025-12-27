@@ -321,10 +321,12 @@ export default function ProjectDetail() {
 
             {/* Right: Actions */}
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline">
-                <IndianRupee className="mr-2 h-4 w-4" />
-                View Budget
-              </Button>
+              <Link to={`/projects/${id}/budget`}>
+                <Button variant="outline">
+                  <IndianRupee className="mr-2 h-4 w-4" />
+                  View Budget
+                </Button>
+              </Link>
               <Button
                 onClick={() => updateProjectStatus.mutate('approved')}
                 disabled={project.status === 'approved' || project.status === 'completed'}
