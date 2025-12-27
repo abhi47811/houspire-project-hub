@@ -2,6 +2,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
+
 export interface CatalogRequest {
   imageUrl: string;
   projectId: string;
@@ -35,8 +39,15 @@ export interface LibraryImage {
   tier: 'featured' | 'standard' | 'learning' | 'unverified';
   approval_rate: number | null;
   times_selected: number;
+  times_viewed: number;
+  times_led_to_approval: number;
+  times_led_to_rejection: number;
+  initial_performance_known: boolean;
   tags: string[] | null;
   ranking_score: number;
+  color_palette: Record<string, string> | null;
+  created_at: string;
+  last_used_at: string | null;
 }
 
 export interface AutoCatalogResult {
@@ -57,7 +68,232 @@ export interface AutoCatalogResult {
   }[];
 }
 
+export interface RankingFactors {
+  source_bonus: number;        // 0-40 points
+  performance_score: number;   // 0-30 points
+  city_match_bonus: number;    // 0-20 points
+  freshness_bonus: number;     // 0-10 points
+  tier_bonus: number;          // 0-10 points
+  confidence_bonus: number;    // 0-5 points
+  total: number;               // 0-115 max
+}
+
+export interface RankingRequest {
+  roomType: string;
+  designStyle: string;
+  userCity: string;
+  limit?: number;
+  sourceType?: 'all' | 'user_upload' | 'houspire_generated';
+  minQuality?: number;
+}
+
+// ============================================================================
+// CITY SIMILARITY MAPPING
+// ============================================================================
+
+const SIMILAR_CITIES: Record<string, string[]> = {
+  'Mumbai': ['Pune', 'Thane', 'Navi Mumbai'],
+  'Delhi': ['Noida', 'Gurgaon', 'Ghaziabad', 'Faridabad'],
+  'Bangalore': ['Mysore', 'Mangalore'],
+  'Chennai': ['Coimbatore', 'Madurai'],
+  'Kolkata': ['Howrah'],
+  'Hyderabad': ['Secunderabad', 'Visakhapatnam'],
+  'Pune': ['Mumbai', 'Nashik'],
+  'Ahmedabad': ['Surat', 'Vadodara'],
+  'Jaipur': ['Jodhpur', 'Udaipur'],
+  'Lucknow': ['Kanpur', 'Agra'],
+  'Surat': ['Ahmedabad', 'Vadodara']
+};
+
+// ============================================================================
+// RANKING CALCULATION
+// ============================================================================
+
+function daysSince(dateString: string): number {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - date.getTime());
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Calculate ranking factors for a library image
+ * Total possible: 115 points (allows for tiebreakers beyond 100)
+ */
+export function calculateRankingFactors(
+  image: LibraryImage,
+  userCity: string
+): RankingFactors {
+  
+  const factors: RankingFactors = {
+    source_bonus: 0,
+    performance_score: 0,
+    city_match_bonus: 0,
+    freshness_bonus: 0,
+    tier_bonus: 0,
+    confidence_bonus: 0,
+    total: 0
+  };
+  
+  // FACTOR 1: SOURCE TYPE BONUS (0-40 points)
+  if (image.source_type === 'houspire_generated') {
+    factors.source_bonus = 20;
+    if (image.quality_score !== null) {
+      if (image.quality_score >= 95) factors.source_bonus += 20;
+      else if (image.quality_score >= 90) factors.source_bonus += 15;
+      else if (image.quality_score >= 85) factors.source_bonus += 10;
+    }
+  } else {
+    factors.source_bonus = 10;
+    if (image.approval_rate !== null && image.times_selected >= 5) {
+      if (image.approval_rate >= 0.9) factors.source_bonus += 25;
+      else if (image.approval_rate >= 0.8) factors.source_bonus += 15;
+      else if (image.approval_rate >= 0.7) factors.source_bonus += 5;
+    }
+  }
+  
+  // FACTOR 2: PERFORMANCE SCORE (0-30 points)
+  if (image.times_selected > 0 && image.approval_rate !== null) {
+    const baseScore = image.approval_rate * 30;
+    factors.performance_score = Math.round(baseScore);
+    
+    if (image.times_selected >= 20) {
+      // Very reliable, keep full score
+    } else if (image.times_selected >= 10) {
+      factors.performance_score *= 0.95;
+    } else if (image.times_selected >= 5) {
+      factors.performance_score *= 0.90;
+    } else {
+      factors.performance_score *= 0.85;
+    }
+    factors.performance_score = Math.round(factors.performance_score);
+  } else {
+    if (image.initial_performance_known) {
+      factors.performance_score = 20;
+    } else {
+      factors.performance_score = 15;
+    }
+  }
+  
+  // FACTOR 3: CITY MATCH BONUS (0-20 points)
+  if (image.city === userCity) {
+    factors.city_match_bonus = 20;
+  } else if (image.city && SIMILAR_CITIES[userCity]?.includes(image.city)) {
+    factors.city_match_bonus = 10;
+  }
+  
+  // FACTOR 4: FRESHNESS BONUS (0-10 points)
+  const ageInDays = daysSince(image.created_at);
+  if (ageInDays < 30) {
+    factors.freshness_bonus = 10;
+  } else if (ageInDays < 90) {
+    factors.freshness_bonus = 7;
+  } else if (ageInDays < 180) {
+    factors.freshness_bonus = 4;
+  } else if (ageInDays < 365) {
+    factors.freshness_bonus = 2;
+  }
+  
+  // FACTOR 5: TIER BONUS (0-10 points)
+  if (image.tier === 'featured') {
+    factors.tier_bonus = 10;
+  } else if (image.tier === 'standard') {
+    factors.tier_bonus = 6;
+  } else if (image.tier === 'unverified') {
+    factors.tier_bonus = 3;
+  }
+  
+  // FACTOR 6: CONFIDENCE BONUS (0-5 points)
+  if (image.times_selected >= 20) {
+    factors.confidence_bonus = 5;
+  } else if (image.times_selected >= 10) {
+    factors.confidence_bonus = 3;
+  } else if (image.times_selected >= 5) {
+    factors.confidence_bonus = 1;
+  }
+  
+  // CALCULATE TOTAL
+  factors.total = 
+    factors.source_bonus +
+    factors.performance_score +
+    factors.city_match_bonus +
+    factors.freshness_bonus +
+    factors.tier_bonus +
+    factors.confidence_bonus;
+  
+  return factors;
+}
+
+// ============================================================================
+// LIBRARY SERVICE
+// ============================================================================
+
 export const libraryService = {
+  /**
+   * Get ranked library images for user query with real-time scoring
+   */
+  async getRankedLibraryImages(request: RankingRequest): Promise<LibraryImage[]> {
+    try {
+      // Fetch candidate images from database
+      let query = supabase
+        .from('style_library')
+        .select('*')
+        .eq('room_type', request.roomType)
+        .eq('design_style', request.designStyle)
+        .eq('status', 'active')
+        .in('tier', ['featured', 'standard', 'unverified'])
+        .order('ranking_score', { ascending: false })
+        .limit((request.limit || 20) * 2); // Get more for re-ranking
+
+      if (request.sourceType && request.sourceType !== 'all') {
+        query = query.eq('source_type', request.sourceType);
+      }
+      
+      if (request.minQuality && request.minQuality > 0) {
+        query = query.gte('quality_score', request.minQuality);
+      }
+
+      const { data: images, error } = await query;
+
+      if (error || !images) {
+        console.error('Error fetching library images:', error);
+        return [];
+      }
+
+      // Calculate real-time ranking scores
+      const scoredImages = images.map(img => {
+        const typedImg = img as unknown as LibraryImage;
+        const factors = calculateRankingFactors(typedImg, request.userCity);
+        return {
+          ...typedImg,
+          ranking_score: factors.total,
+          _ranking_factors: factors
+        };
+      });
+
+      // Sort by calculated score
+      scoredImages.sort((a, b) => {
+        if (b.ranking_score !== a.ranking_score) {
+          return b.ranking_score - a.ranking_score;
+        }
+        const aApproval = a.approval_rate || 0;
+        const bApproval = b.approval_rate || 0;
+        if (bApproval !== aApproval) {
+          return bApproval - aApproval;
+        }
+        if (b.times_selected !== a.times_selected) {
+          return b.times_selected - a.times_selected;
+        }
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      return scoredImages.slice(0, request.limit || 20);
+    } catch (error) {
+      console.error('Error in getRankedLibraryImages:', error);
+      return [];
+    }
+  },
+
   /**
    * Catalog a user-uploaded reference image to the library
    */
@@ -151,6 +387,7 @@ export const libraryService = {
       .from('style_library')
       .select('*', { count: 'exact' })
       .eq('status', 'active')
+      .in('tier', ['featured', 'standard', 'unverified'])
       .order('ranking_score', { ascending: false });
 
     if (filters.roomType) {
@@ -162,8 +399,8 @@ export const libraryService = {
     if (filters.city) {
       query = query.eq('city', filters.city);
     }
-    if (filters.tier && ['featured', 'standard', 'learning', 'unverified'].includes(filters.tier)) {
-      query = query.eq('tier', filters.tier as 'featured' | 'standard' | 'learning' | 'unverified');
+    if (filters.tier && ['featured', 'standard', 'unverified'].includes(filters.tier)) {
+      query = query.eq('tier', filters.tier as 'featured' | 'standard' | 'unverified');
     }
 
     const limit = filters.limit || 20;
