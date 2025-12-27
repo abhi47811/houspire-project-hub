@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 interface Notification {
   id: string;
@@ -50,6 +51,7 @@ export function NotificationCenter() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
 
   const { data: notifications = [], isLoading } = useQuery({
@@ -67,8 +69,47 @@ export function NotificationCenter() {
       return data as Notification[];
     },
     enabled: !!user?.id,
-    refetchInterval: 30000, // Refetch every 30 seconds
   });
+
+  // Realtime subscription for new notifications
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('user-notifications-center')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newNotification = payload.new as Notification;
+          
+          // Update cache optimistically
+          queryClient.setQueryData<Notification[]>(
+            ['notifications', user.id],
+            (old) => [newNotification, ...(old || [])]
+          );
+
+          // Show toast for important notifications
+          if (newNotification.type === 'success' || newNotification.type === 'error') {
+            toast({
+              title: newNotification.title,
+              description: newNotification.message,
+              variant: newNotification.type === 'error' ? 'destructive' : 'default',
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient, toast]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 

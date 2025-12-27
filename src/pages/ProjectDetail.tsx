@@ -24,6 +24,8 @@ import {
 } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { useProjectApiCostBadge } from '@/hooks/useApiCost';
+import { useSessionTracking } from '@/hooks/useSessionTracking';
+import { useRealtimeSubscriptions } from '@/hooks/useRealtimeSubscriptions';
 import {
   ArrowLeft,
   MapPin,
@@ -133,6 +135,17 @@ export default function ProjectDetail() {
   
   // API Cost tracking
   const { formattedCost, callCount } = useProjectApiCostBadge(id || '');
+  
+  // Session tracking - track user viewing this project
+  useSessionTracking({ projectId: id });
+  
+  // Realtime subscriptions for live updates
+  useRealtimeSubscriptions({ 
+    projectId: id,
+    enableNotifications: true,
+    enableChangeEvents: true,
+    enableJobUpdates: true,
+  });
 
   // Fetch project
   const { data: project, isLoading: projectLoading } = useQuery({

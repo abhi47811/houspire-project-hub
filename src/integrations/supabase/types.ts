@@ -217,6 +217,63 @@ export type Database = {
           },
         ]
       }
+      change_events: {
+        Row: {
+          change_type: string
+          changed_by: string | null
+          changed_fields: Json | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          project_id: string | null
+          room_id: string | null
+        }
+        Insert: {
+          change_type: string
+          changed_by?: string | null
+          changed_fields?: Json | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          project_id?: string | null
+          room_id?: string | null
+        }
+        Update: {
+          change_type?: string
+          changed_by?: string | null
+          changed_fields?: Json | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          project_id?: string | null
+          room_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "change_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "change_events_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_queue: {
         Row: {
           completed_at: string | null
@@ -321,6 +378,51 @@ export type Database = {
           message?: string
           title?: string
           type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      optimistic_updates: {
+        Row: {
+          client_id: string
+          confirmed_at: string | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          error_message: string | null
+          expires_at: string
+          id: string
+          operation: string
+          optimistic_data: Json
+          status: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          confirmed_at?: string | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          error_message?: string | null
+          expires_at?: string
+          id?: string
+          operation: string
+          optimistic_data: Json
+          status?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          confirmed_at?: string | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          error_message?: string | null
+          expires_at?: string
+          id?: string
+          operation?: string
+          optimistic_data?: Json
+          status?: string
           user_id?: string
         }
         Relationships: []
@@ -711,6 +813,60 @@ export type Database = {
         }
         Relationships: []
       }
+      user_sessions: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          current_project_id: string | null
+          current_room_id: string | null
+          id: string
+          is_active: boolean
+          last_active_at: string
+          session_started_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          current_project_id?: string | null
+          current_room_id?: string | null
+          id?: string
+          is_active?: boolean
+          last_active_at?: string
+          session_started_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          current_project_id?: string | null
+          current_room_id?: string | null
+          id?: string
+          is_active?: boolean
+          last_active_at?: string
+          session_started_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_current_project_id_fkey"
+            columns: ["current_project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_sessions_current_room_id_fkey"
+            columns: ["current_room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_matches: {
         Row: {
           budget_item_id: string
@@ -871,6 +1027,7 @@ export type Database = {
         }[]
       }
       claim_job: { Args: { p_job_id: string }; Returns: boolean }
+      cleanup_old_events: { Args: never; Returns: number }
       complete_job: {
         Args: { p_job_id: string; p_result?: Json }
         Returns: boolean
@@ -889,6 +1046,17 @@ export type Database = {
           total_count: number
         }[]
       }
+      create_targeted_notification: {
+        Args: {
+          p_link?: string
+          p_message: string
+          p_target_user_id: string
+          p_title: string
+          p_type?: string
+        }
+        Returns: string
+      }
+      end_user_session: { Args: { p_client_id: string }; Returns: boolean }
       fail_job: {
         Args: { p_error_message: string; p_job_id: string }
         Returns: boolean
@@ -925,9 +1093,42 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      heartbeat_session: { Args: { p_client_id: string }; Returns: boolean }
       mark_notifications_read: {
         Args: { p_notification_ids: string[] }
         Returns: number
+      }
+      notify_project_stakeholders: {
+        Args: {
+          p_exclude_user_id?: string
+          p_link?: string
+          p_message: string
+          p_project_id: string
+          p_title: string
+          p_type?: string
+        }
+        Returns: number
+      }
+      record_change_event: {
+        Args: {
+          p_change_type?: string
+          p_changed_fields?: Json
+          p_entity_id: string
+          p_entity_type: string
+          p_new_values?: Json
+          p_old_values?: Json
+          p_project_id: string
+          p_room_id?: string
+        }
+        Returns: string
+      }
+      upsert_user_session: {
+        Args: {
+          p_client_id?: string
+          p_project_id?: string
+          p_room_id?: string
+        }
+        Returns: string
       }
     }
     Enums: {
