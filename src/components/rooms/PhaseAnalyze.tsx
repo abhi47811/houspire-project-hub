@@ -137,6 +137,36 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
     }
   }, [analysis]);
 
+  // Submit cleaning job helper
+  const submitCleaningJob = async () => {
+    try {
+      const { error } = await supabase.functions.invoke('process-room-phase', {
+        body: {
+          action: 'submit',
+          roomId: room.id,
+          projectId,
+          jobType: 'cleaning',
+          payload: { mask: 'full_image' }
+        }
+      });
+      if (error) {
+        console.error('Failed to submit cleaning job:', error);
+        toast({ 
+          title: 'Warning', 
+          description: 'Cleaning job submission failed. You can start it manually in Phase 3.',
+          variant: 'destructive'
+        });
+      } else {
+        toast({ 
+          title: 'Cleaning job submitted', 
+          description: 'AI cleaning will begin shortly...'
+        });
+      }
+    } catch (err) {
+      console.error('Error submitting cleaning job:', err);
+    }
+  };
+
   // Verify analysis mutation
   const verifyAnalysis = useMutation({
     mutationFn: async () => {
@@ -198,6 +228,9 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
         })
         .eq('id', room.id);
       if (roomError) throw roomError;
+
+      // Auto-submit cleaning job
+      await submitCleaningJob();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['room-analysis', room.id] });

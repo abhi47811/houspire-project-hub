@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2, ImageOff } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2, ImageOff, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { useJobQueue, useRoomJobStatus } from '@/hooks/useJobQueue';
+
 interface Room {
   id: string;
   current_phase: number;
@@ -48,9 +49,10 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   const [sliderValue, setSliderValue] = useState([50]);
   const [isApproving, setIsApproving] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Fetch original image
-  const { data: originalImage } = useQuery<RoomImageWithUrl | null>({
+  const { data: originalImage, refetch: refetchOriginal } = useQuery<RoomImageWithUrl | null>({
     queryKey: ['room-image', room.id, 'original'],
     queryFn: async (): Promise<RoomImageWithUrl | null> => {
       const { data } = await supabase
@@ -63,14 +65,7 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         .maybeSingle();
       
       if (data?.storage_path) {
-        const signedUrl = data.storage_path.startsWith('http')
-          ? data.storage_path
-          : (
-              await supabase.storage
-                .from('room-images')
-                .createSignedUrl(data.storage_path, 3600)
-            ).data?.signedUrl;
-
+        const signedUrl = await resolveImageUrl(data.storage_path);
         return {
           id: data.id,
           room_id: data.room_id,
@@ -85,7 +80,7 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   });
 
   // Fetch cleaned image
-  const { data: cleanedImage } = useQuery<RoomImageWithUrl | null>({
+  const { data: cleanedImage, refetch: refetchCleaned } = useQuery<RoomImageWithUrl | null>({
     queryKey: ['room-image', room.id, 'cleaned'],
     queryFn: async (): Promise<RoomImageWithUrl | null> => {
       const { data } = await supabase
@@ -98,14 +93,7 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         .maybeSingle();
       
       if (data?.storage_path) {
-        const signedUrl = data.storage_path.startsWith('http')
-          ? data.storage_path
-          : (
-              await supabase.storage
-                .from('room-images')
-                .createSignedUrl(data.storage_path, 3600)
-            ).data?.signedUrl;
-
+        const signedUrl = await resolveImageUrl(data.storage_path);
         return {
           id: data.id,
           room_id: data.room_id,
@@ -116,16 +104,46 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         };
       }
       return null;
+    },
+    // Refetch more frequently when processing
+    refetchInterval: (query) => {
+      // Only poll when we're expecting a result
+      if (!cleanedImage && !room.phase_3_completed) {
+        return 5000; // Poll every 5 seconds
+      }
+      return false;
     }
   });
 
+  // Helper to resolve image URLs (handles both full URLs and storage paths)
+  async function resolveImageUrl(storagePath: string): Promise<string | undefined> {
+    // If already a full URL, return as-is
+    if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
+      return storagePath;
+    }
+    // Otherwise, create a signed URL from storage
+    const { data } = await supabase.storage
+      .from('room-images')
+      .createSignedUrl(storagePath, 3600);
+    return data?.signedUrl;
+  }
+
   // Use job queue hooks
-  const { submitJob, retryJob, cancelJob } = useJobQueue({ roomId: room.id, projectId });
+  const { submitJob, retryJob, cancelJob, refetch: refetchJobs } = useJobQueue({ roomId: room.id, projectId });
   const { job, isProcessing, hasCompleted, hasFailed, errorMessage } = useRoomJobStatus(room.id, 'cleaning');
 
-  // Determine status based on room state and job status
+  // Determine status - PRIORITIZE room.phase_3_completed and cleanedImage existence
   const getCleaningStatus = (): CleaningStatus => {
-    if (room.phase_3_completed || hasCompleted) return 'completed';
+    // Priority 1: If phase is completed and we have a cleaned image, it's done
+    if (room.phase_3_completed && cleanedImage?.signedUrl) {
+      return 'completed';
+    }
+    // Priority 2: If we have a cleaned image (even if job status is stale), it's done
+    if (cleanedImage?.signedUrl) {
+      return 'completed';
+    }
+    // Priority 3: Check job status
+    if (hasCompleted) return 'completed';
     if (job?.status === 'cancelled') return 'pending';
     if (isProcessing) return 'processing';
     if (hasFailed || room.retry_count > 2) return 'failed';
@@ -133,6 +151,32 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   };
   
   const cleaningStatus = getCleaningStatus();
+
+  // Auto-refresh cleaned image when job completes
+  useEffect(() => {
+    if (hasCompleted && !cleanedImage) {
+      // Job completed but we don't have the cleaned image yet - refetch
+      refetchCleaned();
+    }
+  }, [hasCompleted, cleanedImage, refetchCleaned]);
+
+  // Refresh all data
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refetchOriginal(),
+        refetchCleaned(),
+        refetchJobs(),
+        queryClient.invalidateQueries({ queryKey: ['room', room.id] }),
+      ]);
+      toast({ title: 'Refreshed', description: 'Status updated.' });
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to refresh.', variant: 'destructive' });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Start cleaning job
   const handleStartCleaning = () => {
@@ -143,6 +187,7 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
       payload: { mask: 'full_image' }
     });
   };
+
   const qualityScore = 94;
   const processingTime = '2m 34s';
 
@@ -191,7 +236,6 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   };
 
   const handleRetry = async () => {
-    // If there's a failed/errored job, retry it via backend; otherwise submit a fresh job.
     setIsRetrying(true);
     try {
       if (hasFailed && job?.id) {
@@ -268,12 +312,29 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h3 className="text-lg font-semibold">Phase 3: Clean & Prepare</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          AI-powered furniture removal and image cleanup
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Phase 3: Clean & Prepare</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            AI-powered furniture removal and image cleanup
+          </p>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+        >
+          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+        </Button>
       </div>
+
+      {/* Debug Info */}
+      {job && (
+        <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+          Job ID: {job.id.slice(0, 8)}... | Status: {job.status} | Room Phase: {room.current_phase} | Phase 3 Done: {room.phase_3_completed ? 'Yes' : 'No'}
+        </div>
+      )}
 
       {/* Image Comparison Slider */}
       <div className="space-y-3">
