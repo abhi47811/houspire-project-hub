@@ -68,6 +68,36 @@ export interface AutoCatalogResult {
   }[];
 }
 
+export interface TierResult {
+  previousTier: string;
+  newTier: string;
+  promoted: boolean;
+  archived: boolean;
+  message: string;
+}
+
+export interface TrackOutcomeParams {
+  projectId: string;
+  roomId: string;
+  libraryImageId: string;
+  approved: boolean;
+  qualityScore?: number;
+  refinementsCount?: number;
+}
+
+export interface TrackOutcomeResult {
+  success: boolean;
+  usageId?: string;
+  tierResult?: TierResult;
+  libraryStats?: {
+    approval_rate: number;
+    times_selected: number;
+    times_led_to_approval: number;
+    times_led_to_rejection: number;
+  };
+  error?: string;
+}
+
 export interface RankingFactors {
   source_bonus: number;        // 0-40 points
   performance_score: number;   // 0-30 points
@@ -568,5 +598,146 @@ export const libraryService = {
     }
 
     return (data || []) as unknown as LibraryImage[];
+  },
+
+  /**
+   * Track render outcome - records approval/rejection and handles tier promotions
+   * This is the main entry point for Phase 5 render outcomes
+   */
+  async trackRenderOutcome(params: TrackOutcomeParams): Promise<TrackOutcomeResult> {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      return {
+        success: false,
+        error: 'Not authenticated'
+      };
+    }
+
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/track-render-outcome`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return {
+          success: false,
+          error: error.error || 'Failed to track outcome'
+        };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Track outcome error:', error);
+      return {
+        success: false,
+        error: 'Network error tracking outcome'
+      };
+    }
+  },
+
+  /**
+   * Check tier status for a library image
+   */
+  async checkTierStatus(libraryImageId: string): Promise<TierResult | null> {
+    const { data, error } = await supabase.rpc('auto_promote_tier', {
+      lib_id: libraryImageId
+    });
+
+    if (error) {
+      console.error('Check tier status error:', error);
+      return null;
+    }
+
+    // Fetch current state to compare
+    const { data: img } = await supabase
+      .from('style_library')
+      .select('tier')
+      .eq('id', libraryImageId)
+      .single();
+
+    return {
+      previousTier: img?.tier || 'unverified',
+      newTier: data || img?.tier || 'unverified',
+      promoted: false,
+      archived: false,
+      message: ''
+    };
+  },
+
+  /**
+   * Batch track outcomes for all approved rooms in a project
+   * Used in Phase 7 export to record all outcomes at once
+   */
+  async trackProjectOutcomes(projectId: string): Promise<{
+    tracked: number;
+    promoted: number;
+    archived: number;
+    errors: string[];
+  }> {
+    const results = {
+      tracked: 0,
+      promoted: 0,
+      archived: 0,
+      errors: [] as string[]
+    };
+
+    try {
+      // Get all rooms with their library usage
+      const { data: usages, error } = await supabase
+        .from('library_usage')
+        .select(`
+          id,
+          library_image_id,
+          room_id,
+          render_completed,
+          rooms!inner (
+            id,
+            phase_5_completed,
+            final_quality_score
+          )
+        `)
+        .eq('project_id', projectId)
+        .is('outcome_recorded_at', null);
+
+      if (error) {
+        results.errors.push(`Failed to fetch usages: ${error.message}`);
+        return results;
+      }
+
+      // Process each usage
+      for (const usage of usages || []) {
+        const room = usage.rooms as any;
+        if (!room || !room.phase_5_completed) continue;
+
+        const outcome = await this.trackRenderOutcome({
+          projectId,
+          roomId: usage.room_id,
+          libraryImageId: usage.library_image_id,
+          approved: true, // Phase 7 export means approved
+          qualityScore: room.final_quality_score
+        });
+
+        if (outcome.success) {
+          results.tracked++;
+          if (outcome.tierResult?.promoted) results.promoted++;
+          if (outcome.tierResult?.archived) results.archived++;
+        } else {
+          results.errors.push(outcome.error || 'Unknown error');
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error('Track project outcomes error:', error);
+      results.errors.push('Failed to track project outcomes');
+      return results;
+    }
   }
 };
