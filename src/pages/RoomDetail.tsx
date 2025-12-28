@@ -108,9 +108,9 @@ const resolveImageUrl = (path: string): string => {
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }
-  // Otherwise, generate Supabase storage URL
+  // Otherwise, generate Supabase storage URL with bucket name
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  return `${supabaseUrl}/storage/v1/object/public/${path}`;
+  return `${supabaseUrl}/storage/v1/object/public/room-images/${path}`;
 };
 
 export default function RoomDetail() {
