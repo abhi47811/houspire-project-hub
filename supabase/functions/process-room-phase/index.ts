@@ -162,65 +162,68 @@ async function resolveRoomImageUrl(supabase: any, storagePath: string): Promise<
   return data?.signedUrl || "";
 }
 
-// Call Replicate for room cleaning using LaMa Cleaner (latest)
+// Clean room using Gemini 3 image model (remove furniture)
 async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
-  if (!REPLICATE_API_KEY) {
-    throw new Error("REPLICATE_API_KEY not configured");
-  }
-
   const startTime = Date.now();
+  
+  console.log('cleanRoom called with Gemini 3 Pro Image...');
+  
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-3-pro-image-preview",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Remove ALL furniture, objects, decorations, and personal items from this room. 
+              
+CRITICAL REQUIREMENTS:
+1. PRESERVE all architectural elements EXACTLY: walls, floor, ceiling, windows, doors, moldings, outlets
+2. Remove: sofas, chairs, tables, beds, lamps, rugs, curtains, plants, artwork, electronics, shelves
+3. The result should be a COMPLETELY EMPTY room showing only the bare architectural shell
+4. Maintain the same lighting, perspective, and image quality
+5. Fill removed areas with appropriate wall/floor textures matching the existing surfaces
 
-  const input = {
-    image: imageUrl,
-    mask: mask === "full_image" ? imageUrl : mask,
-  };
-
-  // Use the verified working model with explicit version
-  const response = await fetch(
-    "https://api.replicate.com/v1/predictions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Token ${REPLICATE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ 
-        version: "cdac78a1bec5b23c07fd29692fb70baa513ea403a39e643c48ec5edadb15fe72",
-        input 
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Replicate error: ${await response.text()}`);
-  }
-
-  const prediction = await response.json();
-
-  // Poll for completion
-  let result = prediction;
-  while (result.status !== "succeeded" && result.status !== "failed") {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    const pollResponse = await fetch(
-      `https://api.replicate.com/v1/predictions/${result.id}`,
-      {
-        headers: { Authorization: `Token ${REPLICATE_API_KEY}` },
-      }
-    );
-    result = await pollResponse.json();
-  }
+Output a clean, empty room ready for new interior design.`
+            },
+            { type: "image_url", image_url: { url: imageUrl } }
+          ]
+        }
+      ],
+      modalities: ["image", "text"]
+    }),
+  });
 
   const latency = Date.now() - startTime;
 
-  if (result.status === "failed") {
-    throw new Error(result.error || "Cleaning failed");
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('Gemini 3 cleaning error:', error);
+    throw new Error(`Cleaning AI error: ${error}`);
   }
 
-  const output = Array.isArray(result.output) ? result.output[0] : result.output;
+  const data = await response.json();
+  console.log('Gemini 3 cleaning response received, checking for images...');
+  
+  const imageDataUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+  
+  if (!imageDataUrl) {
+    console.error('No cleaned image in response:', JSON.stringify(data).slice(0, 500));
+    throw new Error("No cleaned image generated - AI response did not contain an image");
+  }
+
+  console.log('Cleaned image generated successfully, length:', imageDataUrl.length);
 
   return {
-    result: { output },
-    usage: { costUsd: 0.05 },
+    result: { output: imageDataUrl, isBase64: true },
+    usage: { costUsd: 0.03 },
     latency,
   };
 }
@@ -229,7 +232,8 @@ async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
 async function generateRender(cleanedImageUrl: string, prompt: string): Promise<any> {
   const startTime = Date.now();
   
-  console.log('generateRender called with prompt:', prompt?.slice(0, 100));
+  console.log('generateRender called with Gemini 3 Pro Image...');
+  console.log('prompt:', prompt?.slice(0, 100));
   console.log('cleanedImageUrl:', cleanedImageUrl?.slice(0, 100));
   
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -239,7 +243,7 @@ async function generateRender(cleanedImageUrl: string, prompt: string): Promise<
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image",
+      model: "google/gemini-3-pro-image-preview",
       messages: [
         {
           role: "user",
@@ -285,9 +289,60 @@ Requirements:
 
   return {
     result: { imageUrl },
-    usage: { costUsd: 0.02 },
+    usage: { costUsd: 0.04 },
     latency,
   };
+}
+
+// Helper to complete a job with fallback
+async function completeJobWithFallback(supabase: any, jobId: string, result: any): Promise<void> {
+  try {
+    await supabase.rpc("complete_job", { p_job_id: jobId, p_result: result });
+    console.log(`Job ${jobId} completed via RPC`);
+  } catch (rpcError) {
+    console.warn('RPC complete_job failed, using direct update:', rpcError);
+    // Fallback: direct update
+    const { error } = await supabase
+      .from("job_queue")
+      .update({ 
+        status: 'completed', 
+        completed_at: new Date().toISOString(),
+        result: result,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", jobId);
+    
+    if (error) {
+      console.error('Direct update also failed:', error);
+      throw error;
+    }
+    console.log(`Job ${jobId} completed via direct update`);
+  }
+}
+
+// Helper to fail a job with fallback
+async function failJobWithFallback(supabase: any, jobId: string, errorMessage: string): Promise<void> {
+  try {
+    await supabase.rpc("fail_job", { p_job_id: jobId, p_error_message: errorMessage });
+    console.log(`Job ${jobId} failed via RPC`);
+  } catch (rpcError) {
+    console.warn('RPC fail_job failed, using direct update:', rpcError);
+    // Fallback: direct update
+    const { error } = await supabase
+      .from("job_queue")
+      .update({ 
+        status: 'failed', 
+        error_message: errorMessage,
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", jobId);
+    
+    if (error) {
+      console.error('Direct update also failed:', error);
+    }
+    console.log(`Job ${jobId} failed via direct update`);
+  }
 }
 
 // Process a single job
@@ -402,9 +457,18 @@ async function processJob(supabase: any, job: any): Promise<void> {
         // Save cleaned image
         const cleanedImagePath = `${job.project_id}/${job.room_id}/cleaned_${Date.now()}.png`;
         
-        // Download and upload the cleaned image
-        const imageResponse = await fetch(cleanResult.result.output);
-        const imageBlob = await imageResponse.blob();
+        // Handle base64 or URL response
+        let imageBlob: Blob;
+        if (cleanResult.result.isBase64) {
+          // Extract base64 data and convert to blob
+          const base64Data = cleanResult.result.output.split(",")[1] || cleanResult.result.output;
+          const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+          imageBlob = new Blob([binaryData], { type: "image/png" });
+        } else {
+          // Download from URL
+          const imageResponse = await fetch(cleanResult.result.output);
+          imageBlob = await imageResponse.blob();
+        }
         
         await supabase.storage
           .from("room-images")
@@ -429,8 +493,9 @@ async function processJob(supabase: any, job: any): Promise<void> {
         await logApiCall(supabase, {
           projectId: job.project_id,
           roomId: job.room_id,
-          service: "replicate",
-          endpoint: "lama-cleaner",
+          service: "lovable-ai",
+          endpoint: "cleanRoom",
+          model: "gemini-3-pro-image-preview",
           costUsd: cleanResult.usage.costUsd,
           latencyMs: cleanResult.latency,
           status: "success",
@@ -492,7 +557,7 @@ async function processJob(supabase: any, job: any): Promise<void> {
           roomId: job.room_id,
           service: "lovable-ai",
           endpoint: "generateRender",
-          model: "gemini-2.5-flash-image-preview",
+          model: "gemini-3-pro-image-preview",
           costUsd: genResult.usage.costUsd,
           latencyMs: genResult.latency,
           status: "success",
@@ -506,8 +571,8 @@ async function processJob(supabase: any, job: any): Promise<void> {
         throw new Error(`Unknown job type: ${job.job_type}`);
     }
 
-    // Complete the job
-    await supabase.rpc("complete_job", { p_job_id: job.id, p_result: result });
+    // Complete the job with fallback
+    await completeJobWithFallback(supabase, job.id, result);
 
     // Send success notification
     if (userId) {
@@ -524,11 +589,8 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
-    // Fail the job (will retry if under max_retries)
-    await supabase.rpc("fail_job", { 
-      p_job_id: job.id, 
-      p_error_message: errorMessage 
-    });
+    // Fail the job with fallback
+    await failJobWithFallback(supabase, job.id, errorMessage);
 
     // Log error
     await logApiCall(supabase, {

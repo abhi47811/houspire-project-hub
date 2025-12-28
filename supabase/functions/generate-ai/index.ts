@@ -32,7 +32,7 @@ async function logApiCall(supabase: any, data: any) {
   }
 }
 
-// Lovable AI image generation helper
+// Lovable AI image generation helper - using Gemini 3 Pro Image
 async function callLovableAI(
   cleanedImageUrl: string,
   prompt: string
@@ -43,7 +43,7 @@ async function callLovableAI(
     throw new Error("LOVABLE_API_KEY not configured");
   }
 
-  console.log("Attempting generation with Lovable AI...");
+  console.log("Attempting generation with Lovable AI (Gemini 3 Pro Image)...");
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -52,7 +52,7 @@ async function callLovableAI(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image",
+      model: "google/gemini-3-pro-image-preview",
       messages: [
         {
           role: "user",
@@ -92,11 +92,11 @@ The result must be photorealistic, professionally lit, and suitable for publicat
   }
 
   const latency = Date.now() - startTime;
-  console.log(`✅ Lovable AI succeeded in ${latency}ms`);
+  console.log(`✅ Lovable AI (Gemini 3) succeeded in ${latency}ms`);
 
   return {
     imageUrl: images[0].image_url.url,
-    model: "google/gemini-2.5-flash-image",
+    model: "google/gemini-3-pro-image-preview",
     latency,
   };
 }
@@ -327,8 +327,8 @@ serve(async (req) => {
           throw new Error("LOVABLE_API_KEY required for seed generation");
         }
 
-        const seedModel = "google/gemini-2.5-flash-image";
-        const seedCostPerCall = 0.02;
+        const seedModel = "google/gemini-3-pro-image-preview";
+        const seedCostPerCall = 0.04;
 
         const seedResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
