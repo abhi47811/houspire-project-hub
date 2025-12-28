@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Palette, Copy, Save, Sparkles, Check, ChevronDown, Compass } from 'lucide-react';
+import { Palette, Copy, Save, Sparkles, Check, ChevronDown, Compass, Library, Upload, ArrowLeft, MapPin, Star, Clock, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Accordion,
   AccordionContent,
@@ -16,6 +17,11 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
+import { LibraryBrowser } from '@/components/library/LibraryBrowser';
+import { UploadPermissionPrompt } from '@/components/library/UploadPermissionPrompt';
+import { libraryService, LibraryImage } from '@/services/api/libraryService';
+import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 
 interface Room {
   id: string;
@@ -30,6 +36,8 @@ interface PhaseCustomizeProps {
   room: Room;
   projectId: string;
 }
+
+type Mode = 'choose' | 'library' | 'upload' | 'confirmation' | 'customize';
 
 interface DesignStyle {
   id: string;
@@ -102,6 +110,14 @@ const vastuPreferences: VastuPreference[] = [
 
 export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [mode, setMode] = useState<Mode>('choose');
+  const [selectedLibraryImage, setSelectedLibraryImage] = useState<LibraryImage | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const [uploadAnalysis, setUploadAnalysis] = useState<{ room_type: string; design_style: string; confidence: number } | null>(null);
+  const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
+  
+  // Customize mode states (for upload path)
   const [selectedStyle, setSelectedStyle] = useState<string>(room.selected_style || '');
   const [falseCeilingDrop, setFalseCeilingDrop] = useState([8]);
   const [selectedVastu, setSelectedVastu] = useState<string[]>([]);
@@ -110,16 +126,109 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   const [isGeneratingMoodboard, setIsGeneratingMoodboard] = useState(false);
   const [moodboardImages, setMoodboardImages] = useState<string[]>([]);
 
+  // Fetch project for city
+  const { data: project } = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('city')
+        .eq('id', projectId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const userCity = project?.city || 'Mumbai';
+  const roomType = room.room_type || 'living_room';
+
   // Fetch smart defaults based on room type and style
   const { data: smartDefaults } = useQuery({
     queryKey: ['smart-defaults', room.room_type, selectedStyle],
     queryFn: async () => {
       if (!selectedStyle) return null;
-      // In a real app, this would fetch from supabase smart_defaults table
       return mockSmartDefaults[selectedStyle] || mockSmartDefaults.contemporary;
     },
     enabled: !!selectedStyle,
   });
+
+  // Handle library image selection
+  const handleLibrarySelect = async (image: LibraryImage) => {
+    setSelectedLibraryImage(image);
+    
+    // Track selection
+    if (user?.id) {
+      await libraryService.trackSelection(image.id, projectId, room.id);
+    }
+    
+    setMode('confirmation');
+  };
+
+  // Handle library confirmation - skip to Phase 5
+  const handleLibraryConfirm = async () => {
+    if (!selectedLibraryImage) return;
+    
+    setIsApplying(true);
+    try {
+      const { error } = await supabase
+        .from('rooms')
+        .update({
+          selected_style: selectedLibraryImage.design_style,
+          phase_4_completed: true,
+          current_phase: Math.max(room.current_phase, 5),
+        })
+        .eq('id', room.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Library Reference Applied',
+        description: 'Smart defaults applied. Moving to Phase 5.',
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['room', room.id] });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to apply library reference.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  // Handle upload analysis complete
+  const handleUploadAnalysis = (analysis: { room_type: string; design_style: string; confidence: number }, imageUrl: string) => {
+    setUploadAnalysis(analysis);
+    setUploadedImageUrl(imageUrl);
+    setSelectedStyle(analysis.design_style);
+    setShowPermissionPrompt(true);
+  };
+
+  // Handle permission decision
+  const handlePermissionDecision = async (share: boolean) => {
+    setShowPermissionPrompt(false);
+    
+    if (share && uploadedImageUrl && uploadAnalysis) {
+      // Catalog to library
+      await libraryService.catalogUserUpload({
+        imageUrl: uploadedImageUrl,
+        roomType: uploadAnalysis.room_type,
+        designStyle: uploadAnalysis.design_style,
+        analysisData: uploadAnalysis,
+      });
+      
+      toast({
+        title: 'Thank you for sharing!',
+        description: 'Your reference will help other designers.',
+      });
+    }
+    
+    // Continue to customize mode
+    setMode('customize');
+  };
 
   const handleApplyAndContinue = async () => {
     if (!selectedStyle) {
@@ -163,7 +272,6 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
 
   const handleGenerateMoodboard = () => {
     setIsGeneratingMoodboard(true);
-    // Mock moodboard generation
     setTimeout(() => {
       setMoodboardImages([
         `https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=300&h=200&fit=crop`,
@@ -178,30 +286,332 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
     }, 1500);
   };
 
-  const handleCopyFromRoom = () => {
-    toast({
-      title: 'Copy Settings',
-      description: 'Select a room to copy settings from.',
-    });
-  };
-
-  const handleSaveAsTemplate = () => {
-    toast({
-      title: 'Template Saved',
-      description: 'Current settings saved as a reusable template.',
-    });
-  };
-
   const selectedStyleData = designStyles.find(s => s.id === selectedStyle);
 
+  // ============================================================================
+  // RENDER: CHOICE SCREEN (DEFAULT)
+  // ============================================================================
+  if (mode === 'choose') {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-semibold">Phase 4: Style Reference</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            {roomType.replace('_', ' ')} • {userCity}
+          </p>
+        </div>
+
+        <h4 className="text-xl font-bold text-center">Choose your style reference</h4>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {/* Library Button - 60% */}
+          <Card 
+            className="md:col-span-3 cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0"
+            onClick={() => setMode('library')}
+          >
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="text-4xl">📚</div>
+                <Badge className="bg-yellow-500 text-yellow-950 font-bold">
+                  ⭐ RECOMMENDED
+                </Badge>
+              </div>
+              
+              <div>
+                <h3 className="text-2xl font-bold">BROWSE LIBRARY →</h3>
+                <p className="text-primary-foreground/80 mt-1">Pre-tested proven references</p>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  <span className="font-medium">547 PROVEN REFERENCES</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>87% avg approval rate</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  <span>City-matched for {userCity}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check className="h-4 w-4" />
+                  <span>Skip customization</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  <span>Faster results (~3 min)</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Upload Button - 40% */}
+          <Card 
+            className="md:col-span-2 cursor-pointer transition-all hover:shadow-lg hover:bg-muted/50 border-2 border-dashed"
+            onClick={() => setMode('upload')}
+          >
+            <CardContent className="p-6 space-y-4">
+              <div className="text-4xl">🆕</div>
+              
+              <div>
+                <h3 className="text-xl font-bold">UPLOAD OWN</h3>
+                <p className="text-muted-foreground mt-1">Pinterest or your own image</p>
+              </div>
+
+              <div className="space-y-2 pt-2 text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <span className="text-yellow-500">⚠️</span>
+                  <span>Unverified quality</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  <span>Takes longer (~4 min)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span>📊</span>
+                  <span>78% avg approval</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Tip Box */}
+        <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 flex items-start gap-3">
+          <span className="text-2xl">💡</span>
+          <div>
+            <p className="font-medium text-foreground">Library references are pre-tested and proven to work.</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Using library saves ~15 minutes per room and increases success rate by 9%!
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // RENDER: LIBRARY BROWSE
+  // ============================================================================
+  if (mode === 'library') {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setMode('choose')}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          <h3 className="text-lg font-semibold">Browse Library</h3>
+        </div>
+
+        <LibraryBrowser
+          roomType={roomType}
+          designStyle={selectedStyle || 'contemporary'}
+          userCity={userCity}
+          onSelect={handleLibrarySelect}
+          onUploadNew={() => setMode('upload')}
+        />
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // RENDER: CONFIRMATION (after library selection)
+  // ============================================================================
+  if (mode === 'confirmation' && selectedLibraryImage) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setMode('library')}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          <h3 className="text-lg font-semibold">Confirm Selection</h3>
+        </div>
+
+        <div className="flex items-center gap-2 text-green-600">
+          <CheckCircle2 className="h-6 w-6" />
+          <span className="text-lg font-semibold">Reference Selected</span>
+        </div>
+
+        <Card className="overflow-hidden">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="aspect-video">
+              <img
+                src={selectedLibraryImage.thumbnail_url || selectedLibraryImage.image_url}
+                alt="Selected reference"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            
+            <CardContent className="p-4 space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {selectedLibraryImage.tier === 'featured' && (
+                  <Badge className="bg-yellow-500 text-yellow-950 gap-1">
+                    <Star className="h-3 w-3 fill-current" />
+                    Featured Tier
+                  </Badge>
+                )}
+                {selectedLibraryImage.source_type === 'houspire_generated' && (
+                  <Badge className="bg-primary text-primary-foreground gap-1">
+                    <Sparkles className="h-3 w-3" />
+                    Houspire Render
+                  </Badge>
+                )}
+                {selectedLibraryImage.approval_rate && (
+                  <Badge variant="outline" className="text-green-600 border-green-600 gap-1">
+                    🟢 {Math.round(selectedLibraryImage.approval_rate * 100)}% success rate
+                  </Badge>
+                )}
+                {selectedLibraryImage.city === userCity && (
+                  <Badge variant="outline" className="gap-1">
+                    <MapPin className="h-3 w-3" />
+                    Matched to {userCity}
+                  </Badge>
+                )}
+              </div>
+
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  {roomType.replace('_', ' ')} • {selectedLibraryImage.design_style.replace('_', ' ')}
+                </p>
+              </div>
+            </CardContent>
+          </div>
+        </Card>
+
+        {/* Good News Box */}
+        <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">✨</span>
+            <div>
+              <h4 className="font-bold text-green-800 dark:text-green-300">GOOD NEWS!</h4>
+              <p className="text-green-700 dark:text-green-400 text-sm mt-1">
+                This reference has proven smart defaults. You can skip the customization step and go directly to Generate!
+              </p>
+              <ul className="text-sm text-green-700 dark:text-green-400 mt-2 space-y-1">
+                <li>✓ Pre-configured furniture suggestions</li>
+                <li>✓ Optimized color palette</li>
+                <li>✓ Tested lighting setup</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setMode('customize');
+              setSelectedStyle(selectedLibraryImage.design_style);
+            }}
+          >
+            Customize Anyway
+          </Button>
+          <Button
+            className="flex-1"
+            onClick={handleLibraryConfirm}
+            disabled={isApplying}
+          >
+            {isApplying ? 'Applying...' : 'Continue to Generate →'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // RENDER: UPLOAD PATH
+  // ============================================================================
+  if (mode === 'upload') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setMode('choose')}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          <h3 className="text-lg font-semibold">Upload Reference Image</h3>
+        </div>
+
+        {/* Reminder to use library */}
+        <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 flex items-start gap-3">
+          <span className="text-2xl">💡</span>
+          <div>
+            <p className="font-medium text-foreground">
+              Library references are pre-tested and proven to work.
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Using library saves ~15 minutes per room and increases success rate by 9%!
+            </p>
+            <Button
+              variant="link"
+              className="px-0 mt-2 h-auto"
+              onClick={() => setMode('library')}
+            >
+              Browse Library Instead →
+            </Button>
+          </div>
+        </div>
+
+        {/* Upload placeholder - in real app this would be ImageUpload component */}
+        <Card className="border-dashed">
+          <CardContent className="py-12 text-center">
+            <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h4 className="font-medium mb-2">Upload your reference image</h4>
+            <p className="text-sm text-muted-foreground mb-4">
+              PNG, JPG, or WebP up to 10MB
+            </p>
+            <Button
+              onClick={() => {
+                // Simulate upload and analysis
+                handleUploadAnalysis(
+                  { room_type: roomType, design_style: 'contemporary', confidence: 0.85 },
+                  'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=800'
+                );
+              }}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Select File
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Permission Prompt */}
+        <UploadPermissionPrompt
+          open={showPermissionPrompt}
+          imageUrl={uploadedImageUrl || undefined}
+          analysis={uploadAnalysis ? {
+            roomType: uploadAnalysis.room_type,
+            designStyle: uploadAnalysis.design_style,
+            confidence: uploadAnalysis.confidence
+          } : undefined}
+          onDecision={handlePermissionDecision}
+        />
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // RENDER: CUSTOMIZE (for upload path or when user wants to customize library)
+  // ============================================================================
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h3 className="text-lg font-semibold">Phase 4: Customize</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          Select design style and customize parameters
-        </p>
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={() => setMode('choose')}>
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back
+        </Button>
+        <div>
+          <h3 className="text-lg font-semibold">Phase 4: Customize</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Select design style and customize parameters
+          </p>
+        </div>
       </div>
 
       {/* Design Style Selection */}
@@ -212,11 +622,12 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
             {designStyles.map((style) => (
               <label
                 key={style.id}
-                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50 ${
+                className={cn(
+                  "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50",
                   selectedStyle === style.id 
                     ? 'border-primary bg-primary/5 ring-1 ring-primary/20' 
                     : 'bg-card'
-                }`}
+                )}
               >
                 <RadioGroupItem value={style.id} className="mt-1" />
                 <div className="flex-1 min-w-0">
@@ -426,17 +837,35 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
           onClick={handleApplyAndContinue}
           disabled={!selectedStyle || isApplying || room.phase_4_completed}
         >
-          <Check className="mr-2 h-4 w-4" />
-          {room.phase_4_completed ? 'Already Applied' : 'Apply & Continue'}
+          {room.phase_4_completed ? (
+            <>
+              <Check className="mr-2 h-4 w-4" />
+              Customization Complete
+            </>
+          ) : isApplying ? (
+            'Applying...'
+          ) : (
+            'Apply & Continue to Phase 5'
+          )}
         </Button>
-        
-        <div className="grid grid-cols-2 gap-2">
-          <Button variant="outline" size="sm" onClick={handleCopyFromRoom}>
-            <Copy className="mr-2 h-3 w-3" />
+
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() => toast({ title: 'Copy Settings', description: 'Select a room to copy settings from.' })}
+          >
+            <Copy className="mr-1 h-3 w-3" />
             Copy from Room
           </Button>
-          <Button variant="outline" size="sm" onClick={handleSaveAsTemplate}>
-            <Save className="mr-2 h-3 w-3" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() => toast({ title: 'Template Saved', description: 'Current settings saved as a reusable template.' })}
+          >
+            <Save className="mr-1 h-3 w-3" />
             Save Template
           </Button>
         </div>
@@ -444,3 +873,5 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
     </div>
   );
 }
+
+export default PhaseCustomize;
