@@ -59,6 +59,9 @@ async function fetchRoomData(supabase: any, roomId: string) {
       projects (
         city,
         budget_tier
+      ),
+      room_analysis (
+        ceiling_fan_count
       )
     `)
     .eq('id', roomId)
@@ -70,6 +73,43 @@ async function fetchRoomData(supabase: any, roomId: string) {
   }
   
   return room;
+}
+
+async function fetchQualityControlRules(supabase: any) {
+  const { data: rules, error } = await supabase
+    .from('quality_control_rules')
+    .select('*')
+    .eq('is_active', true);
+  
+  if (error) {
+    console.warn('Error fetching quality control rules:', error);
+    return [];
+  }
+  
+  return rules || [];
+}
+
+function buildQualityControlPromptAdditions(room: any, rules: any[]): string {
+  const additions: string[] = [];
+  
+  // Check for ceiling fan presence
+  const hasCeilingFan = 
+    room.ceiling_fan_detected === true || 
+    (room.room_analysis?.ceiling_fan_count && room.room_analysis.ceiling_fan_count > 0);
+  
+  for (const rule of rules) {
+    if (rule.rule_code === 'FAN_LIGHT_CONFLICT' && hasCeilingFan) {
+      console.log('🚨 Quality Control: Applying FAN_LIGHT_CONFLICT rule');
+      additions.push(rule.prompt_instruction);
+    }
+    // Add more rule checks here as needed
+  }
+  
+  if (additions.length > 0) {
+    return `\n\n## QUALITY CONTROL RULES (MUST FOLLOW):\n${additions.join('\n\n')}`;
+  }
+  
+  return '';
 }
 
 async function fetchSmartDefaultData(supabase: any, smartDefaultId: string) {
@@ -337,11 +377,23 @@ serve(async (req) => {
         console.log("ENHANCED GENERATE RENDER - Starting...");
         console.log("=".repeat(80));
         
-        // Step 1: Fetch room data
-        console.log("\n[1/5] Fetching room data...");
+        // Step 1: Fetch room data (now includes room_analysis for ceiling fan detection)
+        console.log("\n[1/6] Fetching room data...");
         const room = await fetchRoomData(supabase, roomId);
         console.log(`✓ Room: ${room.room_type}, Style: ${room.selected_style}`);
         console.log(`  Project: ${room.projects?.city}, Budget: ${room.projects?.budget_tier}`);
+        console.log(`  Ceiling fan detected: ${room.ceiling_fan_detected || room.room_analysis?.ceiling_fan_count > 0}`);
+        
+        // Step 2: Fetch quality control rules
+        console.log("\n[2/6] Fetching quality control rules...");
+        const qcRules = await fetchQualityControlRules(supabase);
+        console.log(`✓ Loaded ${qcRules.length} active quality control rules`);
+        
+        // Build QC prompt additions based on room data
+        const qcPromptAdditions = buildQualityControlPromptAdditions(room, qcRules);
+        if (qcPromptAdditions) {
+          console.log(`✓ Quality control rules applied to prompt`);
+        }
         
         let comprehensivePrompt: string;
         let libraryImageUrl: string | undefined;
@@ -350,12 +402,12 @@ serve(async (req) => {
         
         // Check if manual prompt is provided
         if (manualPrompt && manualPrompt.trim().length > 0) {
-          console.log("\n[2/5] Using MANUAL PROMPT mode...");
-          comprehensivePrompt = manualPrompt;
-          console.log(`✓ Manual prompt: ${manualPrompt.length} characters`);
+          console.log("\n[3/6] Using MANUAL PROMPT mode...");
+          comprehensivePrompt = manualPrompt + qcPromptAdditions;
+          console.log(`✓ Manual prompt: ${manualPrompt.length} characters + QC rules`);
         } else {
-          // Step 2: Fetch smart defaults (if available)
-          console.log("\n[2/5] Fetching smart defaults...");
+          // Step 3: Fetch smart defaults (if available)
+          console.log("\n[3/6] Fetching smart defaults...");
           smartDefaultData = room.smart_default_id 
             ? await fetchSmartDefaultData(supabase, room.smart_default_id)
             : null;
@@ -369,8 +421,8 @@ serve(async (req) => {
             console.log("  No smart defaults available");
           }
           
-          // Step 3: Fetch library reference (if available)
-          console.log("\n[3/5] Fetching library reference...");
+          // Step 4: Fetch library reference (if available)
+          console.log("\n[4/6] Fetching library reference...");
           libraryImageData = room.library_reference_id
             ? await fetchLibraryImageData(supabase, room.library_reference_id)
             : null;
@@ -385,8 +437,8 @@ serve(async (req) => {
             console.log("  No library reference available");
           }
           
-          // Step 4: Build comprehensive prompt
-          console.log("\n[4/5] Building comprehensive prompt...");
+          // Step 5: Build comprehensive prompt with QC rules appended
+          console.log("\n[5/6] Building comprehensive prompt with QC rules...");
           comprehensivePrompt = buildComprehensivePrompt({
             roomType: room.room_type,
             selectedStyle: room.selected_style,
@@ -395,7 +447,7 @@ serve(async (req) => {
             customRequirements: customRequirements || room.custom_requirements,
             city: room.projects?.city,
             budgetTier: room.projects?.budget_tier,
-          });
+          }) + qcPromptAdditions;
         }
         
         console.log(`✓ Prompt built: ${comprehensivePrompt.length} characters`);
@@ -403,8 +455,8 @@ serve(async (req) => {
         console.log(comprehensivePrompt.slice(0, 500) + "...");
         console.log("--- END PREVIEW ---\n");
         
-        // Step 5: Generate render
-        console.log("[5/5] Generating render with AI...");
+        // Step 6: Generate render
+        console.log("[6/6] Generating render with AI...");
         const result = await generateRenderWithFallback(
           cleanedImageUrl,
           comprehensivePrompt,
@@ -437,6 +489,12 @@ serve(async (req) => {
             hasCustomRequirements: !!(customRequirements || room.custom_requirements),
             hasManualPrompt: !!(manualPrompt && manualPrompt.trim().length > 0),
             promptLength: comprehensivePrompt.length,
+            qualityControlRulesApplied: qcRules.filter((r: any) => {
+              if (r.rule_code === 'FAN_LIGHT_CONFLICT') {
+                return room.ceiling_fan_detected || room.room_analysis?.ceiling_fan_count > 0;
+              }
+              return false;
+            }).map((r: any) => r.rule_code),
           },
         });
 
@@ -452,6 +510,12 @@ serve(async (req) => {
               libraryReference: !!libraryImageData,
               customRequirements: !!(customRequirements || room.custom_requirements),
               manualPrompt: !!(manualPrompt && manualPrompt.trim().length > 0),
+              qualityControlRules: qcRules.filter((r: any) => {
+                if (r.rule_code === 'FAN_LIGHT_CONFLICT') {
+                  return room.ceiling_fan_detected || room.room_analysis?.ceiling_fan_count > 0;
+                }
+                return false;
+              }).length,
             },
           }),
           {

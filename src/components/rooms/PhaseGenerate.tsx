@@ -36,8 +36,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { RenderRefinement } from './RenderRefinement';
 import { QualityScoreDisplay } from './QualityScoreDisplay';
+import { QualityControlPanel } from './QualityControlPanel';
 import { PromptEditor } from './PromptEditor';
 import { useBatches } from '@/hooks/useBatches';
+import { useQualityControl } from '@/hooks/useQualityControl';
 
 interface RegenerateOptions {
   useSmartDefaults: boolean;
@@ -58,6 +60,8 @@ interface Room {
   custom_prompt?: string | null;
   smart_default_id?: string | null;
   library_reference_id?: string | null;
+  ceiling_fan_detected?: boolean;
+  quality_score?: number;
 }
 
 interface PhaseGenerateProps {
@@ -859,6 +863,15 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
           </div>
         )}
       </div>
+
+      {/* Quality Control Panel - NEW */}
+      {hasRender && (
+        <QualityControlPanel
+          roomId={room.id}
+          ceilingFanDetected={room.ceiling_fan_detected}
+          onAutoFix={() => handleRegenerate()}
+        />
+      )}
 
       {/* Quality Score Display - Enhanced version */}
       {hasRender && (
