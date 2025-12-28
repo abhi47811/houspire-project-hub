@@ -259,19 +259,23 @@ export function useJobQueue(options: UseJobQueueOptions = {}) {
 export function useRoomJobStatus(roomId: string, jobType?: string) {
   const { jobs, isLoading } = useJobQueue({ roomId });
 
-  const latestJob = jobs?.find(j => 
-    !jobType || j.job_type === jobType
-  );
+  const latestJob = jobs?.find(j => !jobType || j.job_type === jobType);
 
-  const isProcessing = latestJob?.status === 'pending' || latestJob?.status === 'processing';
-  const hasCompleted = latestJob?.status === 'completed';
-  const hasFailed = latestJob?.status === 'failed';
+  const status = latestJob?.status;
+  const errorMessage = latestJob?.error_message || null;
+
+  const isProcessing =
+    status === 'processing' || (status === 'pending' && !errorMessage);
+
+  const hasCompleted = status === 'completed';
+  const hasFailed = status === 'failed' || (status === 'pending' && !!errorMessage);
 
   return {
     job: latestJob,
     isProcessing,
     hasCompleted,
     hasFailed,
+    errorMessage,
     isLoading,
   };
 }
