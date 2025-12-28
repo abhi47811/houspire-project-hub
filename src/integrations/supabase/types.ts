@@ -1846,6 +1846,13 @@ export type Database = {
           perceptual_hash: string
         }[]
       }
+      get_available_room_types: {
+        Args: never
+        Returns: {
+          room_type: string
+          room_type_slug: string
+        }[]
+      }
       get_available_styles: {
         Args: never
         Returns: {
