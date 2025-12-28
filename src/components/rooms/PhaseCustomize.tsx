@@ -77,7 +77,7 @@ interface SmartDefaultDB {
   style_slug: string;
   room_type_slug: string;
   specifications: Array<{ item: string; description?: string; quantity?: number }>;
-  checklist: string[];
+  checklist: Array<string | { ITEM?: string; CATEGORY?: string }>;
   finishes: Array<{ type: string; value: string; color?: string }>;
 }
 
@@ -216,6 +216,12 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
           ? colorFinishes.map((f: { value: string; color?: string }) => ({ name: f.value, hex: f.color || '#888888' }))
           : designStyles.find(s => s.id === selectedStyle)?.colors.map((c, i) => ({ name: `Color ${i+1}`, hex: c })) || [];
         
+        // Transform checklist items to strings (handle both string and object formats)
+        const checklist = (dbData.checklist || []).map(item => {
+          if (typeof item === 'string') return item;
+          return (item as { ITEM?: string })?.ITEM || '';
+        }).filter(Boolean);
+        
         return {
           id: dbData.id,
           furniture,
@@ -223,7 +229,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
           flooring,
           ceiling,
           colors,
-          checklist: dbData.checklist || [],
+          checklist,
           raw: dbData
         };
       }

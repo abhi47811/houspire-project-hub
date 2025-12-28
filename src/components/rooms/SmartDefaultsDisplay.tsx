@@ -26,11 +26,11 @@ interface SmartDefault {
   flooring: string;
   ceiling: string;
   colors: { name: string; hex: string }[];
-  checklist: string[];
+  checklist: Array<string | { ITEM?: string; CATEGORY?: string }>;
   raw: {
     specifications?: { item: string; description?: string; quantity?: number }[];
     finishes?: { type: string; value: string; color?: string }[];
-    checklist?: string[];
+    checklist?: Array<string | { ITEM?: string; CATEGORY?: string }>;
   } | null;
 }
 
@@ -173,12 +173,18 @@ export function SmartDefaultsDisplay({
                 Design Checklist
               </Label>
               <div className="grid grid-cols-2 gap-1.5">
-                {smartDefaults.checklist.slice(0, 6).map((item, index) => (
-                  <div key={index} className="flex items-center gap-2 text-xs">
-                    <Check className="h-3 w-3 text-green-500" />
-                    <span>{item}</span>
-                  </div>
-                ))}
+                {smartDefaults.checklist.slice(0, 6).map((item, index) => {
+                  // Handle both string and object formats
+                  const displayText = typeof item === 'string' 
+                    ? item 
+                    : (item as { ITEM?: string })?.ITEM || '';
+                  return (
+                    <div key={index} className="flex items-center gap-2 text-xs">
+                      <Check className="h-3 w-3 text-green-500" />
+                      <span>{displayText}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
