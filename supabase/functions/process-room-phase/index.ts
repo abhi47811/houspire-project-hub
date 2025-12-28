@@ -150,7 +150,7 @@ Respond in JSON format:
   };
 }
 
-// Call Replicate for room cleaning (LaMa Cleaner)
+// Call Replicate for room cleaning using stable-diffusion-inpainting
 async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
   if (!REPLICATE_API_KEY) {
     throw new Error("REPLICATE_API_KEY not configured");
@@ -158,6 +158,7 @@ async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
 
   const startTime = Date.now();
   
+  // Use andreasjansson/stable-diffusion-inpainting model - a reliable inpainting model
   const response = await fetch("https://api.replicate.com/v1/predictions", {
     method: "POST",
     headers: {
@@ -165,8 +166,13 @@ async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      version: "e0d8c64e6b9e8f99b3a2ec0c8e0dd7d0c2c0e0d8",
-      input: { image: imageUrl, mask: mask }
+      version: "95b7223104132402a9ae91cc677285bc5eb997834bd2349fa486f53910fd68b3",
+      input: { 
+        image: imageUrl, 
+        mask: mask === 'full_image' ? imageUrl : mask, // Use image as mask for full cleanup
+        prompt: "empty room, clean walls, no furniture, bare floor, clean ceiling, photorealistic",
+        negative_prompt: "furniture, clutter, objects, decorations, people, animals"
+      }
     }),
   });
 
@@ -192,8 +198,11 @@ async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
     throw new Error(result.error || "Cleaning failed");
   }
 
+  // Handle array output (some models return array)
+  const output = Array.isArray(result.output) ? result.output[0] : result.output;
+
   return {
-    result: { output: result.output },
+    result: { output },
     usage: { costUsd: 0.05 },
     latency,
   };

@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { useJobQueue, useRoomJobStatus } from '@/hooks/useJobQueue';
-
 interface Room {
   id: string;
   current_phase: number;
@@ -35,11 +34,80 @@ interface Issue {
   severity: 'warning' | 'error';
 }
 
+interface RoomImageWithUrl {
+  id: string;
+  room_id: string;
+  storage_path: string;
+  image_type: string;
+  phase: number;
+  signedUrl?: string;
+}
+
 export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   const queryClient = useQueryClient();
   const [sliderValue, setSliderValue] = useState([50]);
   const [isApproving, setIsApproving] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+
+  // Fetch original image
+  const { data: originalImage } = useQuery<RoomImageWithUrl | null>({
+    queryKey: ['room-image', room.id, 'original'],
+    queryFn: async (): Promise<RoomImageWithUrl | null> => {
+      const { data } = await supabase
+        .from('room_images')
+        .select('*')
+        .eq('room_id', room.id)
+        .eq('image_type', 'original')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (data?.storage_path) {
+        const { data: urlData } = await supabase.storage
+          .from('room-images')
+          .createSignedUrl(data.storage_path, 3600);
+        return { 
+          id: data.id,
+          room_id: data.room_id,
+          storage_path: data.storage_path,
+          image_type: data.image_type,
+          phase: data.phase,
+          signedUrl: urlData?.signedUrl 
+        };
+      }
+      return null;
+    }
+  });
+
+  // Fetch cleaned image
+  const { data: cleanedImage } = useQuery<RoomImageWithUrl | null>({
+    queryKey: ['room-image', room.id, 'cleaned'],
+    queryFn: async (): Promise<RoomImageWithUrl | null> => {
+      const { data } = await supabase
+        .from('room_images')
+        .select('*')
+        .eq('room_id', room.id)
+        .eq('image_type', 'cleaned')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (data?.storage_path) {
+        const { data: urlData } = await supabase.storage
+          .from('room-images')
+          .createSignedUrl(data.storage_path, 3600);
+        return { 
+          id: data.id,
+          room_id: data.room_id,
+          storage_path: data.storage_path,
+          image_type: data.image_type,
+          phase: data.phase,
+          signedUrl: urlData?.signedUrl 
+        };
+      }
+      return null;
+    }
+  });
 
   // Use job queue hooks
   const { submitJob } = useJobQueue({ roomId: room.id, projectId });
@@ -181,16 +249,38 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         </h4>
         <div className="relative aspect-video bg-muted rounded-lg overflow-hidden border">
           {/* Before Image (Original) */}
-          <div className="absolute inset-0 bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
-            <span className="text-muted-foreground text-sm">Original Image</span>
+          <div className="absolute inset-0">
+            {originalImage?.signedUrl ? (
+              <img 
+                src={originalImage.signedUrl} 
+                alt="Original room"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full bg-muted gap-2">
+                <ImageOff className="h-8 w-8 text-muted-foreground/50" />
+                <span className="text-muted-foreground text-sm">No original image</span>
+              </div>
+            )}
           </div>
           
           {/* After Image (Cleaned) - clipped by slider */}
           <div 
-            className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center overflow-hidden"
+            className="absolute inset-0 overflow-hidden"
             style={{ clipPath: `inset(0 ${100 - sliderValue[0]}% 0 0)` }}
           >
-            <span className="text-primary text-sm">Cleaned Image</span>
+            {cleanedImage?.signedUrl ? (
+              <img 
+                src={cleanedImage.signedUrl} 
+                alt="Cleaned room"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full bg-primary/5 gap-2">
+                <Sparkles className="h-8 w-8 text-primary/30" />
+                <span className="text-primary/70 text-sm">Awaiting cleaned image</span>
+              </div>
+            )}
           </div>
           
           {/* Slider Handle */}
