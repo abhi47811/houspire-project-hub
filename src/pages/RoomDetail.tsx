@@ -101,6 +101,18 @@ const phases = [
   { id: 5, name: 'Generate', icon: ImageIcon, imageType: 'final' },
 ];
 
+// Helper to resolve image URLs - handles both full URLs and storage paths
+const resolveImageUrl = (path: string): string => {
+  if (!path) return '';
+  // If it's already a full URL, return as-is
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  // Otherwise, generate Supabase storage URL
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  return `${supabaseUrl}/storage/v1/object/public/${path}`;
+};
+
 export default function RoomDetail() {
   const { projectId, roomId } = useParams<{ projectId: string; roomId: string }>();
   const navigate = useNavigate();
@@ -358,12 +370,12 @@ export default function RoomDetail() {
       </Card>
 
       {/* Main Content Area */}
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* Image Viewer (60%) */}
-        <Card className="lg:col-span-3">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+        {/* Image Viewer */}
+        <Card className="min-h-0">
           <CardContent className="p-4">
             {/* Zoom Controls */}
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <span className="text-sm text-muted-foreground">
                 Phase {activePhase}: {phases[activePhase - 1].name}
               </span>
@@ -391,7 +403,7 @@ export default function RoomDetail() {
                   style={{ transform: `scale(${zoom / 100})` }}
                 >
                   <img
-                    src={currentImage.storage_path}
+                    src={resolveImageUrl(currentImage.storage_path)}
                     alt={`Phase ${activePhase} - ${phases[activePhase - 1].name}`}
                     className="max-w-full max-h-full object-contain"
                   />
@@ -412,9 +424,9 @@ export default function RoomDetail() {
           </CardContent>
         </Card>
 
-        {/* Phase Content Panel (40%) */}
-        <Card className="lg:col-span-2">
-          <CardContent className="p-4">
+        {/* Phase Content Panel */}
+        <Card className="min-h-0 flex flex-col max-h-[calc(100vh-380px)] lg:max-h-[calc(100vh-300px)]">
+          <CardContent className="p-4 overflow-y-auto flex-1">
             {activePhase === 1 && (
               <PhaseUpload room={room} projectId={projectId!} />
             )}
@@ -475,13 +487,13 @@ function RoomDetailSkeleton() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+        <Card>
           <CardContent className="p-4">
             <Skeleton className="aspect-[4/3] w-full rounded-lg" />
           </CardContent>
         </Card>
-        <Card className="lg:col-span-2">
+        <Card>
           <CardContent className="p-4 space-y-4">
             <Skeleton className="h-6 w-32" />
             <Skeleton className="h-24 w-full" />
