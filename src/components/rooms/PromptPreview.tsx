@@ -91,7 +91,7 @@ export function PromptPreview({ prompt, metadata }: PromptPreviewProps) {
           {metadata?.style && (
             <>
               <span>•</span>
-              <span className="capitalize">{metadata.style.replace('_', ' ')}</span>
+              <span className="capitalize">{metadata.style?.replace('_', ' ') || ''}</span>
             </>
           )}
         </div>
@@ -122,12 +122,12 @@ export function PromptPreview({ prompt, metadata }: PromptPreviewProps) {
           <div className="flex gap-2 mt-2 flex-wrap">
             {metadata.roomType && (
               <Badge variant="outline" className="text-[10px] capitalize">
-                {metadata.roomType.replace('_', ' ')}
+                {metadata.roomType?.replace('_', ' ') || ''}
               </Badge>
             )}
             {metadata.budgetTier && (
               <Badge variant="outline" className="text-[10px] capitalize">
-                {metadata.budgetTier.replace('_', ' ')}
+                {metadata.budgetTier?.replace('_', ' ') || ''}
               </Badge>
             )}
           </div>

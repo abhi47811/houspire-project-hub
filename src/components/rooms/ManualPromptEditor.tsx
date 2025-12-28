@@ -51,7 +51,7 @@ export function ManualPromptEditor({ value, onChange, roomType, selectedStyle }:
   const [showTemplates, setShowTemplates] = useState(false);
 
   const applyTemplate = (template: typeof promptTemplates[0]) => {
-    const prefix = roomType ? `For a ${roomType.replace('_', ' ')}: ` : '';
+    const prefix = roomType ? `For a ${roomType?.replace('_', ' ') || 'room'}: ` : '';
     onChange(prefix + template.prompt);
     setShowTemplates(false);
   };
