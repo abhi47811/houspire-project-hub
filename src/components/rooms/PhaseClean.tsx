@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
+import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
+import { useJobQueue, useRoomJobStatus } from '@/hooks/useJobQueue';
 
 interface Room {
   id: string;
@@ -39,14 +41,29 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   const [isApproving, setIsApproving] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
-  // Determine status based on room state
+  // Use job queue hooks
+  const { submitJob } = useJobQueue({ roomId: room.id, projectId });
+  const { isProcessing, hasCompleted, hasFailed } = useRoomJobStatus(room.id, 'cleaning');
+
+  // Determine status based on room state and job status
   const getCleaningStatus = (): CleaningStatus => {
-    if (room.phase_3_completed) return 'completed';
-    if (room.retry_count > 2) return 'failed';
+    if (room.phase_3_completed || hasCompleted) return 'completed';
+    if (isProcessing) return 'processing';
+    if (hasFailed || room.retry_count > 2) return 'failed';
     return 'pending';
   };
   
   const cleaningStatus = getCleaningStatus();
+
+  // Start cleaning job
+  const handleStartCleaning = () => {
+    submitJob.mutate({
+      roomId: room.id,
+      projectId,
+      phase: 3,
+      payload: { mask: 'full_image' }
+    });
+  };
   const qualityScore = 94;
   const processingTime = '2m 34s';
 
@@ -300,22 +317,53 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         </div>
       )}
 
+      {/* Processing State */}
+      {isProcessing && (
+        <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+            <span className="text-sm text-blue-700 dark:text-blue-300">AI is cleaning the room...</span>
+          </div>
+          <Progress value={65} className="mt-2" />
+          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">This may take 1-3 minutes</p>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="pt-4 border-t space-y-2">
-        <Button 
-          className="w-full" 
-          onClick={handleApprove}
-          disabled={!allValidationsPassed || isApproving || room.phase_3_completed}
-        >
-          <Check className="mr-2 h-4 w-4" />
-          {room.phase_3_completed ? 'Already Approved' : 'Approve Cleaned Image'}
-        </Button>
+        {/* Start Cleaning Button - show when pending and not processing */}
+        {cleaningStatus === 'pending' && !isProcessing && (
+          <Button 
+            className="w-full" 
+            onClick={handleStartCleaning}
+            disabled={submitJob.isPending}
+          >
+            {submitJob.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-2 h-4 w-4" />
+            )}
+            Start AI Cleaning
+          </Button>
+        )}
+
+        {/* Approve Button - show when completed */}
+        {cleaningStatus === 'completed' && (
+          <Button 
+            className="w-full" 
+            onClick={handleApprove}
+            disabled={!allValidationsPassed || isApproving || room.phase_3_completed}
+          >
+            <Check className="mr-2 h-4 w-4" />
+            {room.phase_3_completed ? 'Already Approved' : 'Approve Cleaned Image'}
+          </Button>
+        )}
         
         <div className="grid grid-cols-2 gap-2">
           <Button 
             variant="outline" 
             onClick={handleRetry}
-            disabled={isRetrying}
+            disabled={isRetrying || isProcessing}
           >
             <RotateCcw className="mr-2 h-4 w-4" />
             Retry Cleaning
@@ -329,10 +377,12 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
           </Button>
         </div>
 
-        <Button variant="ghost" className="w-full text-muted-foreground">
-          <Sparkles className="mr-2 h-4 w-4" />
-          Use Fallback Cleaner
-        </Button>
+        {cleaningStatus === 'failed' && (
+          <Button variant="ghost" className="w-full text-muted-foreground">
+            <Sparkles className="mr-2 h-4 w-4" />
+            Use Fallback Cleaner
+          </Button>
+        )}
       </div>
     </div>
   );
