@@ -594,6 +594,7 @@ export type Database = {
         Row: {
           actual_cost: number | null
           assigned_to: string | null
+          budget_tier: string | null
           city: Database["public"]["Enums"]["city_enum"] | null
           client_email: string | null
           client_name: string | null
@@ -613,6 +614,7 @@ export type Database = {
         Insert: {
           actual_cost?: number | null
           assigned_to?: string | null
+          budget_tier?: string | null
           city?: Database["public"]["Enums"]["city_enum"] | null
           client_email?: string | null
           client_name?: string | null
@@ -632,6 +634,7 @@ export type Database = {
         Update: {
           actual_cost?: number | null
           assigned_to?: string | null
+          budget_tier?: string | null
           city?: Database["public"]["Enums"]["city_enum"] | null
           client_email?: string | null
           client_name?: string | null
@@ -909,28 +912,43 @@ export type Database = {
       }
       smart_defaults: {
         Row: {
-          created_at: string | null
-          default_settings: Json | null
-          default_style: string | null
+          checklist: Json
+          created_at: string
+          finishes: Json
           id: string
-          name: string
-          room_type: Database["public"]["Enums"]["room_type_enum"] | null
+          room_type: string
+          room_type_slug: string
+          source_file: string | null
+          specifications: Json
+          style: string
+          style_slug: string
+          updated_at: string
         }
         Insert: {
-          created_at?: string | null
-          default_settings?: Json | null
-          default_style?: string | null
+          checklist?: Json
+          created_at?: string
+          finishes?: Json
           id?: string
-          name: string
-          room_type?: Database["public"]["Enums"]["room_type_enum"] | null
+          room_type: string
+          room_type_slug: string
+          source_file?: string | null
+          specifications?: Json
+          style: string
+          style_slug: string
+          updated_at?: string
         }
         Update: {
-          created_at?: string | null
-          default_settings?: Json | null
-          default_style?: string | null
+          checklist?: Json
+          created_at?: string
+          finishes?: Json
           id?: string
-          name?: string
-          room_type?: Database["public"]["Enums"]["room_type_enum"] | null
+          room_type?: string
+          room_type_slug?: string
+          source_file?: string | null
+          specifications?: Json
+          style?: string
+          style_slug?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1495,6 +1513,13 @@ export type Database = {
           perceptual_hash: string
         }[]
       }
+      get_available_styles: {
+        Args: never
+        Returns: {
+          style: string
+          style_slug: string
+        }[]
+      }
       get_next_job: {
         Args: { p_project_id?: string }
         Returns: {
@@ -1522,6 +1547,17 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_smart_default: {
+        Args: { p_room_type: string; p_style: string }
+        Returns: {
+          checklist: Json
+          finishes: Json
+          id: string
+          room_type: string
+          specifications: Json
+          style: string
+        }[]
       }
       get_user_role: {
         Args: { _user_id: string }

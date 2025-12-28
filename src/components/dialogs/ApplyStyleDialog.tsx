@@ -65,7 +65,7 @@ export function ApplyStyleDialog({
   });
 
   const getSmartDefaultForStyle = (styleId: string) => {
-    return smartDefaults?.find((sd) => sd.default_style === styleId);
+    return smartDefaults?.find((sd) => sd.style_slug === styleId);
   };
 
   const handleApply = () => {
