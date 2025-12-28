@@ -912,6 +912,7 @@ export type Database = {
       }
       room_analysis: {
         Row: {
+          ac_unit_count: number | null
           ceiling_fan_count: number | null
           created_at: string | null
           detected_height_feet: number | null
@@ -922,6 +923,8 @@ export type Database = {
           id: string
           is_verified: boolean | null
           measurement_confidence: number | null
+          mirror_count: number | null
+          mirror_positions: Json | null
           other_features: Json | null
           outlet_count: number | null
           raw_analysis_data: Json | null
@@ -935,6 +938,7 @@ export type Database = {
           window_positions: Json | null
         }
         Insert: {
+          ac_unit_count?: number | null
           ceiling_fan_count?: number | null
           created_at?: string | null
           detected_height_feet?: number | null
@@ -945,6 +949,8 @@ export type Database = {
           id?: string
           is_verified?: boolean | null
           measurement_confidence?: number | null
+          mirror_count?: number | null
+          mirror_positions?: Json | null
           other_features?: Json | null
           outlet_count?: number | null
           raw_analysis_data?: Json | null
@@ -958,6 +964,7 @@ export type Database = {
           window_positions?: Json | null
         }
         Update: {
+          ac_unit_count?: number | null
           ceiling_fan_count?: number | null
           created_at?: string | null
           detected_height_feet?: number | null
@@ -968,6 +975,8 @@ export type Database = {
           id?: string
           is_verified?: boolean | null
           measurement_confidence?: number | null
+          mirror_count?: number | null
+          mirror_positions?: Json | null
           other_features?: Json | null
           outlet_count?: number | null
           raw_analysis_data?: Json | null

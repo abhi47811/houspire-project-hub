@@ -82,7 +82,8 @@ serve(async (req) => {
 
     switch (action) {
       case "analyzeRoom":
-        model = "openai/gpt-5";
+        // Use gpt-5-mini for faster analysis (15-30s instead of 60-120s)
+        model = "openai/gpt-5-mini";
         systemPrompt = `You are an expert interior design analyst with precise architectural detection capabilities.
 
 CRITICAL DISTINCTION - Identify these elements correctly:
