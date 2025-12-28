@@ -307,75 +307,67 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
 
         <h4 className="text-xl font-bold text-center">Choose your style reference</h4>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {/* Library Button - 60% */}
+        <div className="grid grid-cols-1 gap-4">
+          {/* Library Button */}
           <Card 
-            className="md:col-span-3 cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0"
+            className="cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0"
             onClick={() => setMode('library')}
           >
-            <CardContent className="p-6 space-y-4">
+            <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="text-4xl">📚</div>
-                <Badge className="bg-yellow-500 text-yellow-950 font-bold">
+                <div className="text-3xl">📚</div>
+                <Badge className="bg-yellow-500 text-yellow-950 font-bold text-xs">
                   ⭐ RECOMMENDED
                 </Badge>
               </div>
               
               <div>
-                <h3 className="text-2xl font-bold">BROWSE LIBRARY →</h3>
-                <p className="text-primary-foreground/80 mt-1">Pre-tested proven references</p>
+                <h3 className="text-lg font-bold">BROWSE LIBRARY →</h3>
+                <p className="text-primary-foreground/80 text-sm">Pre-tested proven references</p>
               </div>
 
-              <div className="space-y-2 pt-2">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  <span className="font-medium">547 PROVEN REFERENCES</span>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm pt-1">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">547 references</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>87% avg approval rate</span>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">87% approval</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  <span>City-matched for {userCity}</span>
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{userCity}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Check className="h-4 w-4" />
-                  <span>Skip customization</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span>Faster results (~3 min)</span>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">~3 min</span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Upload Button - 40% */}
+          {/* Upload Button */}
           <Card 
-            className="md:col-span-2 cursor-pointer transition-all hover:shadow-lg hover:bg-muted/50 border-2 border-dashed"
+            className="cursor-pointer transition-all hover:shadow-lg hover:bg-muted/50 border-2 border-dashed"
             onClick={() => setMode('upload')}
           >
-            <CardContent className="p-6 space-y-4">
-              <div className="text-4xl">🆕</div>
+            <CardContent className="p-4 space-y-3">
+              <div className="text-3xl">🆕</div>
               
               <div>
-                <h3 className="text-xl font-bold">UPLOAD OWN</h3>
-                <p className="text-muted-foreground mt-1">Pinterest or your own image</p>
+                <h3 className="text-lg font-bold">UPLOAD OWN</h3>
+                <p className="text-muted-foreground text-sm">Pinterest or your own image</p>
               </div>
 
-              <div className="space-y-2 pt-2 text-muted-foreground">
-                <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted-foreground pt-1">
+                <div className="flex items-center gap-1.5">
                   <span className="text-yellow-500">⚠️</span>
-                  <span>Unverified quality</span>
+                  <span className="truncate">Unverified</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span>Takes longer (~4 min)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>📊</span>
-                  <span>78% avg approval</span>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">~4 min</span>
                 </div>
               </div>
             </CardContent>

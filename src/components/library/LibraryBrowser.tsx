@@ -221,14 +221,14 @@ export function LibraryBrowser({
 
       {/* Loading State */}
       {loading && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i} className="overflow-hidden">
               <Skeleton className="aspect-video w-full" />
-              <CardContent className="p-3 space-y-2">
-                <Skeleton className="h-4 w-1/2" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-8 w-full" />
+              <CardContent className="p-2 space-y-2">
+                <Skeleton className="h-3 w-1/2" />
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-7 w-full" />
               </CardContent>
             </Card>
           ))}
@@ -269,7 +269,7 @@ export function LibraryBrowser({
 
       {/* Image Grid */}
       {!loading && !error && images.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {images.map((image) => (
             <LibraryImageCard
               key={image.id}
@@ -373,38 +373,32 @@ function LibraryImageCard({
       </div>
 
       {/* Info */}
-      <CardContent className="p-3 space-y-2">
-        {/* Quality Score */}
-        {image.quality_score !== null && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Quality</span>
-            <span className="font-bold">{image.quality_score}%</span>
-          </div>
-        )}
-
-        {/* Performance */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Performance</span>
-          <Badge variant="secondary" className={cn("text-xs", performance.color)}>
+      <CardContent className="p-2 space-y-1.5 min-w-0">
+        {/* Quality & Performance Row */}
+        <div className="flex items-center justify-between text-xs">
+          {image.quality_score !== null && (
+            <span className="font-medium">{image.quality_score}% quality</span>
+          )}
+          <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0", performance.color)}>
             {performance.label}
           </Badge>
         </div>
 
         {/* Usage Stats */}
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Used: {image.times_selected}×</span>
+        <div className="flex justify-between text-[10px] text-muted-foreground">
+          <span className="truncate">Used: {image.times_selected}×</span>
           {image.approval_rate !== null && (
-            <span>Success: {Math.round(image.approval_rate * 100)}%</span>
+            <span className="truncate">Success: {Math.round(image.approval_rate * 100)}%</span>
           )}
         </div>
 
         {/* Color Palette */}
         {image.color_palette && (
-          <div className="flex gap-1">
+          <div className="flex gap-0.5">
             {Object.values(image.color_palette).slice(0, 3).map((color, i) => (
               <div
                 key={i}
-                className="w-6 h-6 rounded border border-border"
+                className="w-4 h-4 rounded-sm border border-border"
                 style={{ backgroundColor: color as string }}
               />
             ))}
@@ -412,11 +406,11 @@ function LibraryImageCard({
         )}
 
         {/* Actions */}
-        <div className="flex gap-2 pt-2">
+        <div className="flex gap-1.5 pt-1">
           <Button
             variant="outline"
             size="sm"
-            className="flex-1"
+            className="flex-1 h-7 text-xs"
             onClick={(e) => {
               e.stopPropagation();
               onSelect();
@@ -426,13 +420,13 @@ function LibraryImageCard({
           </Button>
           <Button
             size="sm"
-            className="flex-1"
+            className="flex-1 h-7 text-xs"
             onClick={(e) => {
               e.stopPropagation();
               onUse();
             }}
           >
-            Use This
+            Use
           </Button>
         </div>
       </CardContent>
