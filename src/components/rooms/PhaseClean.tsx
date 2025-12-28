@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2, ImageOff, RefreshCw, Wand2 } from 'lucide-react';
+import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2, ImageOff, RefreshCw, Wand2, Eraser } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
@@ -10,6 +10,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { useJobQueue, useRoomJobStatus } from '@/hooks/useJobQueue';
 import { CleaningRefinement } from './CleaningRefinement';
+import { BatchCleanup } from './BatchCleanup';
 interface Room {
   id: string;
   current_phase: number;
@@ -51,6 +52,19 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   const [isApproving, setIsApproving] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [batchCleanupOpen, setBatchCleanupOpen] = useState(false);
+
+  // Fetch all rooms for batch cleanup
+  const { data: allRooms = [] } = useQuery({
+    queryKey: ['rooms-for-batch', projectId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('rooms')
+        .select('id, room_name, room_type, phase_2_completed, phase_3_completed')
+        .eq('project_id', projectId);
+      return data || [];
+    }
+  });
 
   // Fetch original image
   const { data: originalImage, refetch: refetchOriginal } = useQuery<RoomImageWithUrl | null>({
@@ -626,7 +640,25 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
             Use Fallback Cleaner
           </Button>
         )}
+
+        {/* Batch Cleanup Button */}
+        <Button 
+          variant="outline" 
+          className="w-full"
+          onClick={() => setBatchCleanupOpen(true)}
+        >
+          <Eraser className="mr-2 h-4 w-4" />
+          Clean All Rooms
+        </Button>
       </div>
+
+      {/* Batch Cleanup Dialog */}
+      <BatchCleanup
+        projectId={projectId}
+        rooms={allRooms}
+        open={batchCleanupOpen}
+        onOpenChange={setBatchCleanupOpen}
+      />
     </div>
   );
 }
