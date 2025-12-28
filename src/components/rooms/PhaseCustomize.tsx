@@ -22,6 +22,10 @@ import { UploadPermissionPrompt } from '@/components/library/UploadPermissionPro
 import { libraryService, LibraryImage } from '@/services/api/libraryService';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { GenerationPathsSelector, GenerationPath } from './GenerationPathsSelector';
+import { SmartDefaultsDisplay } from './SmartDefaultsDisplay';
+import { ManualPromptEditor } from './ManualPromptEditor';
+import { PromptPreview } from './PromptPreview';
 
 interface Room {
   id: string;
@@ -145,6 +149,8 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   const [isApplying, setIsApplying] = useState(false);
   const [isGeneratingMoodboard, setIsGeneratingMoodboard] = useState(false);
   const [moodboardImages, setMoodboardImages] = useState<string[]>([]);
+  const [generationPath, setGenerationPath] = useState<GenerationPath>('smart_defaults');
+  const [manualPrompt, setManualPrompt] = useState('');
 
   // Fetch project for city
   const { data: project } = useQuery({
@@ -725,102 +731,98 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         </div>
       </div>
 
-      {/* Design Style Selection */}
-      <div className="space-y-3">
-        <h4 className="font-medium text-sm">Design Style</h4>
-        <RadioGroup value={selectedStyle} onValueChange={setSelectedStyle}>
-          <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-2">
-            {designStyles.map((style) => (
-              <label
-                key={style.id}
-                className={cn(
-                  "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50",
-                  selectedStyle === style.id 
-                    ? 'border-primary bg-primary/5 ring-1 ring-primary/20' 
-                    : 'bg-card'
-                )}
-              >
-                <RadioGroupItem value={style.id} className="mt-1" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{style.icon}</span>
-                    <span className="font-medium text-sm">{style.name}</span>
-                    {selectedStyle === style.id && (
-                      <Badge variant="secondary" className="ml-auto text-xs">Selected</Badge>
+      {/* Generation Paths Selector */}
+      <GenerationPathsSelector 
+        value={generationPath} 
+        onChange={setGenerationPath} 
+      />
+
+      {/* Path-specific content */}
+      {generationPath === 'smart_defaults' && (
+        <>
+          {/* Design Style Selection */}
+          <div className="space-y-3">
+            <h4 className="font-medium text-sm">Design Style</h4>
+            <RadioGroup value={selectedStyle} onValueChange={setSelectedStyle}>
+              <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-2">
+                {designStyles.map((style) => (
+                  <label
+                    key={style.id}
+                    className={cn(
+                      "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50",
+                      selectedStyle === style.id 
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary/20' 
+                        : 'bg-card'
                     )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{style.description}</p>
-                  <div className="flex gap-1 mt-2">
-                    {style.colors.map((color, i) => (
-                      <div
-                        key={i}
-                        className="h-4 w-4 rounded-full border border-border/50"
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </label>
-            ))}
-          </div>
-        </RadioGroup>
-      </div>
-
-      {/* Smart Defaults Preview */}
-      {selectedStyle && smartDefaults && (
-        <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <h4 className="font-medium text-sm">Smart Defaults for {selectedStyleData?.name}</h4>
-          </div>
-          
-          {/* Color Palette */}
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">Color Palette</p>
-            <div className="flex gap-2">
-              {smartDefaults.colors.map((color, i) => (
-                <div key={i} className="flex flex-col items-center gap-1">
-                  <div
-                    className="h-8 w-8 rounded-lg border border-border/50 shadow-sm"
-                    style={{ backgroundColor: color.hex }}
-                  />
-                  <span className="text-[10px] text-muted-foreground">{color.name}</span>
-                </div>
-              ))}
-            </div>
+                  >
+                    <RadioGroupItem value={style.id} className="mt-1" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{style.icon}</span>
+                        <span className="font-medium text-sm">{style.name}</span>
+                        {selectedStyle === style.id && (
+                          <Badge variant="secondary" className="ml-auto text-xs">Selected</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{style.description}</p>
+                      <div className="flex gap-1 mt-2">
+                        {style.colors.map((color, i) => (
+                          <div
+                            key={i}
+                            className="h-4 w-4 rounded-full border border-border/50"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </RadioGroup>
           </div>
 
-          {/* Furniture */}
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Furniture</p>
-            <ul className="text-xs space-y-0.5">
-              {smartDefaults.furniture.map((item, i) => (
-                <li key={i} className="flex items-center gap-1.5">
-                  <span className="h-1 w-1 rounded-full bg-primary" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
+          {/* Enhanced Smart Defaults Display */}
+          {selectedStyle && smartDefaults && (
+            <SmartDefaultsDisplay
+              smartDefaults={smartDefaults}
+              styleName={selectedStyleData?.name || selectedStyle}
+              roomType={roomType}
+              showActions={false}
+            />
+          )}
+        </>
+      )}
 
-          {/* Lighting & Flooring */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Lighting</p>
-              <p className="text-xs">{smartDefaults.lighting}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Flooring</p>
-              <p className="text-xs">{smartDefaults.flooring}</p>
-            </div>
-          </div>
+      {generationPath === 'library' && (
+        <LibraryBrowser
+          roomType={roomType}
+          designStyle={selectedStyle || 'contemporary'}
+          userCity={userCity}
+          onSelect={handleLibrarySelect}
+          onUploadNew={() => setMode('upload')}
+        />
+      )}
 
-          {/* Ceiling */}
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Ceiling</p>
-            <p className="text-xs">{smartDefaults.ceiling}</p>
-          </div>
-        </div>
+      {generationPath === 'manual' && (
+        <ManualPromptEditor
+          value={manualPrompt}
+          onChange={setManualPrompt}
+          roomType={roomType}
+          selectedStyle={selectedStyle}
+        />
+      )}
+
+      {/* Prompt Preview - show for all paths when we have data */}
+      {(selectedStyle || manualPrompt) && (
+        <PromptPreview
+          prompt={manualPrompt || `Create a photorealistic ${roomType.replace('_', ' ')} with ${selectedStyle?.replace('_', ' ') || 'contemporary'} design style. Include appropriate furniture, lighting, and decor elements.`}
+          metadata={{
+            style: selectedStyle || undefined,
+            roomType: roomType,
+            usingSmartDefaults: generationPath === 'smart_defaults',
+            usingLibraryReference: generationPath === 'library',
+          }}
+        />
       )}
 
       {/* Customizations Accordion */}
