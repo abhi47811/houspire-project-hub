@@ -39,5 +39,8 @@ verify_jwt = false
 [functions.load-smart-defaults-batch4]
 verify_jwt = false
 
+[functions.load-smart-defaults-final]
+verify_jwt = false
+
 [functions.health-check]
 verify_jwt = false
