@@ -83,6 +83,27 @@ interface ImageWithSignedUrl {
   signedUrl?: string;
 }
 
+interface Render {
+  id: string;
+  room_id: string;
+  image_url: string;
+  storage_path: string | null;
+  prompt_used: string | null;
+  model_used: string | null;
+  provider: string | null;
+  generation_time_ms: number | null;
+  approval_status: 'pending' | 'approved' | 'rejected' | 'needs_revision';
+  approved_by: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
+  quality_score: number | null;
+  quality_details: Record<string, unknown> | null;
+  version_number: number;
+  parent_render_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const queryClient = useQueryClient();
   const [isApproving, setIsApproving] = useState(false);
@@ -132,7 +153,24 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     return signedData?.signedUrl;
   };
 
-  // Fetch render image
+  // Fetch render from new renders table (primary source)
+  const { data: currentRender, refetch: refetchRender } = useQuery({
+    queryKey: ['render', room.id],
+    queryFn: async (): Promise<Render | null> => {
+      const { data, error } = await supabase
+        .from('renders')
+        .select('*')
+        .eq('room_id', room.id)
+        .order('version_number', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data as Render | null;
+    }
+  });
+
+  // Fallback: Fetch render image from room_images (for backward compatibility)
   const { data: renderImage, refetch: refetchRenderImage } = useQuery({
     queryKey: ['render-image', room.id],
     queryFn: async (): Promise<ImageWithSignedUrl | null> => {
@@ -198,17 +236,22 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     }
   });
 
-  // Refetch render image when job completes
+  // Refetch renders when job completes
   useEffect(() => {
     if (currentJob?.status === 'completed') {
+      refetchRender();
       refetchRenderImage();
       queryClient.invalidateQueries({ queryKey: ['room', room.id] });
     }
-  }, [currentJob?.status, refetchRenderImage, queryClient, room.id]);
+  }, [currentJob?.status, refetchRender, refetchRenderImage, queryClient, room.id]);
+
+  // Get the render URL (prefer renders table, fallback to room_images)
+  const renderUrl = currentRender?.image_url || renderImage?.signedUrl;
 
   // Determine generation status
   const getGenerationStatus = (): GenerationStatus => {
-    if (room.phase_5_completed && renderImage?.signedUrl) return 'completed';
+    if (room.phase_5_completed && renderUrl) return 'completed';
+    if (currentRender?.approval_status === 'approved') return 'completed';
     if (currentJob?.status === 'processing') return 'processing';
     if (currentJob?.status === 'pending') return 'processing';
     if (currentJob?.status === 'failed') return 'failed';
@@ -295,6 +338,27 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const handleApprove = async () => {
     setIsApproving(true);
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Update render approval status in renders table
+      if (currentRender?.id) {
+        const { error: renderError } = await supabase
+          .from('renders')
+          .update({
+            approval_status: 'approved',
+            approved_by: user?.id,
+            approved_at: new Date().toISOString(),
+            quality_score: overallScore ? overallScore / 100 : null, // Convert to 0-1 scale
+          })
+          .eq('id', currentRender.id);
+
+        if (renderError) {
+          console.error('Failed to update render approval:', renderError);
+        }
+      }
+
+      // Update room status
       const { error: roomError } = await supabase
         .from('rooms')
         .update({
@@ -311,7 +375,6 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         await trackOutcomeToLibrary(true);
       } catch (trackError) {
         console.error('Failed to track outcome to library:', trackError);
-        // Don't fail the approval if tracking fails
       }
 
       const { data: rooms, error: fetchError } = await supabase
@@ -340,6 +403,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         });
       }
 
+      queryClient.invalidateQueries({ queryKey: ['render', room.id] });
       queryClient.invalidateQueries({ queryKey: ['room', room.id] });
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
     } catch (error) {
@@ -428,8 +492,8 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   };
 
   const handleDownload = async () => {
-    if (renderImage?.signedUrl) {
-      window.open(renderImage.signedUrl, '_blank');
+    if (renderUrl) {
+      window.open(renderUrl, '_blank');
       toast({
         title: 'Download Started',
         description: 'High-resolution image is being downloaded.',
@@ -477,7 +541,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     return 'text-destructive';
   };
 
-  const hasRender = !!renderImage?.signedUrl;
+  const hasRender = !!renderUrl;
   const isGenerating = isSubmittingJob || generationStatus === 'processing';
 
   return (
@@ -564,7 +628,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
             <div className="relative aspect-video rounded-lg overflow-hidden border bg-gradient-to-br from-primary/10 to-primary/5">
               {hasRender ? (
                 <img 
-                  src={renderImage.signedUrl} 
+                  src={renderUrl} 
                   alt="Final render" 
                   className="w-full h-full object-contain"
                 />
@@ -697,7 +761,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         <RenderRefinement
           roomId={room.id}
           projectId={projectId}
-          currentRenderUrl={renderImage?.signedUrl}
+          currentRenderUrl={renderUrl}
           onRegenerate={handleRegenerate}
           isGenerating={isGenerating}
         />
@@ -792,9 +856,9 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       <Dialog open={fullscreenOpen} onOpenChange={setFullscreenOpen}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] p-0">
           <div className="relative w-full h-[90vh] bg-black flex items-center justify-center">
-            {renderImage?.signedUrl ? (
+            {renderUrl ? (
               <img 
-                src={renderImage.signedUrl} 
+                src={renderUrl} 
                 alt="Final Render Full Size" 
                 className="max-w-full max-h-full object-contain"
               />

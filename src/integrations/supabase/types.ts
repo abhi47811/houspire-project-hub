@@ -590,6 +590,71 @@ export type Database = {
         }
         Relationships: []
       }
+      project_activity_log: {
+        Row: {
+          activity_type: string
+          created_at: string | null
+          description: string | null
+          id: string
+          metadata: Json | null
+          project_id: string
+          render_id: string | null
+          room_id: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          project_id: string
+          render_id?: string | null
+          room_id?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          project_id?: string
+          render_id?: string | null
+          room_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_activity_log_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_activity_log_render_id_fkey"
+            columns: ["render_id"]
+            isOneToOne: false
+            referencedRelation: "renders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_activity_log_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_activity_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           actual_cost: number | null
@@ -602,11 +667,13 @@ export type Database = {
           created_by: string | null
           current_phase: number | null
           deadline: string | null
+          deadline_alert_sent: boolean | null
           description: string | null
           estimated_budget: number | null
           id: string
           max_rooms: number | null
           name: string
+          priority: string | null
           status: Database["public"]["Enums"]["project_status"] | null
           total_rooms: number | null
           updated_at: string | null
@@ -622,11 +689,13 @@ export type Database = {
           created_by?: string | null
           current_phase?: number | null
           deadline?: string | null
+          deadline_alert_sent?: boolean | null
           description?: string | null
           estimated_budget?: number | null
           id?: string
           max_rooms?: number | null
           name: string
+          priority?: string | null
           status?: Database["public"]["Enums"]["project_status"] | null
           total_rooms?: number | null
           updated_at?: string | null
@@ -642,11 +711,13 @@ export type Database = {
           created_by?: string | null
           current_phase?: number | null
           deadline?: string | null
+          deadline_alert_sent?: boolean | null
           description?: string | null
           estimated_budget?: number | null
           id?: string
           max_rooms?: number | null
           name?: string
+          priority?: string | null
           status?: Database["public"]["Enums"]["project_status"] | null
           total_rooms?: number | null
           updated_at?: string | null
@@ -664,6 +735,177 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quality_metrics: {
+        Row: {
+          details: Json | null
+          id: string
+          measured_at: string | null
+          metric_name: string
+          render_id: string
+          score: number
+        }
+        Insert: {
+          details?: Json | null
+          id?: string
+          measured_at?: string | null
+          metric_name: string
+          render_id: string
+          score: number
+        }
+        Update: {
+          details?: Json | null
+          id?: string
+          measured_at?: string | null
+          metric_name?: string
+          render_id?: string
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_metrics_render_id_fkey"
+            columns: ["render_id"]
+            isOneToOne: false
+            referencedRelation: "renders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      render_feedback: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          feedback_type: string
+          id: string
+          issues: Json | null
+          rating: number | null
+          render_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          feedback_type: string
+          id?: string
+          issues?: Json | null
+          rating?: number | null
+          render_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          feedback_type?: string
+          id?: string
+          issues?: Json | null
+          rating?: number | null
+          render_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_feedback_render_id_fkey"
+            columns: ["render_id"]
+            isOneToOne: false
+            referencedRelation: "renders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      renders: {
+        Row: {
+          approval_status: string | null
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          generation_time_ms: number | null
+          id: string
+          image_url: string
+          model_used: string | null
+          parent_render_id: string | null
+          prompt_used: string | null
+          provider: string | null
+          quality_details: Json | null
+          quality_score: number | null
+          rejection_reason: string | null
+          room_id: string
+          storage_path: string | null
+          updated_at: string | null
+          version_number: number | null
+        }
+        Insert: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          generation_time_ms?: number | null
+          id?: string
+          image_url: string
+          model_used?: string | null
+          parent_render_id?: string | null
+          prompt_used?: string | null
+          provider?: string | null
+          quality_details?: Json | null
+          quality_score?: number | null
+          rejection_reason?: string | null
+          room_id: string
+          storage_path?: string | null
+          updated_at?: string | null
+          version_number?: number | null
+        }
+        Update: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          generation_time_ms?: number | null
+          id?: string
+          image_url?: string
+          model_used?: string | null
+          parent_render_id?: string | null
+          prompt_used?: string | null
+          provider?: string | null
+          quality_details?: Json | null
+          quality_score?: number | null
+          rejection_reason?: string | null
+          room_id?: string
+          storage_path?: string | null
+          updated_at?: string | null
+          version_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renders_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "renders_parent_render_id_fkey"
+            columns: ["parent_render_id"]
+            isOneToOne: false
+            referencedRelation: "renders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "renders_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
             referencedColumns: ["id"]
           },
         ]
@@ -1463,6 +1705,10 @@ export type Database = {
         }[]
       }
       auto_promote_tier: { Args: { lib_id: string }; Returns: string }
+      calculate_quality_score: {
+        Args: { p_render_id: string }
+        Returns: number
+      }
       claim_job: { Args: { p_job_id: string }; Returns: boolean }
       cleanup_expired_sessions: { Args: never; Returns: number }
       cleanup_old_events: { Args: never; Returns: number }
@@ -1548,6 +1794,30 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_pending_renders_for_review: {
+        Args: never
+        Returns: {
+          created_at: string
+          project_id: string
+          project_name: string
+          quality_score: number
+          render_id: string
+          renderer_name: string
+          room_type: string
+        }[]
+      }
+      get_render_version_history: {
+        Args: { p_render_id: string }
+        Returns: {
+          approval_status: string
+          approved_at: string
+          created_at: string
+          image_url: string
+          quality_score: number
+          render_id: string
+          version_number: number
+        }[]
+      }
       get_smart_default: {
         Args: { p_room_type: string; p_style: string }
         Returns: {
@@ -1565,6 +1835,18 @@ export type Database = {
       }
       heartbeat_session: { Args: { p_client_id: string }; Returns: boolean }
       increment_library_views: { Args: { lib_id: string }; Returns: undefined }
+      log_project_activity: {
+        Args: {
+          p_activity_type: string
+          p_description: string
+          p_metadata?: Json
+          p_project_id: string
+          p_render_id?: string
+          p_room_id?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       mark_notifications_read: {
         Args: { p_notification_ids: string[] }
         Returns: number
