@@ -68,6 +68,8 @@ import {
 import { format } from 'date-fns';
 import { AddRoomForm } from '@/components/projects/AddRoomForm';
 import { BulkUpload } from '@/components/rooms/BulkUpload';
+import { BatchCleanup } from '@/components/rooms/BatchCleanup';
+import { Eraser } from 'lucide-react';
 
 type ProjectStatus = 'draft' | 'in_progress' | 'review' | 'approved' | 'completed' | 'cancelled';
 type RoomType = 'living_room' | 'master_bedroom' | 'bedroom' | 'kitchen' | 'dining_room' | 'balcony' | 'study_room' | 'kids_room' | 'guest_room' | 'pooja_room' | 'home_office' | 'gym' | 'entertainment_room' | 'utility_room';
@@ -160,6 +162,7 @@ export default function ProjectDetail() {
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [batchCleanupOpen, setBatchCleanupOpen] = useState(false);
   
   const isAdmin = profile?.role === 'admin';
   
@@ -605,19 +608,29 @@ export default function ProjectDetail() {
                 </Button>
               )}
               {project.current_phase === 3 && (
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={handleBulkApproveCleaned}
-                  disabled={bulkApproveCleaned.isPending}
-                >
-                  {bulkApproveCleaned.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="mr-2 h-4 w-4" />
-                  )}
-                  {bulkApproveCleaned.isPending ? 'Approving...' : 'Approve All Cleaned'}
-                </Button>
+                <>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => setBatchCleanupOpen(true)}
+                  >
+                    <Eraser className="mr-2 h-4 w-4" />
+                    Clean All Rooms
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={handleBulkApproveCleaned}
+                    disabled={bulkApproveCleaned.isPending}
+                  >
+                    {bulkApproveCleaned.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    {bulkApproveCleaned.isPending ? 'Approving...' : 'Approve All Cleaned'}
+                  </Button>
+                </>
               )}
               {project.current_phase === 4 && (
                 <Button size="sm" variant="outline" onClick={() => handleBulkPhaseAction(4)}>
@@ -753,6 +766,20 @@ export default function ProjectDetail() {
               currentRoomCount={rooms.length}
               open={isBulkUploadOpen}
               onOpenChange={setIsBulkUploadOpen}
+            />
+
+            {/* Batch Cleanup Dialog */}
+            <BatchCleanup
+              projectId={project.id}
+              rooms={rooms.map(r => ({
+                id: r.id,
+                room_name: r.room_name,
+                room_type: r.room_type,
+                phase_2_completed: r.phase_2_completed,
+                phase_3_completed: r.phase_3_completed
+              }))}
+              open={batchCleanupOpen}
+              onOpenChange={setBatchCleanupOpen}
             />
           </div>
         )}

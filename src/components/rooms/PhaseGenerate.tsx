@@ -10,7 +10,10 @@ import {
   MessageSquare,
   Loader2,
   DollarSign,
-  AlertCircle
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +21,7 @@ import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -33,6 +37,7 @@ import { toast } from '@/hooks/use-toast';
 import { RenderRefinement } from './RenderRefinement';
 import { QualityScoreDisplay } from './QualityScoreDisplay';
 import { PromptEditor } from './PromptEditor';
+import { useBatches } from '@/hooks/useBatches';
 
 interface RegenerateOptions {
   useSmartDefaults: boolean;
@@ -122,6 +127,45 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   
   // Editable prompt for generation
   const [editablePrompt, setEditablePrompt] = useState('');
+
+  // Batch progress tracking
+  const { activeBatch, recentBatches } = useBatches(projectId);
+  const generateBatch = activeBatch?.batch_type === 'generate' ? activeBatch : null;
+
+  // Fetch project-wide generation job stats
+  const { data: projectJobStats } = useQuery({
+    queryKey: ['generation-job-stats', projectId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('job_queue')
+        .select('status, room_id')
+        .eq('project_id', projectId)
+        .eq('job_type', 'generation')
+        .order('created_at', { ascending: false });
+      
+      if (!data) return { pending: 0, processing: 0, completed: 0, failed: 0, total: 0 };
+      
+      // Deduplicate by room_id, keeping only latest job per room
+      const latestByRoom = new Map<string, string>();
+      data.forEach(job => {
+        if (!latestByRoom.has(job.room_id)) {
+          latestByRoom.set(job.room_id, job.status);
+        }
+      });
+      
+      const stats = { pending: 0, processing: 0, completed: 0, failed: 0, total: 0 };
+      latestByRoom.forEach(status => {
+        stats.total++;
+        if (status === 'pending') stats.pending++;
+        else if (status === 'processing') stats.processing++;
+        else if (status === 'completed') stats.completed++;
+        else if (status === 'failed') stats.failed++;
+      });
+      
+      return stats;
+    },
+    refetchInterval: 5000 // Poll every 5 seconds
+  });
 
   // Fetch current generation job status
   const { data: currentJob, refetch: refetchJob } = useQuery({
@@ -588,6 +632,77 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
           AI-generated interior design render
         </p>
       </div>
+
+      {/* Batch Generation Progress Card */}
+      {generateBatch && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <div className="flex-1">
+                <h4 className="font-medium text-sm">Batch Generation in Progress</h4>
+                <p className="text-xs text-muted-foreground">
+                  {generateBatch.completed_items} of {generateBatch.total_items} rooms complete
+                  {generateBatch.failed_items > 0 && (
+                    <span className="text-destructive ml-2">
+                      ({generateBatch.failed_items} failed)
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <Progress 
+              value={(generateBatch.completed_items / generateBatch.total_items) * 100} 
+              className="h-2" 
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Project-Wide Generation Stats */}
+      {projectJobStats && projectJobStats.total > 0 && (
+        <Card className="border-muted">
+          <CardContent className="p-4">
+            <h4 className="font-medium text-sm mb-3">Project Generation Progress</h4>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Pending</p>
+                  <p className="text-sm font-semibold">{projectJobStats.pending}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-500/10">
+                <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Processing</p>
+                  <p className="text-sm font-semibold text-blue-600">{projectJobStats.processing}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-green-500/10">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Completed</p>
+                  <p className="text-sm font-semibold text-green-600">{projectJobStats.completed}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-destructive/10">
+                <XCircle className="h-4 w-4 text-destructive" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Failed</p>
+                  <p className="text-sm font-semibold text-destructive">{projectJobStats.failed}</p>
+                </div>
+              </div>
+            </div>
+            {projectJobStats.total > 0 && (
+              <Progress 
+                value={(projectJobStats.completed / projectJobStats.total) * 100} 
+                className="h-1.5 mt-3" 
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Prompt Editor - Show before generation */}
       {!hasRender && !isGenerating && (
