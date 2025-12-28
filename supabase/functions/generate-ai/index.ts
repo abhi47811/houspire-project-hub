@@ -89,23 +89,60 @@ async function fetchQualityControlRules(supabase: any) {
   return rules || [];
 }
 
+// Room types that commonly have ceiling fans (smart detection for Indian homes)
+const ROOM_TYPES_WITH_FANS = [
+  'living_room',
+  'bedroom',
+  'master_bedroom',
+  'guest_bedroom',
+  'dining_room',
+  'office',
+  'home_office',
+  'kids_room',
+];
+
+function checkCeilingFanPresence(room: any): boolean {
+  // Explicit detection from room data
+  if (room.ceiling_fan_detected === true) return true;
+  
+  // Detection from room analysis
+  if (room.room_analysis?.ceiling_fan_count && room.room_analysis.ceiling_fan_count > 0) {
+    return true;
+  }
+  
+  // Smart detection based on room type
+  if (room.room_type && ROOM_TYPES_WITH_FANS.includes(room.room_type)) {
+    return true;
+  }
+  
+  return false;
+}
+
 function buildQualityControlPromptAdditions(room: any, rules: any[]): string {
   const additions: string[] = [];
+  const appliedRules: string[] = [];
   
-  // Check for ceiling fan presence
-  const hasCeilingFan = 
-    room.ceiling_fan_detected === true || 
-    (room.room_analysis?.ceiling_fan_count && room.room_analysis.ceiling_fan_count > 0);
+  // Check for ceiling fan presence using smart detection
+  const hasCeilingFan = checkCeilingFanPresence(room);
   
   for (const rule of rules) {
-    if (rule.rule_code === 'FAN_LIGHT_CONFLICT' && hasCeilingFan) {
+    // FAN_LIGHT_CONFLICT - only apply if ceiling fan detected
+    if (rule.rule_code === 'FAN_LIGHT_CONFLICT' && hasCeilingFan && rule.prompt_instruction) {
       console.log('🚨 Quality Control: Applying FAN_LIGHT_CONFLICT rule');
       additions.push(rule.prompt_instruction);
+      appliedRules.push(rule.rule_code);
+    }
+    // DETAIL_PRESERVATION - always apply for all generations
+    else if (rule.rule_code === 'DETAIL_PRESERVATION' && rule.prompt_instruction) {
+      console.log('✨ Quality Control: Applying DETAIL_PRESERVATION rule');
+      additions.push(rule.prompt_instruction);
+      appliedRules.push(rule.rule_code);
     }
     // Add more rule checks here as needed
   }
   
   if (additions.length > 0) {
+    console.log(`📋 Total QC rules applied: ${appliedRules.join(', ')}`);
     return `\n\n## QUALITY CONTROL RULES (MUST FOLLOW):\n${additions.join('\n\n')}`;
   }
   
