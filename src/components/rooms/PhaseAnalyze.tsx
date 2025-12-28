@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import {
   CheckCircle,
@@ -19,8 +20,12 @@ import {
   Ruler,
   Loader2,
   Pencil,
+  X,
+  Clock,
 } from 'lucide-react';
 import { visionService } from '@/services/api';
+
+const ANALYSIS_TIMEOUT_MS = 90000; // 90 second timeout
 
 interface Room {
   id: string;
@@ -117,6 +122,12 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
     outletCount: 0,
   });
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  
+  // Analysis timing state
+  const [analysisStartTime, setAnalysisStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fetch analysis
   const { data: analysis, isLoading } = useQuery({
@@ -194,103 +205,163 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
     }
   };
 
+  // Start elapsed time timer
+  const startTimer = useCallback(() => {
+    setAnalysisStartTime(Date.now());
+    setElapsedTime(0);
+    timerRef.current = setInterval(() => {
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
+  }, []);
+
+  // Stop elapsed time timer
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setAnalysisStartTime(null);
+  }, []);
+
+  // Cancel analysis
+  const cancelAnalysis = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    stopTimer();
+    toast({ title: 'Analysis cancelled', description: 'You can try again when ready.' });
+  }, [stopTimer, toast]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+    };
+  }, []);
+
   // Re-analyze room using AI
   const reAnalyze = useMutation({
     mutationFn: async () => {
-      // Get the original uploaded image URL from room_images
-      const { data: imageData, error: imageError } = await supabase
-        .from('room_images')
-        .select('storage_path')
-        .eq('room_id', room.id)
-        .eq('image_type', 'original')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Create abort controller for timeout
+      abortControllerRef.current = new AbortController();
+      startTimer();
       
-      if (imageError) throw imageError;
-      if (!imageData?.storage_path) {
-        throw new Error('No uploaded image found. Please upload an image first.');
-      }
+      // Set timeout
+      const timeoutId = setTimeout(() => {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+      }, ANALYSIS_TIMEOUT_MS);
       
-      // Build full URL for the image
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const imageUrl = imageData.storage_path.startsWith('http') 
-        ? imageData.storage_path 
-        : `${supabaseUrl}/storage/v1/object/public/room-images/${imageData.storage_path}`;
-      
-      // Call vision AI service
-      const response = await visionService.analyzeRoom(imageUrl, projectId, room.id);
-      
-      // Cast to any since API response has different shape than DB type
-      const result = response.result as any;
-      
-      // Upsert results to room_analysis
-      const analysisData = {
-        room_id: room.id,
-        window_count: result.window_count ?? 0,
-        door_count: result.door_count ?? 0,
-        ceiling_fan_count: result.ceiling_fan_count ?? 0,
-        outlet_count: result.outlet_count ?? 0,
-        detected_length_feet: result.dimensions?.length_feet ?? null,
-        detected_width_feet: result.dimensions?.width_feet ?? null,
-        detected_height_feet: result.dimensions?.height_feet ?? null,
-        measurement_confidence: result.measurement_confidence ?? null,
-        window_positions: result.window_positions ?? [],
-        door_positions: result.door_positions ?? [],
-        other_features: result.other_features ?? [],
-        suggested_styles: result.suggested_styles ?? [],
-        is_verified: false,
-      };
-      
-      // Check if record exists
-      const { data: existing } = await supabase
-        .from('room_analysis')
-        .select('id')
-        .eq('room_id', room.id)
-        .maybeSingle();
-      
-      if (existing) {
-        const { error } = await supabase
+      try {
+        // Get the original uploaded image URL from room_images
+        const { data: imageData, error: imageError } = await supabase
+          .from('room_images')
+          .select('storage_path')
+          .eq('room_id', room.id)
+          .eq('image_type', 'original')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (imageError) throw imageError;
+        if (!imageData?.storage_path) {
+          throw new Error('No uploaded image found. Please upload an image first.');
+        }
+        
+        // Build full URL for the image
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const imageUrl = imageData.storage_path.startsWith('http') 
+          ? imageData.storage_path 
+          : `${supabaseUrl}/storage/v1/object/public/room-images/${imageData.storage_path}`;
+        
+        // Call vision AI service
+        const response = await visionService.analyzeRoom(imageUrl, projectId, room.id);
+        
+        // Cast to any since API response has different shape than DB type
+        const result = response.result as any;
+        
+        // Upsert results to room_analysis - now including mirror and AC fields
+        const analysisData = {
+          room_id: room.id,
+          window_count: result.window_count ?? 0,
+          mirror_count: result.mirror_count ?? 0,
+          mirror_positions: result.mirror_positions ?? [],
+          door_count: result.door_count ?? 0,
+          ceiling_fan_count: result.ceiling_fan_count ?? 0,
+          ac_unit_count: result.ac_unit_count ?? 0,
+          outlet_count: result.outlet_count ?? 0,
+          detected_length_feet: result.dimensions?.length_feet ?? null,
+          detected_width_feet: result.dimensions?.width_feet ?? null,
+          detected_height_feet: result.dimensions?.height_feet ?? null,
+          measurement_confidence: result.measurement_confidence ?? null,
+          window_positions: result.window_positions ?? [],
+          door_positions: result.door_positions ?? [],
+          other_features: result.other_features ?? [],
+          suggested_styles: result.suggested_styles ?? [],
+          is_verified: false,
+        };
+        
+        // Check if record exists
+        const { data: existing } = await supabase
           .from('room_analysis')
-          .update(analysisData)
-          .eq('room_id', room.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('room_analysis')
-          .insert([analysisData]);
-        if (error) throw error;
-      }
-      
-      // Update local state with new features
-      setFeatures({
-        windowCount: result.window_count ?? 0,
-        mirrorCount: result.mirror_count ?? 0,
-        doorCount: result.door_count ?? 0,
-        ceilingFanCount: result.ceiling_fan_count ?? 0,
-        acUnitCount: result.ac_unit_count ?? 0,
-        outletCount: result.outlet_count ?? 0,
-      });
-      
-      if (result.dimensions) {
-        setMeasurements({
-          length: result.dimensions.length_feet ?? 0,
-          width: result.dimensions.width_feet ?? 0,
-          height: result.dimensions.height_feet ?? 0,
+          .select('id')
+          .eq('room_id', room.id)
+          .maybeSingle();
+        
+        if (existing) {
+          const { error } = await supabase
+            .from('room_analysis')
+            .update(analysisData)
+            .eq('room_id', room.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('room_analysis')
+            .insert([analysisData]);
+          if (error) throw error;
+        }
+        
+        // Update local state with new features
+        setFeatures({
+          windowCount: result.window_count ?? 0,
+          mirrorCount: result.mirror_count ?? 0,
+          doorCount: result.door_count ?? 0,
+          ceilingFanCount: result.ceiling_fan_count ?? 0,
+          acUnitCount: result.ac_unit_count ?? 0,
+          outletCount: result.outlet_count ?? 0,
         });
+        
+        if (result.dimensions) {
+          setMeasurements({
+            length: result.dimensions.length_feet ?? 0,
+            width: result.dimensions.width_feet ?? 0,
+            height: result.dimensions.height_feet ?? 0,
+          });
+        }
+        
+        return result;
+      } finally {
+        clearTimeout(timeoutId);
+        stopTimer();
       }
-      
-      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['room-analysis', room.id] });
       toast({ 
         title: 'Analysis complete', 
-        description: 'Room analyzed with OpenAI GPT-5 Vision. Review and adjust if needed.' 
+        description: `Room analyzed in ${elapsedTime}s. Review and adjust if needed.` 
       });
     },
     onError: (error: Error) => {
-      toast({ title: 'Analysis failed', description: error.message, variant: 'destructive' });
+      stopTimer();
+      if (error.name === 'AbortError' || error.message.includes('aborted')) {
+        toast({ title: 'Analysis timed out', description: 'Try again or check your connection.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Analysis failed', description: error.message, variant: 'destructive' });
+      }
     },
   });
 
@@ -317,8 +388,10 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
             detected_width_feet: measurements.width,
             detected_height_feet: measurements.height,
             window_count: features.windowCount,
+            mirror_count: features.mirrorCount,
             door_count: features.doorCount,
             ceiling_fan_count: features.ceilingFanCount,
+            ac_unit_count: features.acUnitCount,
             outlet_count: features.outletCount,
           })
           .eq('room_id', room.id);
@@ -337,8 +410,10 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
             detected_width_feet: measurements.width,
             detected_height_feet: measurements.height,
             window_count: features.windowCount,
+            mirror_count: features.mirrorCount,
             door_count: features.doorCount,
             ceiling_fan_count: features.ceilingFanCount,
+            ac_unit_count: features.acUnitCount,
             outlet_count: features.outletCount,
             measurement_confidence: mockAnalysis.measurement_confidence,
             suggested_styles: mockAnalysis.suggested_styles as unknown as any,
@@ -554,7 +629,7 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
         <Button 
           className="w-full" 
           onClick={() => verifyAnalysis.mutate()}
-          disabled={verifyAnalysis.isPending || analysis?.is_verified}
+          disabled={verifyAnalysis.isPending || analysis?.is_verified || reAnalyze.isPending}
         >
           {verifyAnalysis.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -563,19 +638,41 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
           )}
           {analysis?.is_verified ? 'Verified' : 'Verify & Approve'}
         </Button>
-        <Button 
-          variant="outline" 
-          className="w-full"
-          onClick={() => reAnalyze.mutate()}
-          disabled={reAnalyze.isPending}
-        >
-          {reAnalyze.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
+        
+        {reAnalyze.isPending ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analyzing...
+              </span>
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                {elapsedTime}s
+              </span>
+            </div>
+            <Progress value={(elapsedTime / (ANALYSIS_TIMEOUT_MS / 1000)) * 100} className="h-2" />
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="w-full"
+              onClick={cancelAnalysis}
+            >
+              <X className="mr-2 h-4 w-4" />
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <Button 
+            variant="outline" 
+            className="w-full"
+            onClick={() => reAnalyze.mutate()}
+            disabled={reAnalyze.isPending}
+          >
             <RefreshCw className="mr-2 h-4 w-4" />
-          )}
-          {reAnalyze.isPending ? 'Analyzing with GPT-5...' : 'Re-analyze'}
-        </Button>
+            Re-analyze
+          </Button>
+        )}
       </div>
     </div>
   );
