@@ -48,6 +48,73 @@ export function useApproveAllAnalysis() {
   });
 }
 
+export function useApproveAllCleaned() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ projectId, roomIds }: { projectId: string; roomIds: string[] }) => {
+      const { error } = await supabase
+        .from('rooms')
+        .update({ phase_3_completed: true })
+        .in('id', roomIds);
+
+      if (error) throw error;
+      return { success_count: roomIds.length, total_count: roomIds.length };
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Cleanup Approved',
+        description: `Successfully approved ${data.success_count} cleaned rooms.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+export function useBulkGenerateRenders() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ roomIds }: { roomIds: string[] }) => {
+      // Trigger generation for all rooms in parallel
+      const results = await Promise.allSettled(
+        roomIds.map(roomId =>
+          supabase.functions.invoke('generate-ai', {
+            body: { roomId },
+          })
+        )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+
+      return { success_count: successCount, failed_count: failedCount, total_count: roomIds.length };
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Generation Started',
+        description: `Started generation for ${data.success_count} rooms. ${data.failed_count > 0 ? `${data.failed_count} failed.` : ''}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['renders'] });
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
 export function useApplyStyleToAllRooms() {
   const queryClient = useQueryClient();
 
@@ -158,6 +225,64 @@ export function useAutoAssignBestVendors() {
     onError: (error) => {
       toast({
         title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+export function useBulkDownloadRenders() {
+  return useMutation({
+    mutationFn: async ({ roomIds, projectName }: { roomIds: string[]; projectName: string }) => {
+      // Dynamically import jszip and file-saver
+      const [JSZip, { saveAs }] = await Promise.all([
+        import('jszip').then(m => m.default),
+        import('file-saver'),
+      ]);
+
+      // Fetch all approved renders for selected rooms
+      const { data: renders, error } = await supabase
+        .from('renders')
+        .select('id, room_id, image_url')
+        .in('room_id', roomIds)
+        .eq('approval_status', 'approved');
+
+      if (error) throw error;
+
+      if (!renders || renders.length === 0) {
+        throw new Error('No approved renders found for selected rooms.');
+      }
+
+      // Create ZIP file
+      const zip = new JSZip();
+
+      for (const render of renders) {
+        try {
+          const response = await fetch(render.image_url);
+          if (!response.ok) continue;
+          const blob = await response.blob();
+          const extension = render.image_url.split('.').pop()?.split('?')[0] || 'jpg';
+          zip.file(`${render.room_id}_${render.id}.${extension}`, blob);
+        } catch {
+          // Skip failed downloads
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipBlob, `${projectName}-renders.zip`);
+
+      return { downloaded_count: renders.length };
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Download Complete',
+        description: `Downloaded ${data.downloaded_count} renders.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Download Failed',
         description: error.message,
         variant: 'destructive',
       });

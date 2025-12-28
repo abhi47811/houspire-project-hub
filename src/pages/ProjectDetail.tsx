@@ -39,6 +39,12 @@ import { useProjectApiCostBadge } from '@/hooks/useApiCost';
 import { useSessionTracking } from '@/hooks/useSessionTracking';
 import { useRealtimeSubscriptions } from '@/hooks/useRealtimeSubscriptions';
 import {
+  useApproveAllAnalysis,
+  useApproveAllCleaned,
+  useBulkGenerateRenders,
+  useBulkDownloadRenders,
+} from '@/hooks/useBulkOperations';
+import {
   ArrowLeft,
   MapPin,
   Home,
@@ -56,11 +62,12 @@ import {
   Download,
   Loader2,
   Trash2,
+  Upload,
+  Play,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AddRoomForm } from '@/components/projects/AddRoomForm';
 import { BulkUpload } from '@/components/rooms/BulkUpload';
-import { Upload } from 'lucide-react';
 
 type ProjectStatus = 'draft' | 'in_progress' | 'review' | 'approved' | 'completed' | 'cancelled';
 type RoomType = 'living_room' | 'master_bedroom' | 'bedroom' | 'kitchen' | 'dining_room' | 'balcony' | 'study_room' | 'kids_room' | 'guest_room' | 'pooja_room' | 'home_office' | 'gym' | 'entertainment_room' | 'utility_room';
@@ -155,6 +162,12 @@ export default function ProjectDetail() {
   const [isExporting, setIsExporting] = useState(false);
   
   const isAdmin = profile?.role === 'admin';
+  
+  // Bulk operation hooks
+  const bulkApproveAnalysis = useApproveAllAnalysis();
+  const bulkApproveCleaned = useApproveAllCleaned();
+  const bulkGenerateRenders = useBulkGenerateRenders();
+  const bulkDownloadRenders = useBulkDownloadRenders();
   
   // API Cost tracking
   const { formattedCost, callCount } = useProjectApiCostBadge(id || '');
@@ -277,6 +290,39 @@ export default function ProjectDetail() {
   const handleBulkPhaseAction = (phase: number) => {
     const phaseKey = `phase_${phase}_completed` as keyof Room;
     bulkUpdateRooms.mutate({ [phaseKey]: true } as Partial<Room>);
+  };
+
+  const handleBulkApproveAnalysis = () => {
+    if (!project || !profile?.id) return;
+    bulkApproveAnalysis.mutate({
+      projectId: project.id,
+      userId: profile.id,
+    });
+    setSelectedRooms(new Set());
+  };
+
+  const handleBulkApproveCleaned = () => {
+    if (!project) return;
+    const roomIds = Array.from(selectedRooms);
+    bulkApproveCleaned.mutate({
+      projectId: project.id,
+      roomIds,
+    });
+    setSelectedRooms(new Set());
+  };
+
+  const handleBulkGenerateRenders = () => {
+    const roomIds = Array.from(selectedRooms);
+    bulkGenerateRenders.mutate({ roomIds });
+  };
+
+  const handleBulkDownloadRenders = () => {
+    if (!project) return;
+    const roomIds = Array.from(selectedRooms);
+    bulkDownloadRenders.mutate({
+      roomIds,
+      projectName: project.name,
+    });
   };
 
   // Export project with auto-catalog
@@ -544,15 +590,33 @@ export default function ProjectDetail() {
 
             <div className="flex flex-wrap items-center gap-2">
               {project.current_phase === 2 && (
-                <Button size="sm" variant="outline" onClick={() => handleBulkPhaseAction(2)}>
-                  <FileCheck className="mr-2 h-4 w-4" />
-                  Approve All Analysis
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={handleBulkApproveAnalysis}
+                  disabled={bulkApproveAnalysis.isPending}
+                >
+                  {bulkApproveAnalysis.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileCheck className="mr-2 h-4 w-4" />
+                  )}
+                  {bulkApproveAnalysis.isPending ? 'Approving...' : 'Approve All Analysis'}
                 </Button>
               )}
               {project.current_phase === 3 && (
-                <Button size="sm" variant="outline" onClick={() => handleBulkPhaseAction(3)}>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Approve All Cleaned
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={handleBulkApproveCleaned}
+                  disabled={bulkApproveCleaned.isPending}
+                >
+                  {bulkApproveCleaned.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  {bulkApproveCleaned.isPending ? 'Approving...' : 'Approve All Cleaned'}
                 </Button>
               )}
               {project.current_phase === 4 && (
@@ -562,10 +626,38 @@ export default function ProjectDetail() {
                 </Button>
               )}
               {project.current_phase === 5 && (
-                <Button size="sm" variant="outline" onClick={() => handleBulkPhaseAction(5)}>
-                  <Image className="mr-2 h-4 w-4" />
-                  Approve All Renders
-                </Button>
+                <>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={handleBulkGenerateRenders}
+                    disabled={bulkGenerateRenders.isPending}
+                  >
+                    {bulkGenerateRenders.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="mr-2 h-4 w-4" />
+                    )}
+                    {bulkGenerateRenders.isPending ? 'Generating...' : 'Generate All Renders'}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleBulkPhaseAction(5)}>
+                    <Image className="mr-2 h-4 w-4" />
+                    Approve All Renders
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={handleBulkDownloadRenders}
+                    disabled={bulkDownloadRenders.isPending}
+                  >
+                    {bulkDownloadRenders.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+                    {bulkDownloadRenders.isPending ? 'Preparing...' : 'Download All'}
+                  </Button>
+                </>
               )}
               <Button size="sm" variant="outline">
                 <Copy className="mr-2 h-4 w-4" />
@@ -678,10 +770,69 @@ function RoomCard({
   isSelected: boolean;
   onSelect: () => void;
 }) {
+  const [renderStatus, setRenderStatus] = useState<'idle' | 'pending' | 'generating' | 'completed' | 'failed'>('idle');
+  const [latestRender, setLatestRender] = useState<{ image_url: string; approval_status: string } | null>(null);
+  
   const roomType = room.room_type ? roomTypeLabels[room.room_type] : 'Unknown';
   const dimensions = room.length_feet && room.width_feet
     ? `${room.length_feet} × ${room.width_feet} ft`
     : 'No dimensions';
+
+  // Subscribe to render status changes
+  useEffect(() => {
+    // Fetch initial render status
+    const fetchLatestRender = async () => {
+      const { data } = await supabase
+        .from('renders')
+        .select('image_url, approval_status')
+        .eq('room_id', room.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (data) {
+        setLatestRender(data);
+        if (data.approval_status === 'approved') {
+          setRenderStatus('completed');
+        } else if (data.approval_status === 'pending') {
+          setRenderStatus('pending');
+        }
+      }
+    };
+    
+    fetchLatestRender();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel(`room-renders-${room.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'renders',
+          filter: `room_id=eq.${room.id}`,
+        },
+        (payload) => {
+          if (payload.new) {
+            const render = payload.new as { image_url: string; approval_status: string };
+            setLatestRender(render);
+            if (render.approval_status === 'approved') {
+              setRenderStatus('completed');
+            } else if (render.approval_status === 'pending') {
+              setRenderStatus('pending');
+            } else if (render.approval_status === 'rejected') {
+              setRenderStatus('failed');
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [room.id]);
 
   return (
     <Card className={`relative overflow-hidden transition-all ${isSelected ? 'ring-2 ring-primary' : ''}`}>
@@ -696,9 +847,34 @@ function RoomCard({
 
       {/* Room Image/Placeholder */}
       <div className="relative h-32 bg-gradient-to-br from-primary/20 to-accent/10">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Home className="h-12 w-12 text-primary/30" />
-        </div>
+        {latestRender?.image_url ? (
+          <img 
+            src={latestRender.image_url} 
+            alt={room.room_name || `Room ${room.room_number}`}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Home className="h-12 w-12 text-primary/30" />
+          </div>
+        )}
+        
+        {/* Render Status Overlay */}
+        {renderStatus === 'generating' && (
+          <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="text-xs font-medium">Generating...</span>
+            </div>
+          </div>
+        )}
+        
+        {renderStatus === 'completed' && (
+          <div className="absolute top-3 right-3">
+            <CheckCircle className="h-5 w-5 text-success" />
+          </div>
+        )}
+        
         {room.selected_style && (
           <Badge className="absolute bottom-3 right-3 bg-card/90">
             {room.selected_style}
