@@ -229,6 +229,9 @@ async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
 async function generateRender(cleanedImageUrl: string, prompt: string): Promise<any> {
   const startTime = Date.now();
   
+  console.log('generateRender called with prompt:', prompt?.slice(0, 100));
+  console.log('cleanedImageUrl:', cleanedImageUrl?.slice(0, 100));
+  
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -236,7 +239,7 @@ async function generateRender(cleanedImageUrl: string, prompt: string): Promise<
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image-preview",
+      model: "google/gemini-2.5-flash-image",
       messages: [
         {
           role: "user",
@@ -264,11 +267,21 @@ Requirements:
 
   if (!response.ok) {
     const error = await response.text();
+    console.error('Generate AI error response:', error);
     throw new Error(`Generate AI error: ${error}`);
   }
 
   const data = await response.json();
+  console.log('Generate AI response received, checking for images...');
+  
   const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+  
+  if (!imageUrl) {
+    console.error('No image URL in response:', JSON.stringify(data).slice(0, 500));
+    throw new Error("No image generated - AI response did not contain an image");
+  }
+
+  console.log('Image generated successfully, length:', imageUrl.length);
 
   return {
     result: { imageUrl },
@@ -542,11 +555,13 @@ serve(async (req) => {
 
     switch (action) {
       case "submit": {
-        // Submit a new job
-        const jobType = phase === 2 ? "analysis" : phase === 3 ? "cleaning" : phase === 5 ? "generation" : null;
+        // Submit a new job - accept either phase number or jobType directly
+        const { jobType: directJobType } = body;
+        const jobType = directJobType || 
+          (phase === 2 ? "analysis" : phase === 3 ? "cleaning" : phase === 5 ? "generation" : null);
         
-        if (!jobType) {
-          throw new Error(`Invalid phase: ${phase}`);
+        if (!jobType || !["analysis", "cleaning", "generation"].includes(jobType)) {
+          throw new Error(`Invalid phase (${phase}) or jobType (${directJobType})`);
         }
 
         const { data: job, error } = await supabase
