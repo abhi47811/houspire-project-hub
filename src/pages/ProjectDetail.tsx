@@ -59,6 +59,8 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AddRoomForm } from '@/components/projects/AddRoomForm';
+import { BulkUpload } from '@/components/rooms/BulkUpload';
+import { Upload } from 'lucide-react';
 
 type ProjectStatus = 'draft' | 'in_progress' | 'review' | 'approved' | 'completed' | 'cancelled';
 type RoomType = 'living_room' | 'master_bedroom' | 'bedroom' | 'kitchen' | 'dining_room' | 'balcony' | 'study_room' | 'kids_room' | 'guest_room' | 'pooja_room' | 'home_office' | 'gym' | 'entertainment_room' | 'utility_room';
@@ -149,6 +151,7 @@ export default function ProjectDetail() {
   const queryClient = useQueryClient();
   const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   
   const isAdmin = profile?.role === 'admin';
@@ -632,6 +635,33 @@ export default function ProjectDetail() {
                 </DialogContent>
               </Dialog>
             )}
+
+            {/* Bulk Upload Card */}
+            {rooms.length < project.max_rooms && (
+              <Card 
+                className="border-dashed cursor-pointer transition-colors hover:border-primary hover:bg-muted/50"
+                onClick={() => setIsBulkUploadOpen(true)}
+              >
+                <CardContent className="flex flex-col items-center justify-center h-full min-h-[280px] text-center">
+                  <div className="rounded-full bg-muted p-4">
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="mt-3 font-medium">Bulk Upload</p>
+                  <p className="text-sm text-muted-foreground">
+                    Upload multiple rooms at once
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Bulk Upload Dialog */}
+            <BulkUpload
+              projectId={project.id}
+              maxRooms={project.max_rooms}
+              currentRoomCount={rooms.length}
+              open={isBulkUploadOpen}
+              onOpenChange={setIsBulkUploadOpen}
+            />
           </div>
         )}
       </div>
