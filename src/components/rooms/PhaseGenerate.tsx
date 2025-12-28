@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Image, 
   Download, 
@@ -10,8 +10,7 @@ import {
   MessageSquare,
   Loader2,
   DollarSign,
-  ChevronLeft,
-  ChevronRight
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +28,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 
 interface Room {
@@ -39,6 +38,7 @@ interface Room {
   phase_5_completed: boolean;
   selected_style: string | null;
   final_quality_score: number | null;
+  room_type: string | null;
 }
 
 interface PhaseGenerateProps {
@@ -61,27 +61,162 @@ interface ValidationItem {
   critical?: boolean;
 }
 
+interface ImageWithSignedUrl {
+  id: string;
+  room_id: string;
+  phase: number;
+  image_type: string;
+  file_name: string;
+  storage_path: string;
+  resolution: string;
+  file_size: number | null;
+  created_at: string;
+  updated_at: string;
+  signedUrl?: string;
+}
+
 export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const queryClient = useQueryClient();
   const [isApproving, setIsApproving] = useState(false);
-  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isSubmittingJob, setIsSubmittingJob] = useState(false);
   const [changeRequestOpen, setChangeRequestOpen] = useState(false);
   const [changeRequest, setChangeRequest] = useState('');
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [comparisonSlider, setComparisonSlider] = useState([50]);
   const [comparisonView, setComparisonView] = useState<'original' | 'cleaned' | 'final'>('final');
 
-  // Determine generation status based on room state
+  // Fetch current generation job status
+  const { data: currentJob, refetch: refetchJob } = useQuery({
+    queryKey: ['generation-job', room.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('job_queue')
+        .select('*')
+        .eq('room_id', room.id)
+        .eq('job_type', 'generation')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: (query) => {
+      // Poll every 3 seconds if job is processing
+      const job = query.state.data;
+      if (job?.status === 'processing' || job?.status === 'pending') {
+        return 3000;
+      }
+      return false;
+    }
+  });
+
+  // Fetch render image
+  const { data: renderImage, refetch: refetchRenderImage } = useQuery({
+    queryKey: ['render-image', room.id],
+    queryFn: async (): Promise<ImageWithSignedUrl | null> => {
+      const { data, error } = await supabase
+        .from('room_images')
+        .select('*')
+        .eq('room_id', room.id)
+        .eq('image_type', 'render')
+        .eq('phase', 5)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) throw error;
+      if (!data) return null;
+      
+      if (data.storage_path) {
+        const { data: signedData } = await supabase.storage
+          .from('room-images')
+          .createSignedUrl(data.storage_path, 3600);
+        
+        return { ...data, signedUrl: signedData?.signedUrl } as ImageWithSignedUrl;
+      }
+      return data as ImageWithSignedUrl;
+    }
+  });
+
+  // Fetch cleaned image for comparison
+  const { data: cleanedImage } = useQuery({
+    queryKey: ['cleaned-image', room.id],
+    queryFn: async (): Promise<ImageWithSignedUrl | null> => {
+      const { data, error } = await supabase
+        .from('room_images')
+        .select('*')
+        .eq('room_id', room.id)
+        .eq('image_type', 'cleaned')
+        .eq('phase', 3)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) throw error;
+      if (!data) return null;
+      
+      if (data.storage_path) {
+        const { data: signedData } = await supabase.storage
+          .from('room-images')
+          .createSignedUrl(data.storage_path, 3600);
+        
+        return { ...data, signedUrl: signedData?.signedUrl } as ImageWithSignedUrl;
+      }
+      return data as ImageWithSignedUrl;
+    }
+  });
+
+  // Fetch original image for comparison
+  const { data: originalImage } = useQuery({
+    queryKey: ['original-image', room.id],
+    queryFn: async (): Promise<ImageWithSignedUrl | null> => {
+      const { data, error } = await supabase
+        .from('room_images')
+        .select('*')
+        .eq('room_id', room.id)
+        .eq('image_type', 'original')
+        .eq('phase', 1)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) throw error;
+      if (!data) return null;
+      
+      if (data.storage_path) {
+        const { data: signedData } = await supabase.storage
+          .from('room-images')
+          .createSignedUrl(data.storage_path, 3600);
+        
+        return { ...data, signedUrl: signedData?.signedUrl } as ImageWithSignedUrl;
+      }
+      return data as ImageWithSignedUrl;
+    }
+  });
+
+  // Refetch render image when job completes
+  useEffect(() => {
+    if (currentJob?.status === 'completed') {
+      refetchRenderImage();
+      queryClient.invalidateQueries({ queryKey: ['room', room.id] });
+    }
+  }, [currentJob?.status, refetchRenderImage, queryClient, room.id]);
+
+  // Determine generation status
   const getGenerationStatus = (): GenerationStatus => {
-    if (room.phase_5_completed) return 'completed';
-    if (room.final_quality_score && room.final_quality_score < 50) return 'failed';
+    if (room.phase_5_completed && renderImage?.signedUrl) return 'completed';
+    if (currentJob?.status === 'processing') return 'processing';
+    if (currentJob?.status === 'pending') return 'processing';
+    if (currentJob?.status === 'failed') return 'failed';
     return 'pending';
   };
   
   const generationStatus = getGenerationStatus();
-  const progressPercent = generationStatus === 'completed' ? 100 : 0;
-  const estimatedTime = '2 min remaining';
-  const generationParams = { model: 'Stable Diffusion XL', resolution: '2048×2048' };
+  const progressPercent = generationStatus === 'completed' ? 100 : 
+    generationStatus === 'processing' ? 60 : 0;
+  const estimatedTime = currentJob?.status === 'processing' ? '~2 min remaining' : '';
+  const generationParams = { model: 'Gemini 2.5 Flash Image', resolution: '2048×2048' };
 
   const qualityMetrics: QualityMetric[] = [
     { name: 'Architectural Preservation', score: 100, critical: true },
@@ -108,7 +243,6 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const handleApprove = async () => {
     setIsApproving(true);
     try {
-      // Update room
       const { error: roomError } = await supabase
         .from('rooms')
         .update({
@@ -119,7 +253,6 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
 
       if (roomError) throw roomError;
 
-      // Check if all rooms in project are complete
       const { data: rooms, error: fetchError } = await supabase
         .from('rooms')
         .select('phase_5_completed')
@@ -159,16 +292,57 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     }
   };
 
+  // Submit real generation job
   const handleRegenerate = async () => {
-    setIsRegenerating(true);
-    // Mock regeneration
-    setTimeout(() => {
-      setIsRegenerating(false);
-      toast({
-        title: 'Regeneration Started',
-        description: 'New render is being generated.',
+    setIsSubmittingJob(true);
+    
+    try {
+      // Build prompt from room data
+      const stylePrompt = room.selected_style 
+        ? `Interior design style: ${room.selected_style.replace('_', ' ')}`
+        : 'Contemporary modern interior design';
+      
+      const roomTypePrompt = room.room_type 
+        ? `Room type: ${room.room_type.replace('_', ' ')}`
+        : '';
+      
+      const fullPrompt = `${stylePrompt}. ${roomTypePrompt}. Create a photorealistic interior design render with furniture, decor, and lighting.`;
+
+      // Submit job to edge function
+      const { data, error } = await supabase.functions.invoke('process-room-phase', {
+        body: {
+          action: 'submit',
+          jobType: 'generation',
+          projectId: projectId,
+          roomId: room.id,
+          payload: {
+            prompt: fullPrompt,
+            style: room.selected_style,
+            roomType: room.room_type
+          }
+        }
       });
-    }, 1500);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Generation Started',
+        description: 'AI is generating your interior design render. This may take 1-2 minutes.',
+      });
+
+      // Start polling for job status
+      refetchJob();
+      
+    } catch (error: any) {
+      console.error('Failed to submit generation job:', error);
+      toast({
+        title: 'Generation Failed',
+        description: error.message || 'Failed to start render generation. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmittingJob(false);
+    }
   };
 
   const handleSubmitChangeRequest = () => {
@@ -180,11 +354,20 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     setChangeRequest('');
   };
 
-  const handleDownload = () => {
-    toast({
-      title: 'Download Started',
-      description: 'High-resolution image is being prepared.',
-    });
+  const handleDownload = async () => {
+    if (renderImage?.signedUrl) {
+      window.open(renderImage.signedUrl, '_blank');
+      toast({
+        title: 'Download Started',
+        description: 'High-resolution image is being downloaded.',
+      });
+    } else {
+      toast({
+        title: 'No Image Available',
+        description: 'Generate a render first.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleShare = () => {
@@ -221,6 +404,9 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     return 'text-destructive';
   };
 
+  const hasRender = !!renderImage?.signedUrl;
+  const isGenerating = isSubmittingJob || generationStatus === 'processing';
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -238,17 +424,24 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {getStatusBadge()}
-              {generationStatus === 'processing' && (
+              {isGenerating && (
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               )}
             </div>
-            {generationStatus === 'processing' && (
+            {isGenerating && estimatedTime && (
               <span className="text-xs text-muted-foreground">{estimatedTime}</span>
             )}
           </div>
           
-          {generationStatus !== 'pending' && (
+          {(isGenerating || hasRender) && (
             <Progress value={progressPercent} className="h-2" />
+          )}
+
+          {currentJob?.status === 'failed' && currentJob?.error_message && (
+            <div className="flex items-start gap-2 p-2 rounded bg-destructive/10 text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{currentJob.error_message}</span>
+            </div>
           )}
 
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -269,54 +462,90 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
             <TabsTrigger value="final" className="text-xs">Final Render</TabsTrigger>
           </TabsList>
           <TabsContent value="original" className="mt-3">
-            <div className="aspect-video rounded-lg bg-muted border flex items-center justify-center">
-              <span className="text-sm text-muted-foreground">Original Room Photo</span>
+            <div className="aspect-video rounded-lg bg-muted border flex items-center justify-center overflow-hidden">
+              {originalImage?.signedUrl ? (
+                <img 
+                  src={originalImage.signedUrl} 
+                  alt="Original room" 
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <span className="text-sm text-muted-foreground">Original Room Photo</span>
+              )}
             </div>
           </TabsContent>
           <TabsContent value="cleaned" className="mt-3">
-            <div className="aspect-video rounded-lg bg-primary/5 border flex items-center justify-center">
-              <span className="text-sm text-muted-foreground">Cleaned Room</span>
+            <div className="aspect-video rounded-lg bg-primary/5 border flex items-center justify-center overflow-hidden">
+              {cleanedImage?.signedUrl ? (
+                <img 
+                  src={cleanedImage.signedUrl} 
+                  alt="Cleaned room" 
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <span className="text-sm text-muted-foreground">Cleaned Room</span>
+              )}
             </div>
           </TabsContent>
           <TabsContent value="final" className="mt-3">
             <div className="relative aspect-video rounded-lg overflow-hidden border bg-gradient-to-br from-primary/10 to-primary/5">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-sm text-primary">Final Staged Render</span>
-              </div>
+              {hasRender ? (
+                <img 
+                  src={renderImage.signedUrl} 
+                  alt="Final render" 
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <span className="text-sm text-primary">Generating render...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Image className="h-8 w-8 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Click "Generate Render" to start</span>
+                    </>
+                  )}
+                </div>
+              )}
               
               {/* Action buttons overlay */}
-              <div className="absolute top-2 right-2 flex gap-1">
-                <Button 
-                  size="icon" 
-                  variant="secondary" 
-                  className="h-8 w-8"
-                  onClick={() => setFullscreenOpen(true)}
-                >
-                  <Maximize2 className="h-4 w-4" />
-                </Button>
-                <Button 
-                  size="icon" 
-                  variant="secondary" 
-                  className="h-8 w-8"
-                  onClick={handleDownload}
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Button 
-                  size="icon" 
-                  variant="secondary" 
-                  className="h-8 w-8"
-                  onClick={handleShare}
-                >
-                  <Share2 className="h-4 w-4" />
-                </Button>
-              </div>
+              {hasRender && (
+                <div className="absolute top-2 right-2 flex gap-1">
+                  <Button 
+                    size="icon" 
+                    variant="secondary" 
+                    className="h-8 w-8"
+                    onClick={() => setFullscreenOpen(true)}
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    size="icon" 
+                    variant="secondary" 
+                    className="h-8 w-8"
+                    onClick={handleDownload}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    size="icon" 
+                    variant="secondary" 
+                    className="h-8 w-8"
+                    onClick={handleShare}
+                  >
+                    <Share2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
 
         {/* Before/After Slider */}
-        {comparisonView === 'final' && (
+        {comparisonView === 'final' && hasRender && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Original</span>
@@ -332,83 +561,108 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         )}
       </div>
 
-      {/* Quality Metrics */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="font-medium text-sm">Quality Metrics</h4>
-          <Badge 
-            className={`${overallScore >= 85 ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'}`}
-          >
-            Overall: {overallScore}/100
-          </Badge>
-        </div>
-        <div className="space-y-2">
-          {qualityMetrics.map((metric) => (
-            <div key={metric.name} className="flex items-center justify-between p-2 rounded-lg border bg-card">
-              <div className="flex items-center gap-2">
-                {metric.critical && <Badge variant="outline" className="text-[10px] px-1">Critical</Badge>}
-                <span className="text-xs">{metric.name}</span>
-              </div>
-              <span className={`text-sm font-semibold ${getScoreColor(metric.score)}`}>
-                {metric.score}/100
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Validation Results */}
-      <div className="space-y-3">
-        <h4 className="font-medium text-sm">Validation Results</h4>
-        <div className="space-y-1.5">
-          {validationItems.map((item) => (
-            <div
-              key={item.id}
-              className={`flex items-center gap-2 p-2 rounded-lg border ${
-                item.passed 
-                  ? 'bg-green-500/5 border-green-500/20' 
-                  : 'bg-destructive/5 border-destructive/20'
-              }`}
+      {/* Quality Metrics - only show if render exists */}
+      {hasRender && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="font-medium text-sm">Quality Metrics</h4>
+            <Badge 
+              className={`${overallScore >= 85 ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'}`}
             >
-              {item.passed ? (
-                <Check className="h-4 w-4 text-green-600" />
-              ) : (
-                <X className="h-4 w-4 text-destructive" />
-              )}
-              <span className={`text-xs ${item.passed ? 'text-green-700' : 'text-destructive'}`}>
-                {item.label}
-              </span>
-              {item.critical && (
-                <Badge variant="outline" className="ml-auto text-[10px] px-1">Critical</Badge>
-              )}
-            </div>
-          ))}
+              Overall: {overallScore}/100
+            </Badge>
+          </div>
+          <div className="space-y-2">
+            {qualityMetrics.map((metric) => (
+              <div key={metric.name} className="flex items-center justify-between p-2 rounded-lg border bg-card">
+                <div className="flex items-center gap-2">
+                  {metric.critical && <Badge variant="outline" className="text-[10px] px-1">Critical</Badge>}
+                  <span className="text-xs">{metric.name}</span>
+                </div>
+                <span className={`text-sm font-semibold ${getScoreColor(metric.score)}`}>
+                  {metric.score}/100
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Validation Results - only show if render exists */}
+      {hasRender && (
+        <div className="space-y-3">
+          <h4 className="font-medium text-sm">Validation Results</h4>
+          <div className="space-y-1.5">
+            {validationItems.map((item) => (
+              <div
+                key={item.id}
+                className={`flex items-center gap-2 p-2 rounded-lg border ${
+                  item.passed 
+                    ? 'bg-green-500/5 border-green-500/20' 
+                    : 'bg-destructive/5 border-destructive/20'
+                }`}
+              >
+                {item.passed ? (
+                  <Check className="h-4 w-4 text-green-600" />
+                ) : (
+                  <X className="h-4 w-4 text-destructive" />
+                )}
+                <span className={`text-xs ${item.passed ? 'text-green-700' : 'text-destructive'}`}>
+                  {item.label}
+                </span>
+                {item.critical && (
+                  <Badge variant="outline" className="ml-auto text-[10px] px-1">Critical</Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="pt-4 border-t space-y-2">
-        <Button
-          className="w-full h-12 text-base"
-          onClick={handleApprove}
-          disabled={!allValidationsPassed || isApproving || room.phase_5_completed}
-        >
-          <Check className="mr-2 h-5 w-5" />
-          {room.phase_5_completed ? 'Already Approved' : 'Approve Final Render'}
-        </Button>
+        {/* Primary action - Generate or Approve */}
+        {!hasRender ? (
+          <Button
+            className="w-full h-12 text-base"
+            onClick={handleRegenerate}
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Image className="mr-2 h-5 w-5" />
+                Generate Render
+              </>
+            )}
+          </Button>
+        ) : (
+          <Button
+            className="w-full h-12 text-base"
+            onClick={handleApprove}
+            disabled={!allValidationsPassed || isApproving || room.phase_5_completed}
+          >
+            <Check className="mr-2 h-5 w-5" />
+            {room.phase_5_completed ? 'Already Approved' : 'Approve Final Render'}
+          </Button>
+        )}
         
         <div className="grid grid-cols-2 gap-2">
           <Button 
             variant="outline" 
             onClick={handleRegenerate}
-            disabled={isRegenerating}
+            disabled={isGenerating}
           >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isRegenerating ? 'animate-spin' : ''}`} />
-            Regenerate
+            <RefreshCw className={`mr-2 h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
+            {hasRender ? 'Regenerate' : 'Generate'}
           </Button>
           <Dialog open={changeRequestOpen} onOpenChange={setChangeRequestOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" disabled={!hasRender}>
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Request Changes
               </Button>
@@ -439,11 +693,11 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="outline" onClick={handleDownload}>
+          <Button variant="outline" onClick={handleDownload} disabled={!hasRender}>
             <Download className="mr-2 h-4 w-4" />
             Download Hi-Res
           </Button>
-          <Button variant="outline" onClick={handleAddToBudget}>
+          <Button variant="outline" onClick={handleAddToBudget} disabled={!hasRender}>
             <DollarSign className="mr-2 h-4 w-4" />
             Add to Budget
           </Button>
@@ -454,7 +708,15 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       <Dialog open={fullscreenOpen} onOpenChange={setFullscreenOpen}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] p-0">
           <div className="relative w-full h-[90vh] bg-black flex items-center justify-center">
-            <div className="text-white text-lg">Final Staged Render (2K)</div>
+            {renderImage?.signedUrl ? (
+              <img 
+                src={renderImage.signedUrl} 
+                alt="Final Render Full Size" 
+                className="max-w-full max-h-full object-contain"
+              />
+            ) : (
+              <div className="text-white text-lg">No render available</div>
+            )}
             <Button
               variant="ghost"
               size="icon"

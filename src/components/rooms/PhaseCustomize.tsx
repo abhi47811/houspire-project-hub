@@ -156,10 +156,24 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   // Handle library image selection
   const handleLibrarySelect = async (image: LibraryImage) => {
     setSelectedLibraryImage(image);
+    setSelectedStyle(image.design_style);
     
-    // Track selection
+    // Track selection and persist style immediately
     if (user?.id) {
       await libraryService.trackSelection(image.id, projectId, room.id);
+    }
+    
+    // Save style to database immediately
+    try {
+      await supabase
+        .from('rooms')
+        .update({ 
+          selected_style: image.design_style,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', room.id);
+    } catch (error) {
+      console.error('Failed to save style:', error);
     }
     
     setMode('confirmation');
@@ -228,6 +242,21 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         title: 'Thank you for sharing!',
         description: 'Your reference will help other designers.',
       });
+    }
+    
+    // Save detected style to database immediately
+    if (uploadAnalysis?.design_style) {
+      try {
+        await supabase
+          .from('rooms')
+          .update({ 
+            selected_style: uploadAnalysis.design_style,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', room.id);
+      } catch (error) {
+        console.error('Failed to save style:', error);
+      }
     }
     
     // Continue to customize mode
