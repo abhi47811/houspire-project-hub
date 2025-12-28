@@ -21,6 +21,7 @@ const Budget = lazy(() => import("./pages/Budget"));
 const Vendors = lazy(() => import("./pages/Vendors"));
 const Team = lazy(() => import("./pages/Team"));
 const Admin = lazy(() => import("./pages/Admin"));
+const Library = lazy(() => import("./pages/Library"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -61,6 +62,7 @@ const App = () => (
                   <Route path="/projects/:projectId/rooms/:roomId" element={<RoomDetail />} />
                   <Route path="/projects/:projectId/budget" element={<Budget />} />
                   <Route path="/projects/:projectId/vendors" element={<Vendors />} />
+                  <Route path="/library" element={<Library />} />
                   <Route path="/team" element={<Team />} />
                   <Route
                     path="/admin"

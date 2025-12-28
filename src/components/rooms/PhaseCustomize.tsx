@@ -217,6 +217,10 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         imageUrl: uploadedImageUrl,
         roomType: uploadAnalysis.room_type,
         designStyle: uploadAnalysis.design_style,
+        projectId: projectId,
+        roomId: room.id,
+        uploadSource: 'upload',
+        userConsent: true,
         analysisData: uploadAnalysis,
       });
       
@@ -585,8 +589,8 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
           open={showPermissionPrompt}
           imageUrl={uploadedImageUrl || undefined}
           analysis={uploadAnalysis ? {
-            roomType: uploadAnalysis.room_type,
-            designStyle: uploadAnalysis.design_style,
+            room_type: uploadAnalysis.room_type,
+            design_style: uploadAnalysis.design_style,
             confidence: uploadAnalysis.confidence
           } : undefined}
           onDecision={handlePermissionDecision}

@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Menu,
   X,
+  Library,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -28,6 +29,7 @@ import logo from '@/assets/logo.png';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Projects', href: '/projects', icon: FolderOpen },
+  { name: 'Library', href: '/library', icon: Library },
   { name: 'Team', href: '/team', icon: Users },
   { name: 'Admin', href: '/admin', icon: Settings, adminOnly: true },
 ];
