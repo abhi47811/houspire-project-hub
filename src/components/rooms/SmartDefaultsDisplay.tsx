@@ -67,10 +67,10 @@ export function SmartDefaultsDisplay({
             </div>
             <div>
               <CardTitle className="text-base">
-                Smart Defaults for {styleName.replace('_', ' ')}
+                Smart Defaults for {styleName?.replace('_', ' ') || 'Selected Style'}
               </CardTitle>
               <CardDescription className="text-xs">
-                Pre-configured specifications for {roomType.replace('_', ' ')}
+                Pre-configured specifications for {roomType?.replace('_', ' ') || 'room'}
               </CardDescription>
             </div>
           </div>
@@ -193,7 +193,7 @@ export function SmartDefaultsDisplay({
               <div className="grid grid-cols-2 gap-2">
                 {smartDefaults.raw.finishes.slice(0, 4).map((finish, index) => (
                   <div key={index} className="p-2.5 bg-muted/50 rounded-lg">
-                    <p className="text-xs font-medium capitalize mb-0.5">{finish.type.replace('_', ' ')}</p>
+                    <p className="text-xs font-medium capitalize mb-0.5">{finish.type?.replace('_', ' ') || 'Finish'}</p>
                     <p className="text-xs text-muted-foreground">{finish.value}</p>
                   </div>
                 ))}

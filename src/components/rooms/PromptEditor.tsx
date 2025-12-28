@@ -85,12 +85,12 @@ export function PromptEditor({
         <div className="flex flex-wrap gap-2 text-xs">
           {selectedStyle && (
             <Badge variant="secondary" className="text-xs">
-              Style: {selectedStyle.replace('_', ' ')}
+              Style: {selectedStyle?.replace('_', ' ') || ''}
             </Badge>
           )}
           {roomType && (
             <Badge variant="secondary" className="text-xs">
-              Room: {roomType.replace('_', ' ')}
+              Room: {roomType?.replace('_', ' ') || ''}
             </Badge>
           )}
           <Badge variant="outline" className="text-xs">

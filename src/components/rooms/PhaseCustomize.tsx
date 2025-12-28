@@ -184,7 +184,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
       // Convert style ID to style name for database lookup
       const styleData = designStyles.find(s => s.id === selectedStyle);
       const styleName = styleData?.name || selectedStyle;
-      const roomTypeName = roomType.replace('_', ' ');
+      const roomTypeName = roomType?.replace('_', ' ') || 'living room';
       
       // Query the database using RPC function
       const { data, error } = await supabase.rpc('get_smart_default', {
@@ -468,7 +468,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         <div>
           <h3 className="text-lg font-semibold">Phase 4: Style Reference</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            {roomType.replace('_', ' ')} • {userCity}
+            {roomType?.replace('_', ' ') || 'Room'} • {userCity}
           </p>
         </div>
 
