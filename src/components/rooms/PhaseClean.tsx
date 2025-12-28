@@ -395,13 +395,17 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
             </div>
           </div>
 
-          {/* Labels */}
-          <div className="absolute bottom-2 left-2">
-            <Badge variant="secondary" className="text-xs">Before</Badge>
-          </div>
-          <div className="absolute bottom-2 right-2">
-            <Badge variant="secondary" className="text-xs">After</Badge>
-          </div>
+          {/* Labels - conditionally show based on slider position */}
+          {sliderValue[0] < 90 && (
+            <div className="absolute bottom-2 left-2">
+              <Badge variant="secondary" className="text-xs">Before</Badge>
+            </div>
+          )}
+          {sliderValue[0] > 10 && (
+            <div className="absolute bottom-2 right-2">
+              <Badge variant="secondary" className="text-xs">After</Badge>
+            </div>
+          )}
         </div>
         
         <Slider

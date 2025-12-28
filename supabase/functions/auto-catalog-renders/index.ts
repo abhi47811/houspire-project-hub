@@ -186,18 +186,28 @@ async function catalogSingleRender(
   const qualityScore = room.final_quality_score || 0;
   const refinements = room.retry_count || 0;
 
-  // Step 1: Quality gate (85%+ required)
-  if (qualityScore < 85) {
+  console.log(`📋 Checking room ${room.id}:`, {
+    qualityScore,
+    phase_5_completed: room.phase_5_completed,
+    room_type: room.room_type,
+    selected_style: room.selected_style,
+    refinements
+  });
+
+  // Step 1: Quality gate - relaxed to 70%+ for broader cataloging
+  if (qualityScore < 70) {
+    console.log(`❌ Room ${room.id}: Quality ${qualityScore}% below 70% threshold`);
     return {
       room_id: room.id,
       cataloged: false,
       reason: "quality_too_low",
-      message: `Quality score ${qualityScore}% below 85% threshold.`
+      message: `Quality score ${qualityScore}% below 70% threshold.`
     };
   }
 
   // Step 2: Phase 5 completion check (render must be complete)
   if (!room.phase_5_completed) {
+    console.log(`❌ Room ${room.id}: Phase 5 not completed`);
     return {
       room_id: room.id,
       cataloged: false,
@@ -206,19 +216,138 @@ async function catalogSingleRender(
     };
   }
 
-  // Step 3: Get render image from room_images
-  const { data: renderImages } = await supabaseClient
+  // Step 3: Get render image from room_images - try multiple approaches
+  // First, try the exact query with phase 5 and render type
+  let { data: renderImages } = await supabaseClient
     .from("room_images")
-    .select("storage_path, file_name")
+    .select("storage_path, file_name, image_type, phase")
     .eq("room_id", room.id)
     .eq("phase", 5)
     .eq("image_type", "render")
     .order("created_at", { ascending: false })
     .limit(1);
 
+  // If not found, try just phase 5 images
+  if (!renderImages || renderImages.length === 0) {
+    console.log(`⚠️ Room ${room.id}: No phase 5 render found, trying any phase 5 image`);
+    const { data: phase5Images } = await supabaseClient
+      .from("room_images")
+      .select("storage_path, file_name, image_type, phase")
+      .eq("room_id", room.id)
+      .eq("phase", 5)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    renderImages = phase5Images;
+  }
+
+  // If still not found, try approved renders table
+  if (!renderImages || renderImages.length === 0) {
+    console.log(`⚠️ Room ${room.id}: No phase 5 images found, checking renders table`);
+    const { data: approvedRender } = await supabaseClient
+      .from("renders")
+      .select("image_url, storage_path")
+      .eq("room_id", room.id)
+      .eq("approval_status", "approved")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    
+    if (approvedRender && approvedRender.length > 0) {
+      const render = approvedRender[0] as { image_url: string; storage_path: string | null };
+      console.log(`✅ Room ${room.id}: Found approved render in renders table`);
+      // Use render URL directly if available
+      const imageUrl = render.image_url;
+      const storagePath = render.storage_path || render.image_url;
+      
+      // Skip to tier calculation and insert with this data
+      const tierCalc = calculateTier(qualityScore, refinements);
+      
+      if (tierCalc.tier === "rejected") {
+        return {
+          room_id: room.id,
+          cataloged: false,
+          reason: "tier_rejected",
+          message: `Tier calculation: rejected. ${tierCalc.reasons.join(", ")}`
+        };
+      }
+
+      // Generate hashes for anonymization
+      const projectHash = await generateHash(projectId);
+      const rendererHash = await generateHash(userId);
+      const perceptualHash = await generateHash(storagePath);
+
+      // Generate tags
+      const tags = generateTags(room, tierCalc.tier, qualityScore, refinements);
+
+      // Insert into library
+      const { data: insertedData, error: insertError } = await supabaseClient
+        .from("style_library")
+        .insert({
+          image_url: imageUrl,
+          thumbnail_url: imageUrl,
+          storage_path: storagePath,
+          source_type: "houspire_generated",
+          source_project_hash: projectHash,
+          source_room_id: room.id,
+          renderer_anonymous_id: rendererHash,
+          generated_at: new Date().toISOString(),
+          room_type: room.room_type || "unknown",
+          design_style: room.selected_style || "unknown",
+          city: city,
+          quality_score: qualityScore,
+          tier: tierCalc.tier,
+          analysis_data: {},
+          matched_elements: {},
+          color_palette: {},
+          furniture_list: [],
+          layout_pattern: {},
+          times_viewed: 0,
+          times_selected: 0,
+          times_led_to_approval: 1,
+          times_led_to_rejection: 0,
+          approval_rate: 1.0,
+          initial_performance_known: true,
+          perceptual_hash: perceptualHash,
+          status: "active",
+          curator_verified: false,
+          curator_notes: `Auto-cataloged from renders table: Quality ${qualityScore}%, Tier ${tierCalc.tier}`,
+          tags: tags,
+          ranking_score: calculateRankingScore(tierCalc.tier, qualityScore)
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        return {
+          room_id: room.id,
+          cataloged: false,
+          reason: "database_error",
+          message: `Failed to catalog: ${insertError.message}`
+        };
+      }
+
+      const libraryEntry = insertedData as { id: string } | null;
+      console.log("✅ Cataloged render from renders table:", {
+        room_id: room.id,
+        library_id: libraryEntry?.id,
+        tier: tierCalc.tier,
+        quality: qualityScore
+      });
+
+      return {
+        room_id: room.id,
+        cataloged: true,
+        library_id: libraryEntry?.id,
+        tier: tierCalc.tier,
+        message: `✨ Houspire Render added (Tier: ${tierCalc.tier})`
+      };
+    }
+  }
+
   const renderImage = (renderImages as { storage_path: string; file_name: string }[] | null)?.[0];
 
   if (!renderImage?.storage_path) {
+    console.log(`❌ Room ${room.id}: No render image found anywhere`);
     return {
       room_id: room.id,
       cataloged: false,
@@ -226,6 +355,8 @@ async function catalogSingleRender(
       message: "No render image found for this room."
     };
   }
+
+  console.log(`✅ Room ${room.id}: Found render image at ${renderImage.storage_path}`);
 
   // Step 4: Calculate tier
   const tierCalc = calculateTier(qualityScore, refinements);
