@@ -82,18 +82,44 @@ serve(async (req) => {
 
     switch (action) {
       case "analyzeRoom":
-        model = "google/gemini-2.5-pro";
-        systemPrompt = `You are an expert interior design analyst. Analyze the room image and extract:
-1. Room dimensions (estimate length, width, height in feet)
-2. Window count and positions
-3. Door count and positions
-4. Ceiling features (fans, lights)
-5. Outlet count
-6. Any architectural features
-7. Suggested design styles (3-5 options)
-Return as structured JSON.`;
+        model = "openai/gpt-5";
+        systemPrompt = `You are an expert interior design analyst with precise architectural detection capabilities.
+
+CRITICAL DISTINCTION - Identify these elements correctly:
+- WINDOWS: Have frames, show outdoor views or natural light, transparent glass showing outside
+- MIRRORS: Reflect the room interior, show room's own contents, often have decorative frames
+- DOORS: Entry/exit points, have handles, may be open or closed
+- AC UNITS: Wall-mounted cooling units, often white/beige rectangles on walls
+
+Analyze the room image and extract with high accuracy:
+1. Room dimensions (estimate length, width, height in feet based on visual cues)
+2. Window count and positions (ONLY count if showing outdoor view/natural light)
+3. Mirror count and positions (count separately from windows)
+4. Door count and positions (entry doors, closet doors, balcony doors)
+5. Ceiling features (fans, lights, AC ducts)
+6. Outlet count (electrical outlets visible)
+7. AC unit count
+8. Other architectural features (moldings, columns, arches, niches, built-in wardrobes)
+9. Suggested design styles (3-5 options with confidence percentage)
+
+Return as structured JSON with this format:
+{
+  "dimensions": { "length_feet": number, "width_feet": number, "height_feet": number },
+  "window_count": number,
+  "mirror_count": number,
+  "door_count": number,
+  "ceiling_fan_count": number,
+  "ac_unit_count": number,
+  "outlet_count": number,
+  "window_positions": [{"position": string, "size": string}],
+  "mirror_positions": [{"position": string, "size": string}],
+  "door_positions": [{"position": string, "type": string}],
+  "other_features": [{"type": string, "position": string}],
+  "measurement_confidence": number (0-100),
+  "suggested_styles": [{"name": string, "confidence": number, "description": string}]
+}`;
         userContent = [
-          { type: "text", text: "Analyze this room image for interior design renovation." },
+          { type: "text", text: "Analyze this room image for interior design renovation. Pay special attention to distinguishing mirrors from windows - mirrors reflect room contents while windows show outdoor views." },
           { type: "image_url", image_url: { url: imageUrl } },
         ];
         break;
