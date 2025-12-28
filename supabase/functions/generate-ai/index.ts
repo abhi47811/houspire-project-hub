@@ -40,7 +40,20 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    const { action, cleanedImageUrl, prompt, imageUrl, projectId, roomId } = await req.json();
+    const { 
+      action, 
+      cleanedImageUrl, 
+      prompt, 
+      imageUrl, 
+      projectId, 
+      roomId,
+      // Seed image specific params
+      seedPrompt,
+      roomType,
+      designStyle,
+      city,
+      tier
+    } = await req.json();
 
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
@@ -96,7 +109,7 @@ The result must be photorealistic, professionally lit, and suitable for publicat
 
       case "generateSeedImage": {
         // Generate a single seed image for the library
-        const { seedPrompt, roomType, designStyle, city, tier } = await req.json();
+        // seedPrompt, roomType, designStyle, city, tier are already extracted above
         
         const seedModel = "google/gemini-2.5-flash-image-preview";
         const seedCostPerCall = 0.02;
