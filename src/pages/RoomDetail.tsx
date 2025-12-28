@@ -161,20 +161,35 @@ export default function RoomDetail() {
     return 'final';
   };
 
-  // Fetch current phase image for the main viewer
+  // Fetch current phase image for the main viewer with fallback to original
   const { data: currentImage, isLoading: imageLoading } = useQuery({
-    queryKey: ['room-images', roomId, activePhase, getImageTypeForPhase(activePhase)],
+    queryKey: ['room-images', roomId, activePhase],
     queryFn: async () => {
       const imageType = getImageTypeForPhase(activePhase);
       const phaseToQuery = activePhase <= 2 ? 1 : (activePhase <= 4 ? 3 : 5);
       
-      const { data, error } = await supabase
+      // Try to get the phase-specific image
+      let { data, error } = await supabase
         .from('room_images')
         .select('*')
         .eq('room_id', roomId!)
         .eq('phase', phaseToQuery)
         .eq('image_type', imageType)
         .maybeSingle();
+
+      // If no image found for current phase, fallback to original
+      if (!data && activePhase > 1) {
+        const fallbackResult = await supabase
+          .from('room_images')
+          .select('*')
+          .eq('room_id', roomId!)
+          .eq('phase', 1)
+          .eq('image_type', 'original')
+          .maybeSingle();
+        
+        data = fallbackResult.data;
+        if (fallbackResult.error) throw fallbackResult.error;
+      }
 
       if (error) throw error;
       return data;
