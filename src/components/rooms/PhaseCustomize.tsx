@@ -163,12 +163,13 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
       await libraryService.trackSelection(image.id, projectId, room.id);
     }
     
-    // Save style to database immediately
+    // Save style AND library_reference_id to database immediately
     try {
       await supabase
         .from('rooms')
         .update({ 
           selected_style: image.design_style,
+          library_reference_id: image.id,  // CRITICAL: Save the library reference
           updated_at: new Date().toISOString()
         })
         .eq('id', room.id);
@@ -189,6 +190,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         .from('rooms')
         .update({
           selected_style: selectedLibraryImage.design_style,
+          library_reference_id: selectedLibraryImage.id,  // Ensure library reference is saved
           phase_4_completed: true,
           current_phase: Math.max(room.current_phase, 5),
         })
