@@ -83,6 +83,65 @@ export type Database = {
           },
         ]
       }
+      batches: {
+        Row: {
+          batch_type: string
+          completed_at: string | null
+          completed_items: number
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          failed_items: number
+          id: string
+          metadata: Json | null
+          project_id: string
+          started_at: string | null
+          status: string
+          total_items: number
+          updated_at: string
+        }
+        Insert: {
+          batch_type: string
+          completed_at?: string | null
+          completed_items?: number
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          failed_items?: number
+          id?: string
+          metadata?: Json | null
+          project_id: string
+          started_at?: string | null
+          status?: string
+          total_items?: number
+          updated_at?: string
+        }
+        Update: {
+          batch_type?: string
+          completed_at?: string | null
+          completed_items?: number
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          failed_items?: number
+          id?: string
+          metadata?: Json | null
+          project_id?: string
+          started_at?: string | null
+          status?: string
+          total_items?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batches_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_items: {
         Row: {
           amount: number | null
@@ -1055,6 +1114,8 @@ export type Database = {
       }
       rooms: {
         Row: {
+          batch_id: string | null
+          batch_position: number | null
           created_at: string | null
           current_phase: number | null
           final_quality_score: number | null
@@ -1078,6 +1139,8 @@ export type Database = {
           width_feet: number | null
         }
         Insert: {
+          batch_id?: string | null
+          batch_position?: number | null
           created_at?: string | null
           current_phase?: number | null
           final_quality_score?: number | null
@@ -1101,6 +1164,8 @@ export type Database = {
           width_feet?: number | null
         }
         Update: {
+          batch_id?: string | null
+          batch_position?: number | null
           created_at?: string | null
           current_phase?: number | null
           final_quality_score?: number | null
@@ -1124,6 +1189,13 @@ export type Database = {
           width_feet?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "rooms_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rooms_library_reference_id_fkey"
             columns: ["library_reference_id"]
@@ -1775,6 +1847,16 @@ export type Database = {
           style_slug: string
         }[]
       }
+      get_batch_progress: {
+        Args: { p_batch_id: string }
+        Returns: {
+          completed_items: number
+          failed_items: number
+          progress_percent: number
+          status: string
+          total_items: number
+        }[]
+      }
       get_next_job: {
         Args: { p_project_id?: string }
         Returns: {
@@ -1843,6 +1925,14 @@ export type Database = {
         Returns: Database["public"]["Enums"]["user_role"]
       }
       heartbeat_session: { Args: { p_client_id: string }; Returns: boolean }
+      increment_batch_completed: {
+        Args: { p_batch_id: string }
+        Returns: undefined
+      }
+      increment_batch_failed: {
+        Args: { p_batch_id: string; p_error?: string }
+        Returns: undefined
+      }
       increment_library_views: { Args: { lib_id: string }; Returns: undefined }
       log_project_activity: {
         Args: {
