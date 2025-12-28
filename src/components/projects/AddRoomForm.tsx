@@ -41,7 +41,7 @@ const roomTypes = [
 ] as const;
 
 const formSchema = z.object({
-  room_name: z.string().min(2, 'Room name must be at least 2 characters'),
+  room_name: z.string().optional(),
   room_type: z.enum([
     'living_room', 'master_bedroom', 'bedroom', 'kitchen', 'dining_room',
     'balcony', 'study_room', 'kids_room', 'guest_room', 'pooja_room',
@@ -78,11 +78,15 @@ export function AddRoomForm({ projectId, nextRoomNumber, onSuccess }: AddRoomFor
     setIsSubmitting(true);
 
     try {
+      // Auto-generate room name from room type if not provided
+      const roomLabel = roomTypes.find(rt => rt.value === values.room_type)?.label || values.room_type;
+      const finalRoomName = values.room_name?.trim() || `${roomLabel} ${nextRoomNumber}`;
+
       // Insert the new room
       const { error: roomError } = await supabase.from('rooms').insert({
         project_id: projectId,
         room_number: nextRoomNumber,
-        room_name: values.room_name,
+        room_name: finalRoomName,
         room_type: values.room_type,
         length_feet: values.length_feet || null,
         width_feet: values.width_feet || null,
@@ -132,9 +136,9 @@ export function AddRoomForm({ projectId, nextRoomNumber, onSuccess }: AddRoomFor
           name="room_name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Room Name *</FormLabel>
+              <FormLabel>Room Name <span className="text-muted-foreground font-normal text-sm">(Optional)</span></FormLabel>
               <FormControl>
-                <Input placeholder="e.g., Master Bedroom" {...field} />
+                <Input placeholder="Auto-generated from room type" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
