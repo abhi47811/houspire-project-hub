@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -25,6 +24,7 @@ import {
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { BudgetTierSelector } from './BudgetTierSelector';
 
 const cities = [
   'Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Hyderabad',
@@ -212,25 +212,18 @@ export function CreateProjectForm({ onSuccess }: CreateProjectFormProps) {
             )}
           />
 
-          {/* Budget Tier */}
+          {/* Budget Tier - Full width with visual selector */}
           <FormField
             control={form.control}
             name="budget_tier"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>Budget Tier *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select budget tier" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent className="bg-popover">
-                    <SelectItem value="premium">💎 Premium (2.5x)</SelectItem>
-                    <SelectItem value="mid_range">⚖️ Mid-Range (1.0x)</SelectItem>
-                    <SelectItem value="budget">💰 Budget (0.5x)</SelectItem>
-                  </SelectContent>
-                </Select>
+              <FormItem className="md:col-span-2">
+                <FormControl>
+                  <BudgetTierSelector
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}

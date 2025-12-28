@@ -31,6 +31,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { RenderRefinement } from './RenderRefinement';
+import { QualityScoreDisplay } from './QualityScoreDisplay';
 
 interface RegenerateOptions {
   useSmartDefaults: boolean;
@@ -698,31 +699,12 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         )}
       </div>
 
-      {/* Quality Metrics - only show if render exists */}
+      {/* Quality Score Display - Enhanced version */}
       {hasRender && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="font-medium text-sm">Quality Metrics</h4>
-            <Badge 
-              className={`${overallScore >= 85 ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'}`}
-            >
-              Overall: {overallScore}/100
-            </Badge>
-          </div>
-          <div className="space-y-2">
-            {qualityMetrics.map((metric) => (
-              <div key={metric.name} className="flex items-center justify-between p-2 rounded-lg border bg-card">
-                <div className="flex items-center gap-2">
-                  {metric.critical && <Badge variant="outline" className="text-[10px] px-1">Critical</Badge>}
-                  <span className="text-xs">{metric.name}</span>
-                </div>
-                <span className={`text-sm font-semibold ${getScoreColor(metric.score)}`}>
-                  {metric.score}/100
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <QualityScoreDisplay
+          overallScore={overallScore}
+          showSuggestions={!room.phase_5_completed}
+        />
       )}
 
       {/* Validation Results - only show if render exists */}
