@@ -104,11 +104,6 @@ export function ImageUpload({
       if (uploadError) throw uploadError;
       setUploadProgress(70);
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('room-images')
-        .getPublicUrl(storagePath);
-
       // Delete existing record if any
       await supabase
         .from('room_images')
@@ -119,13 +114,14 @@ export function ImageUpload({
 
       setUploadProgress(85);
 
-      // Insert room_images record
+      // Insert room_images record - use relative storage path, NOT full URL
+      // This ensures consistency across the app (edge functions expect relative paths)
       const { error: insertError } = await supabase.from('room_images').insert({
         room_id: roomId,
         phase,
         image_type: imageType,
         resolution: `${targetResolution}x${targetResolution}`,
-        storage_path: urlData.publicUrl,
+        storage_path: storagePath, // Use relative path, not full URL
         file_name: fileName,
         file_size: resizedBlob.size,
       });
@@ -142,6 +138,11 @@ export function ImageUpload({
       }
 
       setUploadProgress(100);
+      
+      // Return the public URL for display purposes
+      const { data: urlData } = supabase.storage
+        .from('room-images')
+        .getPublicUrl(storagePath);
       return urlData.publicUrl;
     },
     onSuccess: (url) => {
