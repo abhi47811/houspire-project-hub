@@ -798,6 +798,54 @@ export type Database = {
           },
         ]
       }
+      quality_control_rules: {
+        Row: {
+          auto_fix_available: boolean | null
+          created_at: string | null
+          enforcement_stage: string[]
+          id: string
+          is_active: boolean | null
+          prompt_instruction: string | null
+          rule_category: string
+          rule_code: string
+          rule_description: string
+          rule_name: string
+          severity: string
+          updated_at: string | null
+          validation_logic: Json | null
+        }
+        Insert: {
+          auto_fix_available?: boolean | null
+          created_at?: string | null
+          enforcement_stage: string[]
+          id?: string
+          is_active?: boolean | null
+          prompt_instruction?: string | null
+          rule_category: string
+          rule_code: string
+          rule_description: string
+          rule_name: string
+          severity: string
+          updated_at?: string | null
+          validation_logic?: Json | null
+        }
+        Update: {
+          auto_fix_available?: boolean | null
+          created_at?: string | null
+          enforcement_stage?: string[]
+          id?: string
+          is_active?: boolean | null
+          prompt_instruction?: string | null
+          rule_category?: string
+          rule_code?: string
+          rule_description?: string
+          rule_name?: string
+          severity?: string
+          updated_at?: string | null
+          validation_logic?: Json | null
+        }
+        Relationships: []
+      }
       quality_metrics: {
         Row: {
           details: Json | null
@@ -829,6 +877,69 @@ export type Database = {
             columns: ["render_id"]
             isOneToOne: false
             referencedRelation: "renders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quality_violations: {
+        Row: {
+          auto_fixed: boolean | null
+          created_at: string | null
+          detected_at_stage: string
+          fix_description: string | null
+          id: string
+          render_id: string | null
+          resolved_at: string | null
+          reviewer_notes: string | null
+          reviewer_override: boolean | null
+          room_id: string
+          rule_code: string
+          severity: string
+          violation_description: string
+        }
+        Insert: {
+          auto_fixed?: boolean | null
+          created_at?: string | null
+          detected_at_stage: string
+          fix_description?: string | null
+          id?: string
+          render_id?: string | null
+          resolved_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_override?: boolean | null
+          room_id: string
+          rule_code: string
+          severity: string
+          violation_description: string
+        }
+        Update: {
+          auto_fixed?: boolean | null
+          created_at?: string | null
+          detected_at_stage?: string
+          fix_description?: string | null
+          id?: string
+          render_id?: string | null
+          resolved_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_override?: boolean | null
+          room_id?: string
+          rule_code?: string
+          severity?: string
+          violation_description?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_violations_render_id_fkey"
+            columns: ["render_id"]
+            isOneToOne: false
+            referencedRelation: "renders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quality_violations_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
             referencedColumns: ["id"]
           },
         ]
@@ -1119,6 +1230,7 @@ export type Database = {
         Row: {
           batch_id: string | null
           batch_position: number | null
+          ceiling_fan_detected: boolean | null
           cleaning_versions: Json | null
           created_at: string | null
           current_phase: number | null
@@ -1135,6 +1247,7 @@ export type Database = {
           phase_4_completed: boolean | null
           phase_5_completed: boolean | null
           project_id: string
+          quality_score: number | null
           retry_count: number | null
           room_name: string | null
           room_number: number
@@ -1147,6 +1260,7 @@ export type Database = {
         Insert: {
           batch_id?: string | null
           batch_position?: number | null
+          ceiling_fan_detected?: boolean | null
           cleaning_versions?: Json | null
           created_at?: string | null
           current_phase?: number | null
@@ -1163,6 +1277,7 @@ export type Database = {
           phase_4_completed?: boolean | null
           phase_5_completed?: boolean | null
           project_id: string
+          quality_score?: number | null
           retry_count?: number | null
           room_name?: string | null
           room_number: number
@@ -1175,6 +1290,7 @@ export type Database = {
         Update: {
           batch_id?: string | null
           batch_position?: number | null
+          ceiling_fan_detected?: boolean | null
           cleaning_versions?: Json | null
           created_at?: string | null
           current_phase?: number | null
@@ -1191,6 +1307,7 @@ export type Database = {
           phase_4_completed?: boolean | null
           phase_5_completed?: boolean | null
           project_id?: string
+          quality_score?: number | null
           retry_count?: number | null
           room_name?: string | null
           room_number?: number
