@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,6 +25,23 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Plus,
   Search,
   LayoutGrid,
@@ -35,9 +52,12 @@ import {
   Calendar,
   IndianRupee,
   ArrowRight,
+  MoreVertical,
+  Trash2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { CreateProjectForm } from '@/components/projects/CreateProjectForm';
+import { useToast } from '@/hooks/use-toast';
 
 type ProjectStatus = 'draft' | 'in_progress' | 'review' | 'approved' | 'completed' | 'cancelled';
 type CityEnum = 'Mumbai' | 'Delhi' | 'Bangalore' | 'Chennai' | 'Hyderabad' | 'Pune' | 'Kolkata' | 'Ahmedabad' | 'Jaipur' | 'Surat' | 'Lucknow';
@@ -92,12 +112,39 @@ function formatCurrency(amount: number): string {
 
 export default function Projects() {
   const { user, profile } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [cityFilter, setCityFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState('newest');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
+  const isAdmin = profile?.role === 'admin';
+
+  // Delete project mutation
+  const deleteProject = useMutation({
+    mutationFn: async (projectId: string) => {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      toast({ title: 'Project deleted successfully' });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Failed to delete project',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const { data: projects, isLoading, refetch } = useQuery({
     queryKey: ['projects', user?.id, statusFilter, cityFilter, sortBy],
@@ -259,13 +306,23 @@ export default function Projects() {
         viewMode === 'grid' ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
+              <ProjectCard 
+                key={project.id} 
+                project={project} 
+                isAdmin={isAdmin}
+                onDelete={(id) => deleteProject.mutate(id)}
+              />
             ))}
           </div>
         ) : (
           <div className="space-y-3">
             {filteredProjects.map((project) => (
-              <ProjectListItem key={project.id} project={project} />
+              <ProjectListItem 
+                key={project.id} 
+                project={project}
+                isAdmin={isAdmin}
+                onDelete={(id) => deleteProject.mutate(id)}
+              />
             ))}
           </div>
         )
@@ -276,7 +333,15 @@ export default function Projects() {
   );
 }
 
-function ProjectCard({ project }: { project: Project }) {
+function ProjectCard({ 
+  project, 
+  isAdmin, 
+  onDelete 
+}: { 
+  project: Project; 
+  isAdmin: boolean;
+  onDelete: (id: string) => void;
+}) {
   const progress = ((project.current_phase - 1) / 4) * 100;
   const status = statusConfig[project.status] || statusConfig.draft;
 
@@ -290,6 +355,47 @@ function ProjectCard({ project }: { project: Project }) {
         <Badge className={`absolute top-3 right-3 ${status.color}`}>
           {status.label}
         </Badge>
+        {isAdmin && (
+          <div className="absolute top-3 left-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="icon" className="h-7 w-7">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem 
+                      onSelect={(e) => e.preventDefault()}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Project
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Project?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete "{project.name}" and all its rooms, renders, and budget items. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => onDelete(project.id)}
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
       </div>
 
       <CardContent className="p-4 space-y-4">
@@ -360,7 +466,15 @@ function ProjectCard({ project }: { project: Project }) {
   );
 }
 
-function ProjectListItem({ project }: { project: Project }) {
+function ProjectListItem({ 
+  project,
+  isAdmin,
+  onDelete
+}: { 
+  project: Project;
+  isAdmin: boolean;
+  onDelete: (id: string) => void;
+}) {
   const progress = ((project.current_phase - 1) / 4) * 100;
   const status = statusConfig[project.status] || statusConfig.draft;
 
@@ -412,13 +526,41 @@ function ProjectListItem({ project }: { project: Project }) {
           ))}
         </div>
 
-        {/* Action */}
-        <Link to={`/projects/${project.id}`}>
-          <Button variant="outline" size="sm">
-            View
-            <ArrowRight className="ml-1 h-4 w-4" />
-          </Button>
-        </Link>
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          <Link to={`/projects/${project.id}`}>
+            <Button variant="outline" size="sm">
+              View
+              <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </Link>
+          {isAdmin && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Project?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete "{project.name}" and all its rooms, renders, and budget items. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => onDelete(project.id)}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

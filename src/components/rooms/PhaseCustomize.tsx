@@ -414,7 +414,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   const selectedStyleData = designStyles.find(s => s.id === selectedStyle);
 
   // ============================================================================
-  // RENDER: CHOICE SCREEN (DEFAULT)
+  // RENDER: CHOICE SCREEN (DEFAULT) - 3 Paths: Smart Defaults (Primary), Library, Manual
   // ============================================================================
   if (mode === 'choose') {
     return (
@@ -426,30 +426,79 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
           </p>
         </div>
 
-        <h4 className="text-xl font-bold text-center">Choose your style reference</h4>
+        <h4 className="text-xl font-bold text-center">Choose your approach</h4>
 
         <div className="grid grid-cols-1 gap-4">
-          {/* Library Button */}
+          {/* Smart Defaults - PRIMARY RECOMMENDED */}
           <Card 
-            className="cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0"
-            onClick={() => setMode('library')}
+            className="cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0 relative overflow-hidden"
+            onClick={() => {
+              setGenerationPath('smart_defaults');
+              setMode('customize');
+            }}
           >
-            <CardContent className="p-4 space-y-3">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <CardContent className="p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="text-3xl">📚</div>
-                <Badge className="bg-yellow-500 text-yellow-950 font-bold text-xs">
-                  ⭐ RECOMMENDED
+                <div className="text-3xl">⭐</div>
+                <Badge className="bg-yellow-400 text-yellow-950 font-bold text-xs border-0">
+                  RECOMMENDED
                 </Badge>
               </div>
               
               <div>
-                <h3 className="text-lg font-bold">BROWSE LIBRARY →</h3>
-                <p className="text-primary-foreground/80 text-sm">Pre-tested proven references</p>
+                <h3 className="text-lg font-bold">SMART DEFAULTS →</h3>
+                <p className="text-primary-foreground/80 text-sm">Pre-configured style + specifications</p>
               </div>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm pt-1">
                 <div className="flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">168 combinations</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">92% approval</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">~2 minutes</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Check className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Furniture included</span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-primary-foreground/20">
+                <p className="text-xs text-primary-foreground/70">
+                  Includes: Furniture list • Lighting specs • Color palette • Flooring & ceiling
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Library Button */}
+          <Card 
+            className="cursor-pointer transition-all hover:shadow-lg hover:bg-muted/50 border-2"
+            onClick={() => setMode('library')}
+          >
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-3xl">📚</div>
+                <Badge variant="outline" className="text-xs">
+                  Proven References
+                </Badge>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-bold">BROWSE LIBRARY →</h3>
+                <p className="text-muted-foreground text-sm">Select from tested design images</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted-foreground pt-1">
+                <div className="flex items-center gap-1.5">
+                  <Library className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">547 references</span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -468,27 +517,38 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
             </CardContent>
           </Card>
 
-          {/* Upload Button */}
+          {/* Manual Prompt - NEW */}
           <Card 
             className="cursor-pointer transition-all hover:shadow-lg hover:bg-muted/50 border-2 border-dashed"
-            onClick={() => setMode('upload')}
+            onClick={() => {
+              setGenerationPath('manual');
+              setMode('customize');
+            }}
           >
             <CardContent className="p-4 space-y-3">
-              <div className="text-3xl">🆕</div>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl">✍️</div>
+                <div className="flex gap-2">
+                  <Badge className="bg-blue-500 text-white text-xs">NEW</Badge>
+                  <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-500">
+                    ⚠️ Unverified
+                  </Badge>
+                </div>
+              </div>
               
               <div>
-                <h3 className="text-lg font-bold">UPLOAD OWN</h3>
-                <p className="text-muted-foreground text-sm">Pinterest or your own image</p>
+                <h3 className="text-lg font-bold">MANUAL PROMPT →</h3>
+                <p className="text-muted-foreground text-sm">Write your own AI generation prompt</p>
               </div>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted-foreground pt-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-yellow-500">⚠️</span>
-                  <span className="truncate">Unverified</span>
+                  <Palette className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Full control</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">~4 min</span>
+                  <span className="truncate">~5 min</span>
                 </div>
               </div>
             </CardContent>
@@ -499,9 +559,9 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 flex items-start gap-3">
           <span className="text-2xl">💡</span>
           <div>
-            <p className="font-medium text-foreground">Library references are pre-tested and proven to work.</p>
+            <p className="font-medium text-foreground">Smart Defaults are fastest & most consistent.</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Using library saves ~15 minutes per room and increases success rate by 9%!
+              Pre-configured with furniture, lighting, colors, and finishes. Saves ~15 minutes per room!
             </p>
           </div>
         </div>
