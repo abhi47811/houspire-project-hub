@@ -26,3 +26,9 @@ verify_jwt = false
 
 [functions.track-render-outcome]
 verify_jwt = true
+
+[functions.load-smart-defaults]
+verify_jwt = false
+
+[functions.health-check]
+verify_jwt = false
