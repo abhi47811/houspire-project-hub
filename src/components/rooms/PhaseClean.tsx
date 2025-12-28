@@ -193,16 +193,18 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   const qualityScore = 94;
   const processingTime = '2m 34s';
 
+  // Validation items - only show as passed when we have a cleaned image
+  const hasCleanedImage = !!cleanedImage?.signedUrl;
   const validationItems: ValidationItem[] = [
-    { id: 'windows', label: 'Windows preserved', passed: true },
-    { id: 'doors', label: 'Doors unchanged', passed: true },
-    { id: 'walls', label: 'Wall edges intact', passed: true },
-    { id: 'furniture', label: 'Furniture removed', passed: cleaningStatus === 'completed' },
+    { id: 'windows', label: 'Windows preserved', passed: hasCleanedImage },
+    { id: 'doors', label: 'Doors unchanged', passed: hasCleanedImage },
+    { id: 'walls', label: 'Wall edges intact', passed: hasCleanedImage },
+    { id: 'furniture', label: 'Furniture removed', passed: hasCleanedImage },
   ];
 
-  const issues: Issue[] = cleaningStatus === 'failed' ? [
-    { id: '1', message: 'Window frame partially erased', severity: 'warning' },
-    { id: '2', message: 'Door handle removed incorrectly', severity: 'error' },
+  // Only show issues when job has actually failed
+  const issues: Issue[] = hasFailed && errorMessage ? [
+    { id: '1', message: errorMessage, severity: 'error' },
   ] : [];
 
   const allValidationsPassed = validationItems.every(item => item.passed);
@@ -512,8 +514,8 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         </div>
       )}
 
-      {/* Processing State */}
-      {isProcessing && (
+      {/* Processing State - only show when actually processing AND not completed */}
+      {isProcessing && cleaningStatus !== 'completed' && !room.phase_3_completed && (
         <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
           <div className="flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
@@ -542,16 +544,24 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
           </Button>
         )}
 
-        {/* Approve Button - show when completed */}
-        {cleaningStatus === 'completed' && (
+        {/* Approve Button - show when completed and NOT already approved */}
+        {cleaningStatus === 'completed' && !room.phase_3_completed && (
           <Button 
             className="w-full" 
             onClick={handleApprove}
-            disabled={!allValidationsPassed || isApproving || room.phase_3_completed}
+            disabled={!allValidationsPassed || isApproving}
           >
             <Check className="mr-2 h-4 w-4" />
-            {room.phase_3_completed ? 'Already Approved' : 'Approve Cleaned Image'}
+            Approve Cleaned Image
           </Button>
+        )}
+        
+        {/* Show success message when already approved */}
+        {room.phase_3_completed && cleaningStatus === 'completed' && (
+          <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+            <Check className="h-4 w-4 text-green-600" />
+            <span className="text-sm text-green-700 dark:text-green-400">Phase 3 Complete - Proceed to Phase 4</span>
+          </div>
         )}
         
         <div className="grid grid-cols-2 gap-2">

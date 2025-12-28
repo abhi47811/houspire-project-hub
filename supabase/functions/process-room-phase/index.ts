@@ -347,9 +347,18 @@ async function failJobWithFallback(supabase: any, jobId: string, errorMessage: s
 
 // Process a single job
 async function processJob(supabase: any, job: any): Promise<void> {
-  console.log(`Processing job ${job.id} - ${job.job_type} for room ${job.room_id}`);
+  console.log(`[JOB ${job.id}] Starting processing - type: ${job.job_type}, room: ${job.room_id}`);
+  const processStartTime = Date.now();
 
   try {
+    // Claim job first to prevent duplicate processing
+    console.log(`[JOB ${job.id}] Claiming job...`);
+    const { data: claimResult } = await supabase.rpc("claim_job", { p_job_id: job.id });
+    if (!claimResult) {
+      console.log(`[JOB ${job.id}] Failed to claim - already processing or completed`);
+      return;
+    }
+    console.log(`[JOB ${job.id}] Job claimed successfully`);
     let result: any;
     let userId: string | null = null;
 
@@ -572,6 +581,8 @@ async function processJob(supabase: any, job: any): Promise<void> {
     }
 
     // Complete the job with fallback
+    const processDuration = Date.now() - processStartTime;
+    console.log(`[JOB ${job.id}] Completed successfully in ${processDuration}ms`);
     await completeJobWithFallback(supabase, job.id, result);
 
     // Send success notification
@@ -585,7 +596,8 @@ async function processJob(supabase: any, job: any): Promise<void> {
     }
 
   } catch (error) {
-    console.error(`Job ${job.id} failed:`, error);
+    const processDuration = Date.now() - processStartTime;
+    console.error(`[JOB ${job.id}] Failed after ${processDuration}ms:`, error);
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
