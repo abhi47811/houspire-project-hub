@@ -173,22 +173,21 @@ async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
   const input = {
     image: imageUrl,
     mask: mask === "full_image" ? imageUrl : mask,
-    ldm_steps: 25,
-    ldm_sampler: "plms",
-    hd_strategy: "Resize",
-    hd_strategy_resize_limit: 2048,
   };
 
-  // Use the model endpoint to avoid hardcoding a version (prevents "Invalid version" errors)
+  // Use the verified working model with explicit version
   const response = await fetch(
-    "https://api.replicate.com/v1/models/cjwbw/lama-cleaner/predictions",
+    "https://api.replicate.com/v1/predictions",
     {
       method: "POST",
       headers: {
         Authorization: `Token ${REPLICATE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ input }),
+      body: JSON.stringify({ 
+        version: "cdac78a1bec5b23c07fd29692fb70baa513ea403a39e643c48ec5edadb15fe72",
+        input 
+      }),
     }
   );
 
