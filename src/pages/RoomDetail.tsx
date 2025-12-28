@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,7 +37,7 @@ import {
   Search,
   Sparkles,
   Palette,
-  Image,
+  Image as ImageIcon,
   ZoomIn,
   ZoomOut,
   RotateCcw,
@@ -94,11 +94,11 @@ const roomTypeLabels: Record<RoomType, string> = {
 };
 
 const phases = [
-  { id: 1, name: 'Upload', icon: Upload },
-  { id: 2, name: 'Analyze', icon: Search },
-  { id: 3, name: 'Clean', icon: Sparkles },
-  { id: 4, name: 'Customize', icon: Palette },
-  { id: 5, name: 'Generate', icon: Image },
+  { id: 1, name: 'Upload', icon: Upload, imageType: 'original' },
+  { id: 2, name: 'Analyze', icon: Search, imageType: 'original' },
+  { id: 3, name: 'Clean', icon: Sparkles, imageType: 'cleaned' },
+  { id: 4, name: 'Customize', icon: Palette, imageType: 'cleaned' },
+  { id: 5, name: 'Generate', icon: ImageIcon, imageType: 'final' },
 ];
 
 export default function RoomDetail() {
@@ -154,6 +154,34 @@ export default function RoomDetail() {
     enabled: !!projectId,
   });
 
+  // Get the image type based on active phase
+  const getImageTypeForPhase = (phase: number) => {
+    if (phase <= 2) return 'original';
+    if (phase <= 4) return 'cleaned';
+    return 'final';
+  };
+
+  // Fetch current phase image for the main viewer
+  const { data: currentImage, isLoading: imageLoading } = useQuery({
+    queryKey: ['room-images', roomId, activePhase, getImageTypeForPhase(activePhase)],
+    queryFn: async () => {
+      const imageType = getImageTypeForPhase(activePhase);
+      const phaseToQuery = activePhase <= 2 ? 1 : (activePhase <= 4 ? 3 : 5);
+      
+      const { data, error } = await supabase
+        .from('room_images')
+        .select('*')
+        .eq('room_id', roomId!)
+        .eq('phase', phaseToQuery)
+        .eq('image_type', imageType)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!roomId,
+  });
+
   // Delete room mutation
   const deleteRoom = useMutation({
     mutationFn: async () => {
@@ -173,11 +201,11 @@ export default function RoomDetail() {
   });
 
   // Set active phase based on room's current phase
-  useState(() => {
+  useEffect(() => {
     if (room) {
       setActivePhase(room.current_phase);
     }
-  });
+  }, [room]);
 
   if (roomLoading) {
     return <RoomDetailSkeleton />;
@@ -340,16 +368,31 @@ export default function RoomDetail() {
 
             {/* Image Display */}
             <div className="relative aspect-[4/3] bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-              <div 
-                className="flex items-center justify-center transition-transform"
-                style={{ transform: `scale(${zoom / 100})` }}
-              >
-                <div className="text-center text-muted-foreground">
-                  <Image className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                  <p className="text-sm">No image uploaded yet</p>
-                  <p className="text-xs mt-1">Upload an image in Phase 1</p>
+              {imageLoading ? (
+                <Skeleton className="w-full h-full" />
+              ) : currentImage?.storage_path ? (
+                <div 
+                  className="flex items-center justify-center w-full h-full transition-transform"
+                  style={{ transform: `scale(${zoom / 100})` }}
+                >
+                  <img
+                    src={currentImage.storage_path}
+                    alt={`Phase ${activePhase} - ${phases[activePhase - 1].name}`}
+                    className="max-w-full max-h-full object-contain"
+                  />
                 </div>
-              </div>
+              ) : (
+                <div 
+                  className="flex items-center justify-center transition-transform"
+                  style={{ transform: `scale(${zoom / 100})` }}
+                >
+                  <div className="text-center text-muted-foreground">
+                    <ImageIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                    <p className="text-sm">No image uploaded yet</p>
+                    <p className="text-xs mt-1">Upload an image in Phase 1</p>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
