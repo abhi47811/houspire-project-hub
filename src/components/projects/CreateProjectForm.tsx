@@ -31,12 +31,15 @@ const cities = [
   'Pune', 'Kolkata', 'Ahmedabad', 'Jaipur', 'Surat', 'Lucknow'
 ] as const;
 
+const budgetTiers = ['premium', 'mid_range', 'budget'] as const;
+
 const formSchema = z.object({
   name: z.string().min(2, 'Project name must be at least 2 characters'),
   description: z.string().optional(),
   client_name: z.string().min(2, 'Client name must be at least 2 characters'),
   client_email: z.string().email('Please enter a valid email').optional().or(z.literal('')),
   city: z.enum(cities, { required_error: 'Please select a city' }),
+  budget_tier: z.enum(budgetTiers).default('mid_range'),
   max_rooms: z.number().min(1).max(20).default(7),
   deadline: z.string().optional(),
   estimated_budget: z.number().min(0).optional(),
@@ -60,6 +63,7 @@ export function CreateProjectForm({ onSuccess }: CreateProjectFormProps) {
       description: '',
       client_name: '',
       client_email: '',
+      budget_tier: 'mid_range',
       max_rooms: 7,
       deadline: '',
       estimated_budget: undefined,
@@ -85,6 +89,7 @@ export function CreateProjectForm({ onSuccess }: CreateProjectFormProps) {
         client_name: values.client_name,
         client_email: values.client_email || null,
         city: values.city,
+        budget_tier: values.budget_tier,
         max_rooms: values.max_rooms,
         deadline: values.deadline || null,
         estimated_budget: values.estimated_budget || null,
@@ -200,6 +205,30 @@ export function CreateProjectForm({ onSuccess }: CreateProjectFormProps) {
                     {cities.map((city) => (
                       <SelectItem key={city} value={city}>{city}</SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Budget Tier */}
+          <FormField
+            control={form.control}
+            name="budget_tier"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Budget Tier *</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select budget tier" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className="bg-popover">
+                    <SelectItem value="premium">💎 Premium (2.5x)</SelectItem>
+                    <SelectItem value="mid_range">⚖️ Mid-Range (1.0x)</SelectItem>
+                    <SelectItem value="budget">💰 Budget (0.5x)</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
