@@ -1,3 +1,14 @@
+/**
+ * ============================================================================
+ * ENHANCED AI GENERATION EDGE FUNCTION
+ * ============================================================================
+ * Purpose: Generate renders using comprehensive prompts that combine:
+ *   - Smart defaults (specifications, checklist, finishes)
+ *   - Library references (proven images with metadata)
+ *   - Custom requirements (user input)
+ * ============================================================================
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
@@ -10,6 +21,213 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+// ============================================================================
+// PROMPT BUILDER - The Heart of the System
+// ============================================================================
+
+interface PromptBuilderInput {
+  roomType: string;
+  selectedStyle: string;
+  smartDefaultData?: any;
+  libraryImageData?: any;
+  customRequirements?: string;
+  city?: string;
+  budgetTier?: string;
+}
+
+/**
+ * Build a comprehensive prompt combining all data sources
+ */
+function buildComprehensivePrompt(input: PromptBuilderInput): string {
+  const {
+    roomType,
+    selectedStyle,
+    smartDefaultData,
+    libraryImageData,
+    customRequirements,
+    city,
+    budgetTier
+  } = input;
+
+  let prompt = `Create a stunning ${selectedStyle} style ${roomType}`;
+  
+  if (city) {
+    prompt += ` for a home in ${city}, India`;
+  }
+  
+  prompt += `.`;
+
+  // SECTION 1: Smart Defaults (if available)
+  if (smartDefaultData) {
+    prompt += `\n\n## Design Specifications:`;
+    
+    if (smartDefaultData.specifications && Array.isArray(smartDefaultData.specifications)) {
+      prompt += `\n\n### Furniture & Elements:`;
+      for (const spec of smartDefaultData.specifications) {
+        if (spec.category && spec.items && Array.isArray(spec.items)) {
+          prompt += `\n- **${spec.category}**: ${spec.items.join(', ')}`;
+        }
+      }
+    }
+    
+    if (smartDefaultData.checklist && Array.isArray(smartDefaultData.checklist) && smartDefaultData.checklist.length > 0) {
+      prompt += `\n\n### Must-Have Items:`;
+      prompt += `\n${smartDefaultData.checklist.map((item: string) => `- ${item}`).join('\n')}`;
+    }
+    
+    if (smartDefaultData.finishes && Array.isArray(smartDefaultData.finishes) && smartDefaultData.finishes.length > 0) {
+      prompt += `\n\n### Finishes & Materials:`;
+      for (const finish of smartDefaultData.finishes) {
+        if (finish.type && finish.value) {
+          prompt += `\n- **${finish.type}**: ${finish.value}`;
+        }
+      }
+    }
+  }
+
+  // SECTION 2: Library Reference (if available)
+  if (libraryImageData) {
+    prompt += `\n\n## Reference Style:`;
+    prompt += `\nUse the provided reference image as a visual guide for:`;
+    
+    if (libraryImageData.color_palette) {
+      const palette = libraryImageData.color_palette;
+      prompt += `\n\n### Color Palette:`;
+      if (palette.primary) prompt += `\n- Primary: ${palette.primary}`;
+      if (palette.secondary) prompt += `\n- Secondary: ${palette.secondary}`;
+      if (palette.accent) prompt += `\n- Accent: ${palette.accent}`;
+      if (palette.neutral) prompt += `\n- Neutral: ${palette.neutral}`;
+    }
+    
+    if (libraryImageData.analysis_data) {
+      const analysis = libraryImageData.analysis_data;
+      
+      if (analysis.furniture && Array.isArray(analysis.furniture)) {
+        prompt += `\n\n### Furniture Arrangement:`;
+        prompt += `\n${analysis.furniture.join(', ')}`;
+      }
+      
+      if (analysis.layout) {
+        prompt += `\n\n### Layout Pattern:`;
+        prompt += `\n${analysis.layout}`;
+      }
+      
+      if (analysis.lighting) {
+        prompt += `\n\n### Lighting Style:`;
+        prompt += `\n${analysis.lighting}`;
+      }
+    }
+    
+    prompt += `\n\nMatch the overall aesthetic, mood, and quality level of the reference image.`;
+  }
+
+  // SECTION 3: Budget Tier Adjustments
+  if (budgetTier) {
+    prompt += `\n\n## Budget Tier: ${budgetTier.replace('_', ' ').toUpperCase()}`;
+    
+    switch (budgetTier) {
+      case 'premium':
+        prompt += `\n- Use high-end, luxury materials and finishes`;
+        prompt += `\n- Include statement pieces and designer furniture`;
+        prompt += `\n- Add sophisticated lighting and premium accessories`;
+        break;
+      case 'mid_range':
+        prompt += `\n- Balance quality and affordability`;
+        prompt += `\n- Use good quality materials with smart choices`;
+        prompt += `\n- Include tasteful, well-designed pieces`;
+        break;
+      case 'budget':
+        prompt += `\n- Focus on cost-effective solutions`;
+        prompt += `\n- Use affordable materials that look good`;
+        prompt += `\n- Prioritize essential furniture and simple finishes`;
+        break;
+    }
+  }
+
+  // SECTION 4: Custom Requirements (if provided)
+  if (customRequirements && customRequirements.trim().length > 0) {
+    prompt += `\n\n## Additional Requirements:`;
+    prompt += `\n${customRequirements}`;
+  }
+
+  // SECTION 5: Critical Constraints (ALWAYS INCLUDED)
+  prompt += `\n\n## CRITICAL REQUIREMENTS:`;
+  prompt += `\n1. **PRESERVE ALL ARCHITECTURAL ELEMENTS** - Keep windows, doors, ceiling height, and room dimensions EXACTLY as they appear in the original image`;
+  prompt += `\n2. **PHOTOREALISTIC QUALITY** - Create magazine-quality, professional interior design photography`;
+  prompt += `\n3. **PROPER LIGHTING** - Use natural and artificial lighting that enhances the space`;
+  prompt += `\n4. **SCALE & PROPORTION** - Ensure all furniture and elements are properly scaled to the room`;
+  prompt += `\n5. **STYLE CONSISTENCY** - Maintain ${selectedStyle} style throughout all elements`;
+  
+  if (city) {
+    prompt += `\n6. **INDIAN CONTEXT** - Include culturally appropriate elements for ${city}, India`;
+  }
+
+  return prompt;
+}
+
+// ============================================================================
+// DATA FETCHERS
+// ============================================================================
+
+async function fetchRoomData(supabase: any, roomId: string) {
+  const { data: room, error } = await supabase
+    .from('rooms')
+    .select(`
+      *,
+      projects (
+        city,
+        budget_tier
+      )
+    `)
+    .eq('id', roomId)
+    .single();
+  
+  if (error) {
+    console.error('Error fetching room:', error);
+    throw new Error(`Failed to fetch room data: ${error.message}`);
+  }
+  
+  return room;
+}
+
+async function fetchSmartDefaultData(supabase: any, smartDefaultId: string) {
+  if (!smartDefaultId) return null;
+  
+  const { data, error } = await supabase
+    .from('smart_defaults')
+    .select('specifications, checklist, finishes, style, room_type')
+    .eq('id', smartDefaultId)
+    .single();
+  
+  if (error) {
+    console.warn('Error fetching smart defaults:', error);
+    return null;
+  }
+  
+  return data;
+}
+
+async function fetchLibraryImageData(supabase: any, libraryReferenceId: string) {
+  if (!libraryReferenceId) return null;
+  
+  const { data, error } = await supabase
+    .from('style_library')
+    .select('image_url, color_palette, analysis_data, design_style, room_type')
+    .eq('id', libraryReferenceId)
+    .single();
+  
+  if (error) {
+    console.warn('Error fetching library image:', error);
+    return null;
+  }
+  
+  return data;
+}
+
+// ============================================================================
+// AI GENERATION FUNCTIONS
+// ============================================================================
 
 async function logApiCall(supabase: any, data: any) {
   try {
@@ -32,18 +250,44 @@ async function logApiCall(supabase: any, data: any) {
   }
 }
 
-// Lovable AI image generation helper - using Gemini 3 Pro Image
 async function callLovableAI(
   cleanedImageUrl: string,
-  prompt: string
+  prompt: string,
+  libraryReferenceUrl?: string
 ): Promise<{ imageUrl: string; model: string; latency: number }> {
   const startTime = Date.now();
-
+  
   if (!LOVABLE_API_KEY) {
     throw new Error("LOVABLE_API_KEY not configured");
   }
 
   console.log("Attempting generation with Lovable AI (Gemini 3 Pro Image)...");
+  console.log("Prompt length:", prompt.length);
+  console.log("Has library reference:", !!libraryReferenceUrl);
+
+  const messages: any[] = [
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: prompt,
+        },
+        {
+          type: "image_url",
+          image_url: { url: cleanedImageUrl },
+        },
+      ],
+    },
+  ];
+
+  // If library reference is provided, add it as a second image
+  if (libraryReferenceUrl) {
+    messages[0].content.push({
+      type: "image_url",
+      image_url: { url: libraryReferenceUrl },
+    });
+  }
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -53,28 +297,7 @@ async function callLovableAI(
     },
     body: JSON.stringify({
       model: "google/gemini-3-pro-image-preview",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Transform this empty room into a stunning, magazine-quality interior design render.
-
-CRITICAL REQUIREMENTS:
-1. PRESERVE ALL ARCHITECTURAL ELEMENTS EXACTLY (windows, doors, ceiling height)
-2. Apply the following design:
-${prompt}
-
-The result must be photorealistic, professionally lit, and suitable for publication in an interior design magazine.`,
-            },
-            {
-              type: "image_url",
-              image_url: { url: cleanedImageUrl },
-            },
-          ],
-        },
-      ],
+      messages,
       modalities: ["image", "text"],
     }),
   });
@@ -86,7 +309,7 @@ The result must be photorealistic, professionally lit, and suitable for publicat
 
   const data = await response.json();
   const images = data.choices?.[0]?.message?.images;
-
+  
   if (!images || images.length === 0) {
     throw new Error("No image in Lovable AI response");
   }
@@ -101,10 +324,10 @@ The result must be photorealistic, professionally lit, and suitable for publicat
   };
 }
 
-// OpenRouter fallback helper
 async function callOpenRouter(
   cleanedImageUrl: string,
-  prompt: string
+  prompt: string,
+  libraryReferenceUrl?: string
 ): Promise<{ imageUrl: string; model: string; latency: number }> {
   const startTime = Date.now();
 
@@ -113,6 +336,24 @@ async function callOpenRouter(
   }
 
   console.log("Attempting generation with OpenRouter fallback...");
+
+  const content: any[] = [
+    {
+      type: "text",
+      text: prompt,
+    },
+    {
+      type: "image_url",
+      image_url: { url: cleanedImageUrl },
+    },
+  ];
+
+  if (libraryReferenceUrl) {
+    content.push({
+      type: "image_url",
+      image_url: { url: libraryReferenceUrl },
+    });
+  }
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -127,22 +368,7 @@ async function callOpenRouter(
       messages: [
         {
           role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Transform this empty room into a stunning interior design render.
-
-REQUIREMENTS:
-1. PRESERVE ALL ARCHITECTURAL ELEMENTS (windows, doors, ceiling)
-2. Apply this design: ${prompt}
-
-Create a photorealistic, magazine-quality result.`,
-            },
-            {
-              type: "image_url",
-              image_url: { url: cleanedImageUrl },
-            },
-          ],
+          content,
         },
       ],
     }),
@@ -156,16 +382,15 @@ Create a photorealistic, magazine-quality result.`,
   const data = await response.json();
   const latency = Date.now() - startTime;
 
-  // OpenRouter may return image in different formats
   const images = data.choices?.[0]?.message?.images;
-  const content = data.choices?.[0]?.message?.content;
+  const contentResponse = data.choices?.[0]?.message?.content;
 
   let imageUrl: string | null = null;
 
   if (images && images.length > 0) {
     imageUrl = images[0].image_url?.url || images[0];
-  } else if (content && typeof content === "string" && content.startsWith("data:image")) {
-    imageUrl = content;
+  } else if (contentResponse && typeof contentResponse === "string" && contentResponse.startsWith("data:image")) {
+    imageUrl = contentResponse;
   }
 
   if (!imageUrl) {
@@ -181,22 +406,20 @@ Create a photorealistic, magazine-quality result.`,
   };
 }
 
-// Generate render with fallback
 async function generateRenderWithFallback(
   cleanedImageUrl: string,
-  prompt: string
+  prompt: string,
+  libraryReferenceUrl?: string
 ): Promise<{ imageUrl: string; model: string; latency: number; provider: string }> {
-  // Try Lovable AI first
   try {
-    const result = await callLovableAI(cleanedImageUrl, prompt);
+    const result = await callLovableAI(cleanedImageUrl, prompt, libraryReferenceUrl);
     return { ...result, provider: "lovable" };
   } catch (lovableError) {
     console.warn("⚠️ Lovable AI failed:", lovableError instanceof Error ? lovableError.message : String(lovableError));
 
-    // Fallback to OpenRouter
     if (OPENROUTER_API_KEY) {
       try {
-        const result = await callOpenRouter(cleanedImageUrl, prompt);
+        const result = await callOpenRouter(cleanedImageUrl, prompt, libraryReferenceUrl);
         return { ...result, provider: "openrouter" };
       } catch (openrouterError) {
         console.error("❌ OpenRouter fallback also failed:", openrouterError instanceof Error ? openrouterError.message : String(openrouterError));
@@ -208,88 +431,9 @@ async function generateRenderWithFallback(
   }
 }
 
-// Build enhanced prompt using smart defaults and/or library reference data
-function buildEnhancedPrompt(
-  basePrompt: string,
-  smartDefault: {
-    style: string;
-    room_type: string;
-    specifications: Array<{ item: string; description?: string }>;
-    checklist: string[];
-    finishes: Array<{ type: string; value: string; color?: string }>;
-  } | null,
-  libraryReference: {
-    image_url: string;
-    design_style: string;
-    color_palette?: Record<string, string>;
-    analysis_data?: Record<string, unknown>;
-  } | null
-): string {
-  let enhancedPrompt = basePrompt;
-  
-  // Add smart defaults data (Path A)
-  if (smartDefault) {
-    enhancedPrompt += `\n\nDESIGN SPECIFICATIONS (${smartDefault.style} style):`;
-    
-    // Add furniture/specifications
-    if (smartDefault.specifications && smartDefault.specifications.length > 0) {
-      const items = smartDefault.specifications.slice(0, 6).map(s => 
-        s.description ? `${s.item}: ${s.description}` : s.item
-      ).join(', ');
-      enhancedPrompt += `\nFurniture & Items: ${items}`;
-    }
-    
-    // Add finishes
-    if (smartDefault.finishes && smartDefault.finishes.length > 0) {
-      const lighting = smartDefault.finishes.find(f => f.type === 'lighting');
-      const flooring = smartDefault.finishes.find(f => f.type === 'flooring');
-      const ceiling = smartDefault.finishes.find(f => f.type === 'ceiling');
-      
-      if (lighting) enhancedPrompt += `\nLighting: ${lighting.value}`;
-      if (flooring) enhancedPrompt += `\nFlooring: ${flooring.value}`;
-      if (ceiling) enhancedPrompt += `\nCeiling: ${ceiling.value}`;
-      
-      // Extract colors from finishes
-      const colorFinishes = smartDefault.finishes.filter(f => f.color);
-      if (colorFinishes.length > 0) {
-        const colors = colorFinishes.map(f => f.color).join(', ');
-        enhancedPrompt += `\nColor palette: ${colors}`;
-      }
-    }
-    
-    // Add checklist items
-    if (smartDefault.checklist && smartDefault.checklist.length > 0) {
-      const checklist = smartDefault.checklist.slice(0, 5).join(', ');
-      enhancedPrompt += `\nMust include: ${checklist}`;
-    }
-  }
-  
-  // Add library reference data (Path B)
-  if (libraryReference) {
-    enhancedPrompt += `\n\nSTYLE REFERENCE:`;
-    enhancedPrompt += `\nUse this reference as your visual guide: ${libraryReference.design_style} style`;
-    
-    // Extract color palette if available
-    if (libraryReference.color_palette && Object.keys(libraryReference.color_palette).length > 0) {
-      const colors = Object.values(libraryReference.color_palette).slice(0, 5).join(', ');
-      enhancedPrompt += `\nMatch this color palette: ${colors}`;
-    }
-    
-    // Extract furniture list if available
-    const analysisData = libraryReference.analysis_data as Record<string, unknown> | undefined;
-    if (analysisData?.furniture_list && Array.isArray(analysisData.furniture_list)) {
-      const furniture = (analysisData.furniture_list as string[]).slice(0, 5).join(', ');
-      enhancedPrompt += `\nInclude similar furniture: ${furniture}`;
-    }
-    
-    // Extract layout pattern if available
-    if (analysisData?.layout_pattern) {
-      enhancedPrompt += `\nFollow this layout style: ${analysisData.layout_pattern}`;
-    }
-  }
-  
-  return enhancedPrompt;
-}
+// ============================================================================
+// MAIN HANDLER
+// ============================================================================
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -300,20 +444,7 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    const {
-      action,
-      cleanedImageUrl,
-      prompt,
-      imageUrl,
-      projectId,
-      roomId,
-      // Seed image specific params
-      seedPrompt,
-      roomType,
-      designStyle,
-      city,
-      tier,
-    } = await req.json();
+    const { action, cleanedImageUrl, roomId, projectId } = await req.json();
 
     if (!LOVABLE_API_KEY && !OPENROUTER_API_KEY) {
       throw new Error("No AI API keys configured");
@@ -321,252 +452,117 @@ serve(async (req) => {
 
     switch (action) {
       case "generateRender": {
-        console.log("generateRender called with prompt:", prompt?.slice(0, 100));
-        console.log("cleanedImageUrl:", cleanedImageUrl?.slice(0, 100));
-        console.log("roomId:", roomId);
-
-        // Fetch room data including smart_default_id and library_reference_id
-        let smartDefault = null;
-        let libraryReference = null;
+        console.log("=".repeat(80));
+        console.log("ENHANCED GENERATE RENDER - Starting...");
+        console.log("=".repeat(80));
         
-        if (roomId) {
-          const { data: room, error: roomError } = await supabase
-            .from('rooms')
-            .select('library_reference_id, smart_default_id, selected_style')
-            .eq('id', roomId)
-            .single();
-          
-          if (!roomError && room) {
-            // Fetch smart defaults if available (Path A)
-            if (room.smart_default_id) {
-              console.log("Found smart_default_id:", room.smart_default_id);
-              
-              const { data: sd, error: sdError } = await supabase
-                .from('smart_defaults')
-                .select('id, style, room_type, specifications, checklist, finishes')
-                .eq('id', room.smart_default_id)
-                .single();
-              
-              if (!sdError && sd) {
-                smartDefault = sd;
-                console.log("Loaded smart default:", sd.style);
-              }
-            }
-            
-            // Fetch library reference if available (Path B)
-            if (room.library_reference_id) {
-              console.log("Found library_reference_id:", room.library_reference_id);
-              
-              const { data: libImage, error: libError } = await supabase
-                .from('style_library')
-                .select('id, image_url, design_style, color_palette, analysis_data')
-                .eq('id', room.library_reference_id)
-                .single();
-              
-              if (!libError && libImage) {
-                libraryReference = libImage;
-                console.log("Loaded library reference:", libImage.design_style);
-              }
-            }
-          }
+        // Step 1: Fetch room data
+        console.log("\n[1/5] Fetching room data...");
+        const room = await fetchRoomData(supabase, roomId);
+        console.log(`✓ Room: ${room.room_type}, Style: ${room.selected_style}`);
+        console.log(`  Project: ${room.projects?.city}, Budget: ${room.projects?.budget_tier}`);
+        
+        // Step 2: Fetch smart defaults (if available)
+        console.log("\n[2/5] Fetching smart defaults...");
+        const smartDefaultData = room.smart_default_id 
+          ? await fetchSmartDefaultData(supabase, room.smart_default_id)
+          : null;
+        
+        if (smartDefaultData) {
+          console.log(`✓ Smart defaults loaded: ${smartDefaultData.style} - ${smartDefaultData.room_type}`);
+          console.log(`  Specifications: ${smartDefaultData.specifications?.length || 0}`);
+          console.log(`  Checklist items: ${smartDefaultData.checklist?.length || 0}`);
+          console.log(`  Finishes: ${smartDefaultData.finishes?.length || 0}`);
+        } else {
+          console.log("  No smart defaults available");
         }
-
-        // Build enhanced prompt with smart defaults and/or library reference data
-        const enhancedPrompt = buildEnhancedPrompt(prompt, smartDefault, libraryReference);
-        console.log("Enhanced prompt:", enhancedPrompt.slice(0, 300));
-
-        const result = await generateRenderWithFallback(cleanedImageUrl, enhancedPrompt);
+        
+        // Step 3: Fetch library reference (if available)
+        console.log("\n[3/5] Fetching library reference...");
+        const libraryImageData = room.library_reference_id
+          ? await fetchLibraryImageData(supabase, room.library_reference_id)
+          : null;
+        
+        let libraryImageUrl: string | undefined;
+        if (libraryImageData) {
+          console.log(`✓ Library reference loaded: ${libraryImageData.design_style} - ${libraryImageData.room_type}`);
+          console.log(`  Image URL: ${libraryImageData.image_url?.slice(0, 50)}...`);
+          console.log(`  Has color palette: ${!!libraryImageData.color_palette}`);
+          console.log(`  Has analysis data: ${!!libraryImageData.analysis_data}`);
+          libraryImageUrl = libraryImageData.image_url;
+        } else {
+          console.log("  No library reference available");
+        }
+        
+        // Step 4: Build comprehensive prompt
+        console.log("\n[4/5] Building comprehensive prompt...");
+        const comprehensivePrompt = buildComprehensivePrompt({
+          roomType: room.room_type,
+          selectedStyle: room.selected_style,
+          smartDefaultData,
+          libraryImageData,
+          customRequirements: room.custom_requirements,
+          city: room.projects?.city,
+          budgetTier: room.projects?.budget_tier,
+        });
+        
+        console.log(`✓ Prompt built: ${comprehensivePrompt.length} characters`);
+        console.log("\n--- PROMPT PREVIEW ---");
+        console.log(comprehensivePrompt.slice(0, 500) + "...");
+        console.log("--- END PREVIEW ---\n");
+        
+        // Step 5: Generate render
+        console.log("[5/5] Generating render with AI...");
+        const result = await generateRenderWithFallback(
+          cleanedImageUrl,
+          comprehensivePrompt,
+          libraryImageUrl
+        );
+        
         const latencyMs = Date.now() - startTime;
+        console.log(`\n✅ Generation complete in ${latencyMs}ms`);
+        console.log(`   Provider: ${result.provider}`);
+        console.log(`   Model: ${result.model}`);
+        console.log("=".repeat(80));
 
+        // Log API call
         await logApiCall(supabase, {
           projectId,
           roomId,
           service: result.provider === "lovable" ? "lovable-ai" : "openrouter",
-          endpoint: action,
+          endpoint: "/v1/chat/completions",
           model: result.model,
-          costUsd: result.provider === "lovable" ? 0.04 : 0.02,
-          latencyMs,
+          inputTokens: Math.ceil(comprehensivePrompt.length / 4),
+          outputTokens: 0,
+          costUsd: result.provider === "lovable" ? 0.05 : 0.02,
+          latencyMs: result.latency,
           status: "success",
-          metadata: { 
-            provider: result.provider,
-            usedSmartDefault: !!smartDefault,
-            smartDefaultId: smartDefault?.id || null,
-            usedLibraryReference: !!libraryReference,
-            libraryReferenceId: libraryReference?.id || null
+          errorMessage: null,
+          metadata: {
+            action: "generateRender",
+            hasSmartDefaults: !!smartDefaultData,
+            hasLibraryReference: !!libraryImageData,
+            hasCustomRequirements: !!room.custom_requirements,
+            promptLength: comprehensivePrompt.length,
           },
         });
 
         return new Response(
           JSON.stringify({
-            result: { imageUrl: result.imageUrl },
-            usage: { costUsd: result.provider === "lovable" ? 0.04 : 0.02 },
+            imageUrl: result.imageUrl,
+            model: result.model,
             provider: result.provider,
-            usedSmartDefault: !!smartDefault,
-            usedLibraryReference: !!libraryReference,
+            latency: result.latency,
+            promptLength: comprehensivePrompt.length,
+            dataUsed: {
+              smartDefaults: !!smartDefaultData,
+              libraryReference: !!libraryImageData,
+              customRequirements: !!room.custom_requirements,
+            },
           }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      case "quickAnalysis": {
-        if (!LOVABLE_API_KEY) {
-          throw new Error("LOVABLE_API_KEY required for analysis");
-        }
-
-        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash-lite",
-            messages: [
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: "Quickly identify the room type and basic features. Return JSON: { room_type, size_estimate, features: [] }" },
-                  { type: "image_url", image_url: { url: imageUrl } },
-                ],
-              },
-            ],
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`AI API error: ${response.status} - ${errorText}`);
-        }
-
-        const data = await response.json();
-        const latencyMs = Date.now() - startTime;
-
-        await logApiCall(supabase, {
-          projectId,
-          roomId,
-          service: "lovable-ai",
-          endpoint: action,
-          model: "google/gemini-2.5-flash-lite",
-          costUsd: 0.0005,
-          latencyMs,
-          status: "success",
-        });
-
-        let result;
-        try {
-          result = JSON.parse(data.choices[0].message.content);
-        } catch {
-          result = { raw: data.choices[0].message.content };
-        }
-
-        return new Response(JSON.stringify({ result }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      case "generateSeedImage": {
-        if (!LOVABLE_API_KEY) {
-          throw new Error("LOVABLE_API_KEY required for seed generation");
-        }
-
-        const seedModel = "google/gemini-3-pro-image-preview";
-        const seedCostPerCall = 0.04;
-
-        const seedResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: seedModel,
-            messages: [{ role: "user", content: seedPrompt }],
-            modalities: ["image", "text"],
-          }),
-        });
-
-        if (!seedResponse.ok) {
-          const errorText = await seedResponse.text();
-          throw new Error(`AI image generation failed: ${seedResponse.status} - ${errorText}`);
-        }
-
-        const seedData = await seedResponse.json();
-        const seedLatencyMs = Date.now() - startTime;
-
-        const seedImages = seedData.choices?.[0]?.message?.images;
-        if (!seedImages || seedImages.length === 0) {
-          throw new Error("No image generated");
-        }
-
-        const imageDataUrl = seedImages[0].image_url.url;
-        const base64Data = imageDataUrl.replace(/^data:image\/\w+;base64,/, "");
-
-        const binaryString = atob(base64Data);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-
-        const fileName = `seed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.png`;
-        const { error: uploadError } = await supabase.storage
-          .from("room-images")
-          .upload(`seed/${fileName}`, bytes, {
-            contentType: "image/png",
-            cacheControl: "3600",
-          });
-
-        if (uploadError) {
-          throw new Error(`Storage upload failed: ${uploadError.message}`);
-        }
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("room-images").getPublicUrl(`seed/${fileName}`);
-
-        const { data: libraryData, error: insertError } = await supabase
-          .from("style_library")
-          .insert({
-            image_url: publicUrl,
-            thumbnail_url: publicUrl,
-            source_type: "houspire_generated",
-            room_type: roomType,
-            design_style: designStyle,
-            city: city,
-            tier: tier || "standard",
-            status: "active",
-            quality_score: 85,
-            initial_performance_known: false,
-            tags: ["seed-collection", "ai-generated"],
-            ranking_score: 50,
-            times_selected: 0,
-            times_viewed: 0,
-            times_led_to_approval: 0,
-            times_led_to_rejection: 0,
-          })
-          .select("id")
-          .single();
-
-        if (insertError) {
-          throw new Error(`Database insert failed: ${insertError.message}`);
-        }
-
-        await logApiCall(supabase, {
-          service: "lovable-ai",
-          endpoint: "generateSeedImage",
-          model: seedModel,
-          costUsd: seedCostPerCall,
-          latencyMs: seedLatencyMs,
-          status: "success",
-          metadata: { roomType, designStyle, city },
-        });
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            libraryId: libraryData.id,
-            imageUrl: publicUrl,
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
         );
       }
 
@@ -574,21 +570,16 @@ serve(async (req) => {
         throw new Error(`Unknown action: ${action}`);
     }
   } catch (error) {
-    const latencyMs = Date.now() - startTime;
-    console.error("Generate AI error:", error);
-
-    await logApiCall(supabase, {
-      service: "lovable-ai",
-      endpoint: "generate",
-      costUsd: 0,
-      latencyMs,
-      status: "error",
-      errorMessage: error instanceof Error ? error.message : "Unknown error",
-    });
-
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("❌ Error:", error);
+    
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 });
