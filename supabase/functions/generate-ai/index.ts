@@ -208,6 +208,44 @@ async function generateRenderWithFallback(
   }
 }
 
+// Build enhanced prompt using library reference data
+function buildEnhancedPrompt(
+  basePrompt: string,
+  libraryReference: {
+    image_url: string;
+    design_style: string;
+    color_palette?: Record<string, string>;
+    analysis_data?: Record<string, unknown>;
+  } | null
+): string {
+  let enhancedPrompt = basePrompt;
+  
+  if (libraryReference) {
+    enhancedPrompt += `\n\nIMPORTANT: Use this reference as your primary style guide.`;
+    enhancedPrompt += `\nReference style: ${libraryReference.design_style}`;
+    
+    // Extract color palette if available
+    if (libraryReference.color_palette && Object.keys(libraryReference.color_palette).length > 0) {
+      const colors = Object.values(libraryReference.color_palette).slice(0, 5).join(', ');
+      enhancedPrompt += `\nMatch this color palette: ${colors}`;
+    }
+    
+    // Extract furniture list if available
+    const analysisData = libraryReference.analysis_data as Record<string, unknown> | undefined;
+    if (analysisData?.furniture_list && Array.isArray(analysisData.furniture_list)) {
+      const furniture = (analysisData.furniture_list as string[]).slice(0, 5).join(', ');
+      enhancedPrompt += `\nInclude similar furniture: ${furniture}`;
+    }
+    
+    // Extract layout pattern if available
+    if (analysisData?.layout_pattern) {
+      enhancedPrompt += `\nFollow this layout style: ${analysisData.layout_pattern}`;
+    }
+  }
+  
+  return enhancedPrompt;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -240,8 +278,38 @@ serve(async (req) => {
       case "generateRender": {
         console.log("generateRender called with prompt:", prompt?.slice(0, 100));
         console.log("cleanedImageUrl:", cleanedImageUrl?.slice(0, 100));
+        console.log("roomId:", roomId);
 
-        const result = await generateRenderWithFallback(cleanedImageUrl, prompt);
+        // Fetch library reference if room has one selected
+        let libraryReference = null;
+        if (roomId) {
+          const { data: room, error: roomError } = await supabase
+            .from('rooms')
+            .select('library_reference_id, selected_style')
+            .eq('id', roomId)
+            .single();
+          
+          if (!roomError && room?.library_reference_id) {
+            console.log("Found library_reference_id:", room.library_reference_id);
+            
+            const { data: libImage, error: libError } = await supabase
+              .from('style_library')
+              .select('id, image_url, design_style, color_palette, analysis_data')
+              .eq('id', room.library_reference_id)
+              .single();
+            
+            if (!libError && libImage) {
+              libraryReference = libImage;
+              console.log("Loaded library reference:", libImage.design_style);
+            }
+          }
+        }
+
+        // Build enhanced prompt with library reference data
+        const enhancedPrompt = buildEnhancedPrompt(prompt, libraryReference);
+        console.log("Enhanced prompt:", enhancedPrompt.slice(0, 200));
+
+        const result = await generateRenderWithFallback(cleanedImageUrl, enhancedPrompt);
         const latencyMs = Date.now() - startTime;
 
         await logApiCall(supabase, {
@@ -253,7 +321,11 @@ serve(async (req) => {
           costUsd: result.provider === "lovable" ? 0.04 : 0.02,
           latencyMs,
           status: "success",
-          metadata: { provider: result.provider },
+          metadata: { 
+            provider: result.provider,
+            usedLibraryReference: !!libraryReference,
+            libraryReferenceId: libraryReference?.id || null
+          },
         });
 
         return new Response(
@@ -261,6 +333,7 @@ serve(async (req) => {
             result: { imageUrl: result.imageUrl },
             usage: { costUsd: result.provider === "lovable" ? 0.04 : 0.02 },
             provider: result.provider,
+            usedLibraryReference: !!libraryReference,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
