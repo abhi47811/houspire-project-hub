@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Palette, Copy, Save, Sparkles, Check, ChevronDown, Compass, Library, Upload, ArrowLeft, MapPin, Star, Clock, CheckCircle2 } from 'lucide-react';
+import { Palette, Copy, Save, Sparkles, Check, ChevronDown, Compass, Library, Upload, ArrowLeft, MapPin, Star, Clock, CheckCircle2, AlertTriangle, Zap, Edit3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
@@ -34,6 +34,8 @@ interface Room {
   selected_style: string | null;
   room_type: string | null;
   smart_default_id: string | null;
+  generation_path?: string | null;
+  custom_prompt?: string | null;
 }
 
 interface PhaseCustomizeProps {
@@ -149,8 +151,12 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   const [isApplying, setIsApplying] = useState(false);
   const [isGeneratingMoodboard, setIsGeneratingMoodboard] = useState(false);
   const [moodboardImages, setMoodboardImages] = useState<string[]>([]);
-  const [generationPath, setGenerationPath] = useState<GenerationPath>('smart_defaults');
-  const [manualPrompt, setManualPrompt] = useState('');
+  const [generationPath, setGenerationPath] = useState<GenerationPath>(
+    (room.generation_path as GenerationPath) || 'smart_defaults'
+  );
+  const [manualPrompt, setManualPrompt] = useState(room.custom_prompt || '');
+  const [bypassPrompt, setBypassPrompt] = useState('');
+  const [showStyleDialog, setShowStyleDialog] = useState(false);
 
   // Fetch project for city
   const { data: project } = useQuery({
@@ -346,7 +352,27 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   };
 
   const handleApplyAndContinue = async () => {
-    if (!selectedStyle) {
+    // For manual/bypass, we need the prompt
+    if (generationPath === 'manual' && !manualPrompt.trim()) {
+      toast({
+        title: 'Prompt Required',
+        description: 'Please enter a prompt for manual generation.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (generationPath === 'bypass' && !bypassPrompt.trim()) {
+      toast({
+        title: 'Prompt Required',
+        description: 'Please enter a bypass prompt.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // For smart_defaults and library, we need a style
+    if ((generationPath === 'smart_defaults' || generationPath === 'library') && !selectedStyle) {
       toast({
         title: 'Select a Style',
         description: 'Please select a design style before continuing.',
@@ -357,16 +383,31 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
 
     setIsApplying(true);
     try {
-      // Build update object with smart_default_id if available
+      // Build update object based on generation path
       const updateData: Record<string, unknown> = {
-        selected_style: selectedStyle,
+        generation_path: generationPath,
         phase_4_completed: true,
         current_phase: Math.max(room.current_phase, 5),
       };
       
-      // Include smart_default_id if we loaded from database
-      if (smartDefaults?.id) {
-        updateData.smart_default_id = smartDefaults.id;
+      // Add path-specific data
+      if (generationPath === 'smart_defaults' || generationPath === 'library') {
+        updateData.selected_style = selectedStyle;
+        if (smartDefaults?.id) {
+          updateData.smart_default_id = smartDefaults.id;
+        }
+      }
+      
+      if (generationPath === 'manual') {
+        updateData.custom_prompt = manualPrompt;
+        updateData.selected_style = selectedStyle || null;
+      }
+      
+      if (generationPath === 'bypass') {
+        updateData.custom_prompt = bypassPrompt;
+        updateData.selected_style = null;
+        updateData.smart_default_id = null;
+        updateData.library_reference_id = null;
       }
       
       const { error } = await supabase
@@ -376,11 +417,16 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
 
       if (error) throw error;
 
+      const pathMessages: Record<string, string> = {
+        smart_defaults: 'Smart defaults applied. Moving to Phase 5.',
+        library: 'Library reference saved. Moving to Phase 5.',
+        manual: 'Manual prompt saved. Moving to Phase 5.',
+        bypass: 'Bypass mode enabled. Moving to Phase 5.',
+      };
+
       toast({
-        title: 'Style Applied',
-        description: smartDefaults?.id 
-          ? 'Smart defaults applied. Moving to Phase 5.' 
-          : 'Design style saved. Moving to Phase 5.',
+        title: 'Configuration Saved',
+        description: pathMessages[generationPath] || 'Moving to Phase 5.',
       });
 
       queryClient.invalidateQueries({ queryKey: ['room', room.id] });
@@ -551,6 +597,44 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
                   <span className="truncate">~5 min</span>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* BYPASS - Emergency Mode */}
+          <Card 
+            className="cursor-pointer transition-all hover:shadow-lg border-2 border-dashed border-destructive/50 hover:border-destructive"
+            onClick={() => {
+              setGenerationPath('bypass');
+              setMode('customize');
+            }}
+          >
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-3xl">⚡</div>
+                <div className="flex gap-2">
+                  <Badge variant="destructive" className="text-xs">EMERGENCY</Badge>
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-bold text-destructive">BYPASS MODE →</h3>
+                <p className="text-muted-foreground text-sm">Direct prompt entry, skip all defaults</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted-foreground pt-1">
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                  <span className="truncate">No guardrails</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Expert only</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-destructive/80 pt-2 border-t border-destructive/20">
+                ⚠️ For emergencies when other methods fail. No style defaults applied.
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -872,8 +956,40 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         />
       )}
 
+      {generationPath === 'bypass' && (
+        <div className="space-y-4">
+          <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-destructive">Bypass Mode - Emergency Only</h4>
+              <p className="text-sm text-destructive/80 mt-1">
+                This prompt will be sent directly to the AI with minimal processing. 
+                No style defaults, smart defaults, or library references will be applied.
+              </p>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <Zap className="h-4 w-4 text-destructive" />
+              Direct Prompt
+            </Label>
+            <Textarea
+              placeholder="Enter your complete generation prompt here. Be as detailed as possible about the room type, style, furniture, lighting, colors, and materials..."
+              value={bypassPrompt}
+              onChange={(e) => setBypassPrompt(e.target.value)}
+              className="min-h-[200px] font-mono text-sm border-destructive/30 focus:border-destructive"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{bypassPrompt.length} characters</span>
+              <span>Recommended: 200-500 characters</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Prompt Preview - show for all paths when we have data */}
-      {(selectedStyle || manualPrompt) && (
+      {(selectedStyle || manualPrompt || bypassPrompt) && generationPath !== 'bypass' && (
         <PromptPreview
           prompt={manualPrompt || `Create a photorealistic ${roomType.replace('_', ' ')} with ${selectedStyle?.replace('_', ' ') || 'contemporary'} design style. Include appropriate furniture, lighting, and decor elements.`}
           metadata={{
@@ -1006,9 +1122,18 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
       {/* Actions */}
       <div className="pt-4 border-t space-y-2">
         <Button
-          className="w-full"
+          className={cn(
+            "w-full",
+            generationPath === 'bypass' && "bg-destructive hover:bg-destructive/90"
+          )}
           onClick={handleApplyAndContinue}
-          disabled={!selectedStyle || isApplying || room.phase_4_completed}
+          disabled={
+            isApplying || 
+            room.phase_4_completed || 
+            ((generationPath === 'smart_defaults' || generationPath === 'library') && !selectedStyle) ||
+            (generationPath === 'manual' && !manualPrompt.trim()) ||
+            (generationPath === 'bypass' && !bypassPrompt.trim())
+          }
         >
           {room.phase_4_completed ? (
             <>
@@ -1017,6 +1142,11 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
             </>
           ) : isApplying ? (
             'Applying...'
+          ) : generationPath === 'bypass' ? (
+            <>
+              <Zap className="mr-2 h-4 w-4" />
+              Apply Bypass & Continue →
+            </>
           ) : (
             'Apply & Continue to Phase 5'
           )}
