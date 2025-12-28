@@ -40,6 +40,24 @@ interface RoomAnalysis {
   ceiling_fan_count?: number;
 }
 
+interface RoomData {
+  ceiling_fan_detected?: boolean;
+  room_type?: string;
+  room_analysis?: RoomAnalysis | null;
+}
+
+// Room types that commonly have ceiling fans (smart detection)
+const ROOM_TYPES_WITH_FANS = [
+  'living_room',
+  'bedroom',
+  'master_bedroom',
+  'guest_bedroom',
+  'dining_room',
+  'office',
+  'home_office',
+  'kids_room',
+];
+
 // Severity penalties for quality score calculation
 const SEVERITY_PENALTIES: Record<string, number> = {
   critical: 25,
@@ -101,23 +119,48 @@ export function useQualityControl(roomId?: string) {
 
   const qualityScore = calculateQualityScore(violations);
 
-  // Check if room has ceiling fan and should apply fan/light conflict rule
-  const checkCeilingFanConflict = (roomAnalysis: RoomAnalysis | null): boolean => {
-    if (!roomAnalysis) return false;
-    return (roomAnalysis.ceiling_fan_count || 0) > 0;
+  // Check if room has ceiling fan using smart detection
+  const checkCeilingFanConflict = (roomData: RoomData | null): boolean => {
+    if (!roomData) return false;
+    
+    // Explicit detection from room data
+    if (roomData.ceiling_fan_detected === true) return true;
+    
+    // Detection from room analysis
+    if (roomData.room_analysis?.ceiling_fan_count && roomData.room_analysis.ceiling_fan_count > 0) {
+      return true;
+    }
+    
+    // Smart detection based on room type (common rooms with fans in Indian homes)
+    if (roomData.room_type && ROOM_TYPES_WITH_FANS.includes(roomData.room_type)) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  // Get rules for a specific enforcement stage
+  const getRulesForStage = (stage: 'detection' | 'generation' | 'validation' | 'refinement'): QualityRule[] => {
+    return rules.filter(rule => rule.enforcement_stage.includes(stage));
   };
 
   // Get applicable rules based on room data
   const getApplicableRules = (
-    roomAnalysis: RoomAnalysis | null,
-    ceilingFanDetected: boolean
+    roomData: RoomData | null,
+    stage: 'generation' | 'refinement' = 'generation'
   ): QualityRule[] => {
+    const stageRules = getRulesForStage(stage);
     const applicableRules: QualityRule[] = [];
     
-    const hasCeilingFan = ceilingFanDetected || checkCeilingFanConflict(roomAnalysis);
+    const hasCeilingFan = checkCeilingFanConflict(roomData);
     
-    rules.forEach(rule => {
+    stageRules.forEach(rule => {
+      // FAN_LIGHT_CONFLICT - only apply if ceiling fan detected
       if (rule.rule_code === 'FAN_LIGHT_CONFLICT' && hasCeilingFan) {
+        applicableRules.push(rule);
+      }
+      // DETAIL_PRESERVATION - always apply for generation/refinement
+      else if (rule.rule_code === 'DETAIL_PRESERVATION') {
         applicableRules.push(rule);
       }
       // Add more rule conditions here as needed
@@ -126,12 +169,37 @@ export function useQualityControl(roomId?: string) {
     return applicableRules;
   };
 
-  // Build prompt additions based on applicable rules
+  // Apply quality control rules to a prompt
+  const applyRulesToPrompt = (
+    basePrompt: string,
+    roomData: RoomData | null,
+    context: 'generation' | 'refinement' = 'generation'
+  ): string => {
+    const applicableRules = getApplicableRules(roomData, context);
+    
+    if (applicableRules.length === 0) return basePrompt;
+    
+    const promptAdditions = applicableRules
+      .filter(rule => rule.prompt_instruction)
+      .map(rule => rule.prompt_instruction)
+      .join('\n\n');
+    
+    return promptAdditions 
+      ? `${basePrompt}\n\n## QUALITY CONTROL RULES (MUST FOLLOW):\n${promptAdditions}` 
+      : basePrompt;
+  };
+
+  // Build prompt additions based on applicable rules (legacy compatibility)
   const buildQualityPromptAdditions = (
     roomAnalysis: RoomAnalysis | null,
     ceilingFanDetected: boolean
   ): string => {
-    const applicableRules = getApplicableRules(roomAnalysis, ceilingFanDetected);
+    const roomData: RoomData = {
+      ceiling_fan_detected: ceilingFanDetected,
+      room_analysis: roomAnalysis,
+    };
+    
+    const applicableRules = getApplicableRules(roomData, 'generation');
     
     if (applicableRules.length === 0) return '';
     
@@ -266,7 +334,9 @@ export function useQualityControl(roomId?: string) {
     rulesLoading,
     violationsLoading,
     checkCeilingFanConflict,
+    getRulesForStage,
     getApplicableRules,
+    applyRulesToPrompt,
     buildQualityPromptAdditions,
     logViolation,
     resolveViolation,
