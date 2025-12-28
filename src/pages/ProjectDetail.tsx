@@ -41,6 +41,8 @@ import {
   Sparkles,
   Users,
   Zap,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AddRoomForm } from '@/components/projects/AddRoomForm';
@@ -132,6 +134,7 @@ export default function ProjectDetail() {
   const queryClient = useQueryClient();
   const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   
   // API Cost tracking
   const { formattedCost, callCount } = useProjectApiCostBadge(id || '');
@@ -232,6 +235,58 @@ export default function ProjectDetail() {
   const handleBulkPhaseAction = (phase: number) => {
     const phaseKey = `phase_${phase}_completed` as keyof Room;
     bulkUpdateRooms.mutate({ [phaseKey]: true } as Partial<Room>);
+  };
+
+  // Export project with auto-catalog
+  const handleExportProject = async () => {
+    if (!project) return;
+    
+    setIsExporting(true);
+    
+    try {
+      // Auto-catalog approved renders to library
+      console.log('Auto-cataloging approved renders...');
+      
+      const { data: catalogResult, error: catalogError } = await supabase.functions.invoke('auto-catalog-renders', {
+        body: { projectId: project.id }
+      });
+      
+      if (catalogError) {
+        console.error('Auto-catalog error:', catalogError);
+      } else {
+        console.log('Auto-catalog result:', catalogResult);
+        
+        if (catalogResult && catalogResult.cataloged > 0) {
+          toast({
+            title: '📚 Added to Library',
+            description: `${catalogResult.cataloged} render${catalogResult.cataloged > 1 ? 's' : ''} added to style library${catalogResult.featured > 0 ? ` (${catalogResult.featured} featured)` : ''}`,
+          });
+        }
+      }
+      
+      // Update project status to completed
+      await supabase
+        .from('projects')
+        .update({ status: 'completed' })
+        .eq('id', project.id);
+      
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
+      
+      toast({
+        title: 'Project Exported',
+        description: 'Your project has been completed and renders cataloged.',
+      });
+      
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: 'Export Failed',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (projectLoading) {
@@ -377,6 +432,23 @@ export default function ProjectDetail() {
               >
                 <CheckCircle className="mr-2 h-4 w-4" />
                 Approve Project
+              </Button>
+              <Button
+                onClick={handleExportProject}
+                disabled={isExporting || project.status === 'completed'}
+                variant={project.status === 'approved' ? 'default' : 'outline'}
+              >
+                {isExporting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export Project
+                  </>
+                )}
               </Button>
             </div>
           </div>

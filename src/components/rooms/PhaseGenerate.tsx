@@ -240,6 +240,55 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
 
   const allValidationsPassed = validationItems.every(item => item.passed);
 
+  // Track outcome to library for learning system
+  const trackOutcomeToLibrary = async (approved: boolean) => {
+    // Check if room has a library reference
+    const { data: roomData } = await supabase
+      .from('rooms')
+      .select('smart_default_id')
+      .eq('id', room.id)
+      .single();
+    
+    const libraryImageId = roomData?.smart_default_id;
+    
+    if (!libraryImageId) {
+      console.log('No library reference used, skipping outcome tracking');
+      return;
+    }
+    
+    console.log(`Tracking ${approved ? 'approval' : 'rejection'} for library image:`, libraryImageId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('track-render-outcome', {
+        body: {
+          projectId,
+          roomId: room.id,
+          libraryImageId,
+          approved,
+          qualityScore: overallScore || null,
+          refinementsCount: 0,
+        }
+      });
+      
+      if (error) {
+        console.error('Edge function error:', error);
+        return;
+      }
+      
+      console.log('Outcome tracked successfully:', data);
+      
+      // Show feedback for tier promotion
+      if (data?.tierResult?.promoted) {
+        toast({
+          title: '⭐ Reference Promoted!',
+          description: `This reference was promoted to ${data.tierResult.newTier} tier.`,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to track outcome:', error);
+    }
+  };
+
   const handleApprove = async () => {
     setIsApproving(true);
     try {
@@ -247,11 +296,20 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         .from('rooms')
         .update({
           phase_5_completed: true,
+          current_phase: Math.max(room.current_phase, 6),
           final_quality_score: overallScore,
         })
         .eq('id', room.id);
 
       if (roomError) throw roomError;
+
+      // Track outcome to library (if library reference was used)
+      try {
+        await trackOutcomeToLibrary(true);
+      } catch (trackError) {
+        console.error('Failed to track outcome to library:', trackError);
+        // Don't fail the approval if tracking fails
+      }
 
       const { data: rooms, error: fetchError } = await supabase
         .from('rooms')
