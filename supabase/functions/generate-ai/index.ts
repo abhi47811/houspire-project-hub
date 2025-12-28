@@ -208,9 +208,16 @@ async function generateRenderWithFallback(
   }
 }
 
-// Build enhanced prompt using library reference data
+// Build enhanced prompt using smart defaults and/or library reference data
 function buildEnhancedPrompt(
   basePrompt: string,
+  smartDefault: {
+    style: string;
+    room_type: string;
+    specifications: Array<{ item: string; description?: string }>;
+    checklist: string[];
+    finishes: Array<{ type: string; value: string; color?: string }>;
+  } | null,
   libraryReference: {
     image_url: string;
     design_style: string;
@@ -220,9 +227,47 @@ function buildEnhancedPrompt(
 ): string {
   let enhancedPrompt = basePrompt;
   
+  // Add smart defaults data (Path A)
+  if (smartDefault) {
+    enhancedPrompt += `\n\nDESIGN SPECIFICATIONS (${smartDefault.style} style):`;
+    
+    // Add furniture/specifications
+    if (smartDefault.specifications && smartDefault.specifications.length > 0) {
+      const items = smartDefault.specifications.slice(0, 6).map(s => 
+        s.description ? `${s.item}: ${s.description}` : s.item
+      ).join(', ');
+      enhancedPrompt += `\nFurniture & Items: ${items}`;
+    }
+    
+    // Add finishes
+    if (smartDefault.finishes && smartDefault.finishes.length > 0) {
+      const lighting = smartDefault.finishes.find(f => f.type === 'lighting');
+      const flooring = smartDefault.finishes.find(f => f.type === 'flooring');
+      const ceiling = smartDefault.finishes.find(f => f.type === 'ceiling');
+      
+      if (lighting) enhancedPrompt += `\nLighting: ${lighting.value}`;
+      if (flooring) enhancedPrompt += `\nFlooring: ${flooring.value}`;
+      if (ceiling) enhancedPrompt += `\nCeiling: ${ceiling.value}`;
+      
+      // Extract colors from finishes
+      const colorFinishes = smartDefault.finishes.filter(f => f.color);
+      if (colorFinishes.length > 0) {
+        const colors = colorFinishes.map(f => f.color).join(', ');
+        enhancedPrompt += `\nColor palette: ${colors}`;
+      }
+    }
+    
+    // Add checklist items
+    if (smartDefault.checklist && smartDefault.checklist.length > 0) {
+      const checklist = smartDefault.checklist.slice(0, 5).join(', ');
+      enhancedPrompt += `\nMust include: ${checklist}`;
+    }
+  }
+  
+  // Add library reference data (Path B)
   if (libraryReference) {
-    enhancedPrompt += `\n\nIMPORTANT: Use this reference as your primary style guide.`;
-    enhancedPrompt += `\nReference style: ${libraryReference.design_style}`;
+    enhancedPrompt += `\n\nSTYLE REFERENCE:`;
+    enhancedPrompt += `\nUse this reference as your visual guide: ${libraryReference.design_style} style`;
     
     // Extract color palette if available
     if (libraryReference.color_palette && Object.keys(libraryReference.color_palette).length > 0) {
@@ -280,34 +325,55 @@ serve(async (req) => {
         console.log("cleanedImageUrl:", cleanedImageUrl?.slice(0, 100));
         console.log("roomId:", roomId);
 
-        // Fetch library reference if room has one selected
+        // Fetch room data including smart_default_id and library_reference_id
+        let smartDefault = null;
         let libraryReference = null;
+        
         if (roomId) {
           const { data: room, error: roomError } = await supabase
             .from('rooms')
-            .select('library_reference_id, selected_style')
+            .select('library_reference_id, smart_default_id, selected_style')
             .eq('id', roomId)
             .single();
           
-          if (!roomError && room?.library_reference_id) {
-            console.log("Found library_reference_id:", room.library_reference_id);
+          if (!roomError && room) {
+            // Fetch smart defaults if available (Path A)
+            if (room.smart_default_id) {
+              console.log("Found smart_default_id:", room.smart_default_id);
+              
+              const { data: sd, error: sdError } = await supabase
+                .from('smart_defaults')
+                .select('id, style, room_type, specifications, checklist, finishes')
+                .eq('id', room.smart_default_id)
+                .single();
+              
+              if (!sdError && sd) {
+                smartDefault = sd;
+                console.log("Loaded smart default:", sd.style);
+              }
+            }
             
-            const { data: libImage, error: libError } = await supabase
-              .from('style_library')
-              .select('id, image_url, design_style, color_palette, analysis_data')
-              .eq('id', room.library_reference_id)
-              .single();
-            
-            if (!libError && libImage) {
-              libraryReference = libImage;
-              console.log("Loaded library reference:", libImage.design_style);
+            // Fetch library reference if available (Path B)
+            if (room.library_reference_id) {
+              console.log("Found library_reference_id:", room.library_reference_id);
+              
+              const { data: libImage, error: libError } = await supabase
+                .from('style_library')
+                .select('id, image_url, design_style, color_palette, analysis_data')
+                .eq('id', room.library_reference_id)
+                .single();
+              
+              if (!libError && libImage) {
+                libraryReference = libImage;
+                console.log("Loaded library reference:", libImage.design_style);
+              }
             }
           }
         }
 
-        // Build enhanced prompt with library reference data
-        const enhancedPrompt = buildEnhancedPrompt(prompt, libraryReference);
-        console.log("Enhanced prompt:", enhancedPrompt.slice(0, 200));
+        // Build enhanced prompt with smart defaults and/or library reference data
+        const enhancedPrompt = buildEnhancedPrompt(prompt, smartDefault, libraryReference);
+        console.log("Enhanced prompt:", enhancedPrompt.slice(0, 300));
 
         const result = await generateRenderWithFallback(cleanedImageUrl, enhancedPrompt);
         const latencyMs = Date.now() - startTime;
@@ -323,6 +389,8 @@ serve(async (req) => {
           status: "success",
           metadata: { 
             provider: result.provider,
+            usedSmartDefault: !!smartDefault,
+            smartDefaultId: smartDefault?.id || null,
             usedLibraryReference: !!libraryReference,
             libraryReferenceId: libraryReference?.id || null
           },
@@ -333,6 +401,7 @@ serve(async (req) => {
             result: { imageUrl: result.imageUrl },
             usage: { costUsd: result.provider === "lovable" ? 0.04 : 0.02 },
             provider: result.provider,
+            usedSmartDefault: !!smartDefault,
             usedLibraryReference: !!libraryReference,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }

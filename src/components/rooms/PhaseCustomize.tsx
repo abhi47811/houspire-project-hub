@@ -63,21 +63,39 @@ const designStyles: DesignStyle[] = [
   { id: 'coastal', name: 'Coastal', description: 'Beach-inspired, breezy and light', icon: '🌊', colors: ['#87CEEB', '#F5F5DC', '#2F4F4F'] },
 ];
 
+// Smart Default structure from database
+interface SmartDefaultDB {
+  id: string;
+  style: string;
+  room_type: string;
+  style_slug: string;
+  room_type_slug: string;
+  specifications: Array<{ item: string; description?: string; quantity?: number }>;
+  checklist: string[];
+  finishes: Array<{ type: string; value: string; color?: string }>;
+}
+
+// Transformed for UI display
 interface SmartDefault {
+  id: string;
   furniture: string[];
   lighting: string;
   flooring: string;
   ceiling: string;
   colors: { name: string; hex: string }[];
+  checklist: string[];
+  raw: SmartDefaultDB | null;
 }
 
-const mockSmartDefaults: Record<string, SmartDefault> = {
+// Fallback mock data for when database is empty
+const fallbackSmartDefaults: Record<string, Omit<SmartDefault, 'id' | 'raw'>> = {
   modern_indian: {
     furniture: ['L-shaped sofa with ethnic cushions', 'Carved wooden coffee table', 'Brass accent pieces', 'Jharokha-style mirror'],
     lighting: 'Chandelier with brass finish + recessed LEDs',
     flooring: 'Italian marble with border design',
     ceiling: 'False ceiling with cove lighting (8" drop)',
     colors: [{ name: 'Terracotta', hex: '#C45D3E' }, { name: 'Ivory', hex: '#E8D5B7' }, { name: 'Forest', hex: '#2D4A3E' }, { name: 'Gold', hex: '#DAA520' }],
+    checklist: ['Ethnic cushions', 'Brass accents', 'Traditional artwork'],
   },
   contemporary: {
     furniture: ['Modular sectional sofa', 'Glass-top center table', 'Floating TV unit', 'Accent armchair'],
@@ -85,6 +103,7 @@ const mockSmartDefaults: Record<string, SmartDefault> = {
     flooring: 'Engineered wood in oak finish',
     ceiling: 'Simple false ceiling with profile lights (6" drop)',
     colors: [{ name: 'Off-white', hex: '#F5F5F5' }, { name: 'Charcoal', hex: '#333333' }, { name: 'Terracotta', hex: '#E58550' }, { name: 'Sage', hex: '#9CAF88' }],
+    checklist: ['Clean lines', 'Minimal decor', 'Statement lighting'],
   },
   minimalist: {
     furniture: ['Low-profile platform sofa', 'Minimal coffee table', 'Built-in storage', 'Single statement piece'],
@@ -92,6 +111,7 @@ const mockSmartDefaults: Record<string, SmartDefault> = {
     flooring: 'Polished concrete or light wood',
     ceiling: 'Flush ceiling with recessed fixtures (no drop)',
     colors: [{ name: 'Pure White', hex: '#FFFFFF' }, { name: 'Light Gray', hex: '#F0F0F0' }, { name: 'Black', hex: '#1A1A1A' }, { name: 'Natural', hex: '#E8DCC4' }],
+    checklist: ['No clutter', 'Functional pieces only', 'Neutral palette'],
   },
 };
 
@@ -143,12 +163,66 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   const userCity = project?.city || 'Mumbai';
   const roomType = room.room_type || 'living_room';
 
-  // Fetch smart defaults based on room type and style
-  const { data: smartDefaults } = useQuery({
-    queryKey: ['smart-defaults', room.room_type, selectedStyle],
-    queryFn: async () => {
+  // Fetch smart defaults from database based on room type and style
+  const { data: smartDefaults, isLoading: isLoadingDefaults } = useQuery({
+    queryKey: ['smart-defaults-db', roomType, selectedStyle],
+    queryFn: async (): Promise<SmartDefault | null> => {
       if (!selectedStyle) return null;
-      return mockSmartDefaults[selectedStyle] || mockSmartDefaults.contemporary;
+      
+      // Convert style ID to style name for database lookup
+      const styleData = designStyles.find(s => s.id === selectedStyle);
+      const styleName = styleData?.name || selectedStyle;
+      const roomTypeName = roomType.replace('_', ' ');
+      
+      // Query the database using RPC function
+      const { data, error } = await supabase.rpc('get_smart_default', {
+        p_style: styleName,
+        p_room_type: roomTypeName
+      });
+      
+      if (error) {
+        console.error('Error fetching smart defaults:', error);
+      }
+      
+      // If database has data, transform it for UI
+      if (data && data.length > 0) {
+        const dbData = data[0] as SmartDefaultDB;
+        
+        // Extract furniture from specifications
+        const furniture = dbData.specifications
+          ?.filter((s: { item: string }) => s.item)
+          .map((s: { item: string; description?: string }) => s.description ? `${s.item}: ${s.description}` : s.item) || [];
+        
+        // Extract finishes
+        const lighting = dbData.finishes?.find((f: { type: string }) => f.type === 'lighting')?.value || 'LED recessed lighting';
+        const flooring = dbData.finishes?.find((f: { type: string }) => f.type === 'flooring')?.value || 'Vitrified tiles';
+        const ceiling = dbData.finishes?.find((f: { type: string }) => f.type === 'ceiling')?.value || 'False ceiling with cove lighting';
+        
+        // Extract colors from finishes or use defaults
+        const colorFinishes = dbData.finishes?.filter((f: { type: string; color?: string }) => f.color) || [];
+        const colors = colorFinishes.length > 0 
+          ? colorFinishes.map((f: { value: string; color?: string }) => ({ name: f.value, hex: f.color || '#888888' }))
+          : designStyles.find(s => s.id === selectedStyle)?.colors.map((c, i) => ({ name: `Color ${i+1}`, hex: c })) || [];
+        
+        return {
+          id: dbData.id,
+          furniture,
+          lighting,
+          flooring,
+          ceiling,
+          colors,
+          checklist: dbData.checklist || [],
+          raw: dbData
+        };
+      }
+      
+      // Fallback to hardcoded data if database is empty
+      const fallback = fallbackSmartDefaults[selectedStyle] || fallbackSmartDefaults.contemporary;
+      return {
+        id: '',
+        ...fallback,
+        raw: null
+      };
     },
     enabled: !!selectedStyle,
   });
@@ -277,20 +351,30 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
 
     setIsApplying(true);
     try {
+      // Build update object with smart_default_id if available
+      const updateData: Record<string, unknown> = {
+        selected_style: selectedStyle,
+        phase_4_completed: true,
+        current_phase: Math.max(room.current_phase, 5),
+      };
+      
+      // Include smart_default_id if we loaded from database
+      if (smartDefaults?.id) {
+        updateData.smart_default_id = smartDefaults.id;
+      }
+      
       const { error } = await supabase
         .from('rooms')
-        .update({
-          selected_style: selectedStyle,
-          phase_4_completed: true,
-          current_phase: Math.max(room.current_phase, 5),
-        })
+        .update(updateData)
         .eq('id', room.id);
 
       if (error) throw error;
 
       toast({
         title: 'Style Applied',
-        description: 'Design customizations saved. Moving to Phase 5.',
+        description: smartDefaults?.id 
+          ? 'Smart defaults applied. Moving to Phase 5.' 
+          : 'Design style saved. Moving to Phase 5.',
       });
 
       queryClient.invalidateQueries({ queryKey: ['room', room.id] });
