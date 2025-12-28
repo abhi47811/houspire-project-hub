@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2, ImageOff, RefreshCw } from 'lucide-react';
+import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2, ImageOff, RefreshCw, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { useJobQueue, useRoomJobStatus } from '@/hooks/useJobQueue';
-
+import { CleaningRefinement } from './CleaningRefinement';
 interface Room {
   id: string;
   current_phase: number;
@@ -566,6 +567,28 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
             <Check className="h-4 w-4 text-green-600" />
             <span className="text-sm text-green-700 dark:text-green-400">Phase 3 Complete - Proceed to Phase 4</span>
           </div>
+        )}
+
+        {/* Refine Cleaning Button - show when we have a cleaned image */}
+        {cleanedImage?.signedUrl && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="w-full">
+                <Wand2 className="mr-2 h-4 w-4" />
+                Refine Cleaning
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <CleaningRefinement
+                room={{
+                  id: room.id,
+                  project_id: projectId,
+                }}
+                originalImageUrl={originalImage?.signedUrl}
+                currentCleanedUrl={cleanedImage.signedUrl}
+              />
+            </DialogContent>
+          </Dialog>
         )}
         
         <div className="grid grid-cols-2 gap-2">
