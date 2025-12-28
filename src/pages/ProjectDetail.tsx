@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +17,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   Tooltip,
   TooltipContent,
@@ -43,6 +55,7 @@ import {
   Zap,
   Download,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AddRoomForm } from '@/components/projects/AddRoomForm';
@@ -130,11 +143,15 @@ function formatCurrency(amount: number): string {
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  
+  const isAdmin = profile?.role === 'admin';
   
   // API Cost tracking
   const { formattedCost, callCount } = useProjectApiCostBadge(id || '');
@@ -148,6 +165,28 @@ export default function ProjectDetail() {
     enableNotifications: true,
     enableChangeEvents: true,
     enableJobUpdates: true,
+  });
+
+  // Delete project mutation
+  const deleteProject = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: 'Project deleted successfully' });
+      navigate('/projects');
+    },
+    onError: (error) => {
+      toast({
+        title: 'Failed to delete project',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    },
   });
 
   // Fetch project
@@ -450,6 +489,35 @@ export default function ProjectDetail() {
                   </>
                 )}
               </Button>
+              
+              {/* Admin Delete Button */}
+              {isAdmin && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Project?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete "{project.name}" and all its rooms, renders, and budget items. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => deleteProject.mutate()}
+                      >
+                        Delete Project
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
           </div>
         </CardContent>
