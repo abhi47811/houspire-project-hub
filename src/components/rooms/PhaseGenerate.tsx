@@ -111,6 +111,19 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     }
   });
 
+  // Helper to resolve image URL (handles both full URLs and relative paths)
+  const resolveImageUrl = async (storagePath: string): Promise<string | undefined> => {
+    // If it's already a full URL, return as-is
+    if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
+      return storagePath;
+    }
+    // Otherwise create a signed URL
+    const { data: signedData } = await supabase.storage
+      .from('room-images')
+      .createSignedUrl(storagePath, 3600);
+    return signedData?.signedUrl;
+  };
+
   // Fetch render image
   const { data: renderImage, refetch: refetchRenderImage } = useQuery({
     queryKey: ['render-image', room.id],
@@ -128,14 +141,8 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       if (error) throw error;
       if (!data) return null;
       
-      if (data.storage_path) {
-        const { data: signedData } = await supabase.storage
-          .from('room-images')
-          .createSignedUrl(data.storage_path, 3600);
-        
-        return { ...data, signedUrl: signedData?.signedUrl } as ImageWithSignedUrl;
-      }
-      return data as ImageWithSignedUrl;
+      const signedUrl = data.storage_path ? await resolveImageUrl(data.storage_path) : undefined;
+      return { ...data, signedUrl } as ImageWithSignedUrl;
     }
   });
 
@@ -156,14 +163,8 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       if (error) throw error;
       if (!data) return null;
       
-      if (data.storage_path) {
-        const { data: signedData } = await supabase.storage
-          .from('room-images')
-          .createSignedUrl(data.storage_path, 3600);
-        
-        return { ...data, signedUrl: signedData?.signedUrl } as ImageWithSignedUrl;
-      }
-      return data as ImageWithSignedUrl;
+      const signedUrl = data.storage_path ? await resolveImageUrl(data.storage_path) : undefined;
+      return { ...data, signedUrl } as ImageWithSignedUrl;
     }
   });
 
@@ -184,14 +185,8 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       if (error) throw error;
       if (!data) return null;
       
-      if (data.storage_path) {
-        const { data: signedData } = await supabase.storage
-          .from('room-images')
-          .createSignedUrl(data.storage_path, 3600);
-        
-        return { ...data, signedUrl: signedData?.signedUrl } as ImageWithSignedUrl;
-      }
-      return data as ImageWithSignedUrl;
+      const signedUrl = data.storage_path ? await resolveImageUrl(data.storage_path) : undefined;
+      return { ...data, signedUrl } as ImageWithSignedUrl;
     }
   });
 
@@ -216,7 +211,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const progressPercent = generationStatus === 'completed' ? 100 : 
     generationStatus === 'processing' ? 60 : 0;
   const estimatedTime = currentJob?.status === 'processing' ? '~2 min remaining' : '';
-  const generationParams = { model: 'Gemini 2.5 Flash Image', resolution: '2048×2048' };
+  const generationParams = { model: 'Gemini 3 Pro Image', resolution: '2048×2048' };
 
   const qualityMetrics: QualityMetric[] = [
     { name: 'Architectural Preservation', score: 100, critical: true },

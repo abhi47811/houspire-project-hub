@@ -807,6 +807,7 @@ export type Database = {
           height_feet: number | null
           id: string
           length_feet: number | null
+          library_reference_id: string | null
           phase_1_completed: boolean | null
           phase_2_completed: boolean | null
           phase_3_completed: boolean | null
@@ -829,6 +830,7 @@ export type Database = {
           height_feet?: number | null
           id?: string
           length_feet?: number | null
+          library_reference_id?: string | null
           phase_1_completed?: boolean | null
           phase_2_completed?: boolean | null
           phase_3_completed?: boolean | null
@@ -851,6 +853,7 @@ export type Database = {
           height_feet?: number | null
           id?: string
           length_feet?: number | null
+          library_reference_id?: string | null
           phase_1_completed?: boolean | null
           phase_2_completed?: boolean | null
           phase_3_completed?: boolean | null
@@ -867,6 +870,27 @@ export type Database = {
           width_feet?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "rooms_library_reference_id_fkey"
+            columns: ["library_reference_id"]
+            isOneToOne: false
+            referencedRelation: "library_performance_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rooms_library_reference_id_fkey"
+            columns: ["library_reference_id"]
+            isOneToOne: false
+            referencedRelation: "library_top_performers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rooms_library_reference_id_fkey"
+            columns: ["library_reference_id"]
+            isOneToOne: false
+            referencedRelation: "style_library"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rooms_project_id_fkey"
             columns: ["project_id"]
