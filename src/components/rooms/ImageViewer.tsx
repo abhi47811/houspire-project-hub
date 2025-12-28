@@ -14,6 +14,28 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// Helper function to resolve storage path to signed URL
+async function resolveImageUrl(storagePath: string): Promise<string | null> {
+  if (!storagePath) return null;
+  
+  // If already a full URL, return as-is
+  if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
+    return storagePath;
+  }
+  
+  // Generate signed URL from storage path
+  const { data, error } = await supabase.storage
+    .from('room-images')
+    .createSignedUrl(storagePath, 3600); // 1 hour expiry
+  
+  if (error) {
+    console.error('Failed to create signed URL:', error);
+    return null;
+  }
+  
+  return data?.signedUrl || null;
+}
+
 interface RoomImage {
   id: string;
   room_id: string;
@@ -24,6 +46,7 @@ interface RoomImage {
   file_name: string;
   file_size: number | null;
   created_at: string;
+  signedUrl?: string | null;
 }
 
 interface ImageViewerProps {
@@ -59,7 +82,11 @@ export const ImageViewer = React.forwardRef<HTMLDivElement, ImageViewerProps>(
         .maybeSingle();
 
       if (error) throw error;
-      return data as RoomImage | null;
+      if (!data) return null;
+      
+      // Resolve signed URL
+      const signedUrl = await resolveImageUrl(data.storage_path);
+      return { ...data, signedUrl } as RoomImage;
     },
   });
 
@@ -68,10 +95,10 @@ export const ImageViewer = React.forwardRef<HTMLDivElement, ImageViewerProps>(
   const handleReset = () => setZoom(1);
 
   const handleDownload = async () => {
-    if (!image?.storage_path) return;
+    if (!image?.signedUrl) return;
     
     try {
-      const response = await fetch(image.storage_path);
+      const response = await fetch(image.signedUrl);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -115,7 +142,7 @@ export const ImageViewer = React.forwardRef<HTMLDivElement, ImageViewerProps>(
     );
   }
 
-  if (!image || imageError) {
+  if (!image || !image.signedUrl || imageError) {
     return (
       <div
         className={cn(
@@ -155,7 +182,7 @@ export const ImageViewer = React.forwardRef<HTMLDivElement, ImageViewerProps>(
         )}
       >
         <img
-          src={image.storage_path}
+          src={image.signedUrl}
           alt={`Phase ${phase} - ${imageType}`}
           className="object-contain transition-transform duration-200"
           style={{
@@ -275,7 +302,10 @@ export function BeforeAfterSlider({
         .maybeSingle();
 
       if (error) throw error;
-      return data as RoomImage | null;
+      if (!data) return null;
+      
+      const signedUrl = await resolveImageUrl(data.storage_path);
+      return { ...data, signedUrl } as RoomImage;
     },
   });
 
@@ -291,7 +321,10 @@ export function BeforeAfterSlider({
         .maybeSingle();
 
       if (error) throw error;
-      return data as RoomImage | null;
+      if (!data) return null;
+      
+      const signedUrl = await resolveImageUrl(data.storage_path);
+      return { ...data, signedUrl } as RoomImage;
     },
   });
 
@@ -299,7 +332,7 @@ export function BeforeAfterSlider({
     return <Skeleton className={cn('aspect-square rounded-lg', className)} />;
   }
 
-  if (!beforeImage || !afterImage) {
+  if (!beforeImage?.signedUrl || !afterImage?.signedUrl) {
     return (
       <div
         className={cn(
@@ -319,7 +352,7 @@ export function BeforeAfterSlider({
       <div className="relative aspect-square rounded-lg overflow-hidden">
         {/* After Image (Background) */}
         <img
-          src={afterImage.storage_path}
+          src={afterImage.signedUrl}
           alt="After"
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -330,7 +363,7 @@ export function BeforeAfterSlider({
           style={{ width: `${sliderPosition}%` }}
         >
           <img
-            src={beforeImage.storage_path}
+            src={beforeImage.signedUrl}
             alt="Before"
             className="absolute inset-0 w-full h-full object-cover"
             style={{ width: `${100 / (sliderPosition / 100)}%` }}

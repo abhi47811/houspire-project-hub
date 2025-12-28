@@ -22,6 +22,7 @@ const Vendors = lazy(() => import("./pages/Vendors"));
 const Team = lazy(() => import("./pages/Team"));
 const Admin = lazy(() => import("./pages/Admin"));
 const Library = lazy(() => import("./pages/Library"));
+const LibraryAnalyzer = lazy(() => import("./pages/LibraryAnalyzer"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -69,6 +70,14 @@ const App = () => (
                     element={
                       <ProtectedRoute allowedRoles={['admin']}>
                         <Admin />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin/library-analyzer"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <LibraryAnalyzer />
                       </ProtectedRoute>
                     }
                   />
