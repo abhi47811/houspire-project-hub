@@ -163,11 +163,38 @@ async function resolveRoomImageUrl(supabase: any, storagePath: string): Promise<
 }
 
 // Clean room using Gemini 3 image model (remove furniture)
-async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
+async function cleanRoom(imageUrl: string, mask: string, refinementPrompt?: string): Promise<any> {
   const startTime = Date.now();
   
   console.log('cleanRoom called with Gemini 3 Pro Image...');
+  console.log('Refinement prompt:', refinementPrompt || 'None (initial clean)');
   
+  // Build the cleaning prompt - add refinement instructions if provided
+  let cleaningPrompt = `Remove ALL furniture, objects, decorations, and personal items from this room. 
+              
+CRITICAL REQUIREMENTS:
+1. PRESERVE all architectural elements EXACTLY: walls, floor, ceiling, windows, doors, moldings, outlets
+2. Remove: sofas, chairs, tables, beds, lamps, rugs, curtains, plants, artwork, electronics, shelves
+3. The result should be a COMPLETELY EMPTY room showing only the bare architectural shell
+4. Maintain the same lighting, perspective, and image quality
+5. Fill removed areas with appropriate wall/floor textures matching the existing surfaces
+
+Output a clean, empty room ready for new interior design.`;
+
+  // Add refinement instructions if provided
+  if (refinementPrompt) {
+    cleaningPrompt = `This is a REFINEMENT of a previously cleaned room image. Apply these additional fixes:
+
+${refinementPrompt}
+
+Also ensure:
+1. PRESERVE all architectural elements EXACTLY: walls, floor, ceiling, windows, doors, moldings, outlets
+2. Maintain the same lighting, perspective, and image quality
+3. Fill any gaps with appropriate wall/floor textures matching the existing surfaces
+
+Output an improved clean, empty room.`;
+  }
+
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -180,19 +207,7 @@ async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
         {
           role: "user",
           content: [
-            {
-              type: "text",
-              text: `Remove ALL furniture, objects, decorations, and personal items from this room. 
-              
-CRITICAL REQUIREMENTS:
-1. PRESERVE all architectural elements EXACTLY: walls, floor, ceiling, windows, doors, moldings, outlets
-2. Remove: sofas, chairs, tables, beds, lamps, rugs, curtains, plants, artwork, electronics, shelves
-3. The result should be a COMPLETELY EMPTY room showing only the bare architectural shell
-4. Maintain the same lighting, perspective, and image quality
-5. Fill removed areas with appropriate wall/floor textures matching the existing surfaces
-
-Output a clean, empty room ready for new interior design.`
-            },
+            { type: "text", text: cleaningPrompt },
             { type: "image_url", image_url: { url: imageUrl } }
           ]
         }
@@ -446,22 +461,33 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
       case "cleaning": {
         const mask = job.payload?.mask;
+        const refinementPrompt = job.payload?.refinementPrompt;
+        const baseImageUrl = job.payload?.baseImageUrl;
+        
         if (!mask) {
           throw new Error("No mask provided for cleaning");
         }
 
-        // Get original image
-        const originalImage = room?.room_images?.find((img: any) => 
-          img.image_type === "original" && img.phase === 1
-        );
+        let imageUrl: string;
         
-        if (!originalImage) {
-          throw new Error("No original image found for cleaning");
+        // If this is a refinement with a base image, use that
+        if (refinementPrompt && baseImageUrl) {
+          console.log('Processing cleaning refinement with base image');
+          imageUrl = baseImageUrl;
+        } else {
+          // Get original image for initial cleaning
+          const originalImage = room?.room_images?.find((img: any) => 
+            img.image_type === "original" && img.phase === 1
+          );
+          
+          if (!originalImage) {
+            throw new Error("No original image found for cleaning");
+          }
+
+          imageUrl = await resolveRoomImageUrl(supabase, originalImage.storage_path);
         }
 
-        const imageUrl = await resolveRoomImageUrl(supabase, originalImage.storage_path);
-
-        const cleanResult = await cleanRoom(imageUrl, mask);
+        const cleanResult = await cleanRoom(imageUrl, mask, refinementPrompt);
 
         // Save cleaned image
         const cleanedImagePath = `${job.project_id}/${job.room_id}/cleaned_${Date.now()}.png`;

@@ -900,6 +900,7 @@ export type Database = {
           quality_details: Json | null
           quality_score: number | null
           rejection_reason: string | null
+          render_versions: Json | null
           room_id: string
           storage_path: string | null
           updated_at: string | null
@@ -920,6 +921,7 @@ export type Database = {
           quality_details?: Json | null
           quality_score?: number | null
           rejection_reason?: string | null
+          render_versions?: Json | null
           room_id: string
           storage_path?: string | null
           updated_at?: string | null
@@ -940,6 +942,7 @@ export type Database = {
           quality_details?: Json | null
           quality_score?: number | null
           rejection_reason?: string | null
+          render_versions?: Json | null
           room_id?: string
           storage_path?: string | null
           updated_at?: string | null
@@ -1116,6 +1119,7 @@ export type Database = {
         Row: {
           batch_id: string | null
           batch_position: number | null
+          cleaning_versions: Json | null
           created_at: string | null
           current_phase: number | null
           custom_prompt: string | null
@@ -1143,6 +1147,7 @@ export type Database = {
         Insert: {
           batch_id?: string | null
           batch_position?: number | null
+          cleaning_versions?: Json | null
           created_at?: string | null
           current_phase?: number | null
           custom_prompt?: string | null
@@ -1170,6 +1175,7 @@ export type Database = {
         Update: {
           batch_id?: string | null
           batch_position?: number | null
+          cleaning_versions?: Json | null
           created_at?: string | null
           current_phase?: number | null
           custom_prompt?: string | null
