@@ -18,7 +18,9 @@ import {
   Zap,
   Ruler,
   Loader2,
+  Pencil,
 } from 'lucide-react';
+import { visionService } from '@/services/api';
 
 interface Room {
   id: string;
@@ -34,9 +36,12 @@ interface RoomAnalysis {
   room_id: string;
   window_count: number;
   window_positions: any[];
+  mirror_count?: number;
+  mirror_positions?: any[];
   door_count: number;
   door_positions: any[];
   ceiling_fan_count: number;
+  ac_unit_count?: number;
   outlet_count: number;
   other_features: any[];
   detected_length_feet: number | null;
@@ -66,11 +71,14 @@ const mockAnalysis: Omit<RoomAnalysis, 'id' | 'room_id'> = {
     { position: 'North Wall', size: '4x5 ft' },
     { position: 'East Wall', size: '3x4 ft' }
   ],
+  mirror_count: 0,
+  mirror_positions: [],
   door_count: 1,
   door_positions: [
     { position: 'South Wall', height: '7 ft', type: 'Entry' }
   ],
   ceiling_fan_count: 1,
+  ac_unit_count: 1,
   outlet_count: 4,
   other_features: [
     { type: 'AC Unit', position: 'West Wall' }
@@ -94,10 +102,19 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
   const queryClient = useQueryClient();
   
   const [isEditingMeasurements, setIsEditingMeasurements] = useState(false);
+  const [isEditingFeatures, setIsEditingFeatures] = useState(false);
   const [measurements, setMeasurements] = useState({
     length: room.length_feet || 0,
     width: room.width_feet || 0,
     height: room.height_feet || 0,
+  });
+  const [features, setFeatures] = useState({
+    windowCount: 0,
+    mirrorCount: 0,
+    doorCount: 0,
+    ceilingFanCount: 0,
+    acUnitCount: 0,
+    outletCount: 0,
   });
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
 
@@ -130,10 +147,20 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
     },
   });
 
-  // Update selected style when analysis loads
+  // Update selected style and features when analysis loads
   useEffect(() => {
     if (analysis?.selected_style) {
       setSelectedStyle(analysis.selected_style);
+    }
+    if (analysis) {
+      setFeatures({
+        windowCount: analysis.window_count || 0,
+        mirrorCount: analysis.mirror_count || 0,
+        doorCount: analysis.door_count || 0,
+        ceilingFanCount: analysis.ceiling_fan_count || 0,
+        acUnitCount: analysis.ac_unit_count || 0,
+        outletCount: analysis.outlet_count || 0,
+      });
     }
   }, [analysis]);
 
@@ -167,6 +194,106 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
     }
   };
 
+  // Re-analyze room using AI
+  const reAnalyze = useMutation({
+    mutationFn: async () => {
+      // Get the original uploaded image URL from room_images
+      const { data: imageData, error: imageError } = await supabase
+        .from('room_images')
+        .select('storage_path')
+        .eq('room_id', room.id)
+        .eq('image_type', 'original')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (imageError) throw imageError;
+      if (!imageData?.storage_path) {
+        throw new Error('No uploaded image found. Please upload an image first.');
+      }
+      
+      // Build full URL for the image
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const imageUrl = imageData.storage_path.startsWith('http') 
+        ? imageData.storage_path 
+        : `${supabaseUrl}/storage/v1/object/public/room-images/${imageData.storage_path}`;
+      
+      // Call vision AI service
+      const response = await visionService.analyzeRoom(imageUrl, projectId, room.id);
+      
+      // Cast to any since API response has different shape than DB type
+      const result = response.result as any;
+      
+      // Upsert results to room_analysis
+      const analysisData = {
+        room_id: room.id,
+        window_count: result.window_count ?? 0,
+        door_count: result.door_count ?? 0,
+        ceiling_fan_count: result.ceiling_fan_count ?? 0,
+        outlet_count: result.outlet_count ?? 0,
+        detected_length_feet: result.dimensions?.length_feet ?? null,
+        detected_width_feet: result.dimensions?.width_feet ?? null,
+        detected_height_feet: result.dimensions?.height_feet ?? null,
+        measurement_confidence: result.measurement_confidence ?? null,
+        window_positions: result.window_positions ?? [],
+        door_positions: result.door_positions ?? [],
+        other_features: result.other_features ?? [],
+        suggested_styles: result.suggested_styles ?? [],
+        is_verified: false,
+      };
+      
+      // Check if record exists
+      const { data: existing } = await supabase
+        .from('room_analysis')
+        .select('id')
+        .eq('room_id', room.id)
+        .maybeSingle();
+      
+      if (existing) {
+        const { error } = await supabase
+          .from('room_analysis')
+          .update(analysisData)
+          .eq('room_id', room.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('room_analysis')
+          .insert([analysisData]);
+        if (error) throw error;
+      }
+      
+      // Update local state with new features
+      setFeatures({
+        windowCount: result.window_count ?? 0,
+        mirrorCount: result.mirror_count ?? 0,
+        doorCount: result.door_count ?? 0,
+        ceilingFanCount: result.ceiling_fan_count ?? 0,
+        acUnitCount: result.ac_unit_count ?? 0,
+        outletCount: result.outlet_count ?? 0,
+      });
+      
+      if (result.dimensions) {
+        setMeasurements({
+          length: result.dimensions.length_feet ?? 0,
+          width: result.dimensions.width_feet ?? 0,
+          height: result.dimensions.height_feet ?? 0,
+        });
+      }
+      
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['room-analysis', room.id] });
+      toast({ 
+        title: 'Analysis complete', 
+        description: 'Room analyzed with OpenAI GPT-5 Vision. Review and adjust if needed.' 
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Analysis failed', description: error.message, variant: 'destructive' });
+    },
+  });
+
   // Verify analysis mutation
   const verifyAnalysis = useMutation({
     mutationFn: async () => {
@@ -189,6 +316,10 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
             detected_length_feet: measurements.length,
             detected_width_feet: measurements.width,
             detected_height_feet: measurements.height,
+            window_count: features.windowCount,
+            door_count: features.doorCount,
+            ceiling_fan_count: features.ceilingFanCount,
+            outlet_count: features.outletCount,
           })
           .eq('room_id', room.id);
         if (error) throw error;
@@ -205,10 +336,10 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
             detected_length_feet: measurements.length,
             detected_width_feet: measurements.width,
             detected_height_feet: measurements.height,
-            window_count: mockAnalysis.window_count,
-            door_count: mockAnalysis.door_count,
-            ceiling_fan_count: mockAnalysis.ceiling_fan_count,
-            outlet_count: mockAnalysis.outlet_count,
+            window_count: features.windowCount,
+            door_count: features.doorCount,
+            ceiling_fan_count: features.ceilingFanCount,
+            outlet_count: features.outletCount,
             measurement_confidence: mockAnalysis.measurement_confidence,
             suggested_styles: mockAnalysis.suggested_styles as unknown as any,
           }]);
@@ -259,30 +390,64 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
 
       {/* Architectural Features */}
       <div className="space-y-3">
-        <h4 className="font-medium text-sm flex items-center gap-2">
-          <Square className="h-4 w-4" />
-          Architectural Features
-        </h4>
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium text-sm flex items-center gap-2">
+            <Square className="h-4 w-4" />
+            Architectural Features
+          </h4>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="edit-features" className="text-xs">Adjust</Label>
+            <Switch
+              id="edit-features"
+              checked={isEditingFeatures}
+              onCheckedChange={setIsEditingFeatures}
+            />
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-3">
-          <FeatureCard 
+          <EditableFeatureCard 
             label="Windows" 
-            value={analysis?.window_count || 0}
-            details={analysis?.window_positions}
+            value={features.windowCount}
+            isEditing={isEditingFeatures}
+            onChange={(val) => setFeatures(prev => ({ ...prev, windowCount: val }))}
           />
-          <FeatureCard 
+          <EditableFeatureCard 
+            label="Mirrors" 
+            value={features.mirrorCount}
+            isEditing={isEditingFeatures}
+            onChange={(val) => setFeatures(prev => ({ ...prev, mirrorCount: val }))}
+          />
+          <EditableFeatureCard 
             label="Doors" 
-            value={analysis?.door_count || 0}
-            details={analysis?.door_positions}
+            value={features.doorCount}
+            isEditing={isEditingFeatures}
+            onChange={(val) => setFeatures(prev => ({ ...prev, doorCount: val }))}
           />
-          <FeatureCard 
+          <EditableFeatureCard 
             label="Ceiling Fans" 
-            value={analysis?.ceiling_fan_count || 0}
+            value={features.ceilingFanCount}
+            isEditing={isEditingFeatures}
+            onChange={(val) => setFeatures(prev => ({ ...prev, ceilingFanCount: val }))}
           />
-          <FeatureCard 
+          <EditableFeatureCard 
+            label="AC Units" 
+            value={features.acUnitCount}
+            isEditing={isEditingFeatures}
+            onChange={(val) => setFeatures(prev => ({ ...prev, acUnitCount: val }))}
+          />
+          <EditableFeatureCard 
             label="Outlets" 
-            value={analysis?.outlet_count || 0}
+            value={features.outletCount}
+            isEditing={isEditingFeatures}
+            onChange={(val) => setFeatures(prev => ({ ...prev, outletCount: val }))}
           />
         </div>
+        {isEditingFeatures && (
+          <p className="text-xs text-muted-foreground">
+            <Pencil className="h-3 w-3 inline mr-1" />
+            Adjust counts if AI detected incorrectly (e.g., mirrors counted as windows)
+          </p>
+        )}
       </div>
 
       {/* Measurements */}
@@ -398,28 +563,49 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
           )}
           {analysis?.is_verified ? 'Verified' : 'Verify & Approve'}
         </Button>
-        <Button variant="outline" className="w-full">
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Re-analyze
+        <Button 
+          variant="outline" 
+          className="w-full"
+          onClick={() => reAnalyze.mutate()}
+          disabled={reAnalyze.isPending}
+        >
+          {reAnalyze.isPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-2 h-4 w-4" />
+          )}
+          {reAnalyze.isPending ? 'Analyzing with GPT-5...' : 'Re-analyze'}
         </Button>
       </div>
     </div>
   );
 }
 
-function FeatureCard({ 
+function EditableFeatureCard({ 
   label, 
   value, 
-  details 
+  isEditing,
+  onChange 
 }: { 
   label: string; 
   value: number; 
-  details?: any[];
+  isEditing: boolean;
+  onChange: (value: number) => void;
 }) {
   return (
     <div className="p-3 rounded-lg bg-muted/50 border">
-      <div className="text-2xl font-bold">{value}</div>
-      <div className="text-xs text-muted-foreground">{label}</div>
+      {isEditing ? (
+        <Input
+          type="number"
+          min={0}
+          value={value}
+          onChange={(e) => onChange(parseInt(e.target.value) || 0)}
+          className="h-8 text-lg font-bold w-full"
+        />
+      ) : (
+        <div className="text-2xl font-bold">{value}</div>
+      )}
+      <div className="text-xs text-muted-foreground mt-1">{label}</div>
     </div>
   );
 }
