@@ -1,11 +1,12 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LayoutDashboard, Users, Building2, IndianRupee, BarChart3, Activity } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, IndianRupee, BarChart3, Activity, Image } from 'lucide-react';
 import { SystemDashboard } from '@/components/admin/SystemDashboard';
 import { UserManagement } from '@/components/admin/UserManagement';
 import { VendorManagement } from '@/components/admin/VendorManagement';
 import { PricingManagement } from '@/components/admin/PricingManagement';
 import { AnalyticsView } from '@/components/admin/AnalyticsView';
 import { MonitoringDashboard } from '@/components/admin/MonitoringDashboard';
+import { LibraryAnalytics } from '@/components/admin/LibraryAnalytics';
 
 export default function Admin() {
   return (
@@ -33,6 +34,10 @@ export default function Admin() {
             <IndianRupee className="h-4 w-4" />
             Pricing
           </TabsTrigger>
+          <TabsTrigger value="library" className="gap-2">
+            <Image className="h-4 w-4" />
+            Library
+          </TabsTrigger>
           <TabsTrigger value="analytics" className="gap-2">
             <BarChart3 className="h-4 w-4" />
             Analytics
@@ -57,6 +62,10 @@ export default function Admin() {
 
         <TabsContent value="pricing">
           <PricingManagement />
+        </TabsContent>
+
+        <TabsContent value="library">
+          <LibraryAnalytics />
         </TabsContent>
 
         <TabsContent value="analytics">
