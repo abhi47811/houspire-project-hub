@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { ImageUpload } from './ImageUpload';
 import { ImageViewer } from './ImageViewer';
+import { useToast } from '@/hooks/use-toast';
 
 interface Room {
   id: string;
@@ -20,7 +21,9 @@ interface PhaseUploadProps {
 
 export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadProps) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [uploadComplete, setUploadComplete] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const { data: existingImage } = useQuery({
     queryKey: ['room-images', room.id, 1, 'original'],
@@ -42,18 +45,45 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
 
   const handleUploadComplete = () => {
     setUploadComplete(true);
-    queryClient.invalidateQueries({ queryKey: ['rooms'] });
+    queryClient.invalidateQueries({ queryKey: ['room', room.id] });
+    queryClient.invalidateQueries({ queryKey: ['room-images', room.id] });
   };
 
   const handleContinue = async () => {
-    // Update room to move to next phase
-    await supabase
-      .from('rooms')
-      .update({ current_phase: 2 })
-      .eq('id', room.id);
+    setIsLoading(true);
     
-    queryClient.invalidateQueries({ queryKey: ['rooms'] });
-    onPhaseComplete?.();
+    try {
+      const { error } = await supabase
+        .from('rooms')
+        .update({ 
+          current_phase: Math.max(room.current_phase || 1, 2),
+          phase_1_completed: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', room.id);
+      
+      if (error) throw error;
+      
+      // Fix: Use correct query key
+      queryClient.invalidateQueries({ queryKey: ['room', room.id] });
+      
+      toast({
+        title: 'Moving to Analysis',
+        description: 'Proceeding to Phase 2...',
+      });
+      
+      onPhaseComplete?.();
+      
+    } catch (error) {
+      console.error('Error continuing to analysis:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to continue. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -113,10 +143,19 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
       <div className="pt-4 border-t flex justify-end">
         <Button 
           onClick={handleContinue}
-          disabled={!hasImage}
+          disabled={!hasImage || isLoading}
         >
-          Continue to Analysis
-          <ArrowRight className="ml-2 h-4 w-4" />
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              Continue to Analysis
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </>
+          )}
         </Button>
       </div>
     </div>

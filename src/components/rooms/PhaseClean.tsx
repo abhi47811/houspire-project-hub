@@ -108,7 +108,9 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
     // Refetch more frequently when processing
     refetchInterval: (query) => {
       // Only poll when we're expecting a result
-      if (!cleanedImage && !room.phase_3_completed) {
+      // Use query.state.data instead of cleanedImage to avoid variable reference error
+      const hasCleanedImage = query.state.data?.signedUrl;
+      if (!hasCleanedImage && !room.phase_3_completed) {
         return 5000; // Poll every 5 seconds
       }
       return false;
