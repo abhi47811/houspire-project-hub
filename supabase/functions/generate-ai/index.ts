@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -31,6 +32,182 @@ async function logApiCall(supabase: any, data: any) {
   }
 }
 
+// Lovable AI image generation helper
+async function callLovableAI(
+  cleanedImageUrl: string,
+  prompt: string
+): Promise<{ imageUrl: string; model: string; latency: number }> {
+  const startTime = Date.now();
+
+  if (!LOVABLE_API_KEY) {
+    throw new Error("LOVABLE_API_KEY not configured");
+  }
+
+  console.log("Attempting generation with Lovable AI...");
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash-image",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Transform this empty room into a stunning, magazine-quality interior design render.
+
+CRITICAL REQUIREMENTS:
+1. PRESERVE ALL ARCHITECTURAL ELEMENTS EXACTLY (windows, doors, ceiling height)
+2. Apply the following design:
+${prompt}
+
+The result must be photorealistic, professionally lit, and suitable for publication in an interior design magazine.`,
+            },
+            {
+              type: "image_url",
+              image_url: { url: cleanedImageUrl },
+            },
+          ],
+        },
+      ],
+      modalities: ["image", "text"],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Lovable AI HTTP ${response.status}: ${errorText}`);
+  }
+
+  const data = await response.json();
+  const images = data.choices?.[0]?.message?.images;
+
+  if (!images || images.length === 0) {
+    throw new Error("No image in Lovable AI response");
+  }
+
+  const latency = Date.now() - startTime;
+  console.log(`✅ Lovable AI succeeded in ${latency}ms`);
+
+  return {
+    imageUrl: images[0].image_url.url,
+    model: "google/gemini-2.5-flash-image",
+    latency,
+  };
+}
+
+// OpenRouter fallback helper
+async function callOpenRouter(
+  cleanedImageUrl: string,
+  prompt: string
+): Promise<{ imageUrl: string; model: string; latency: number }> {
+  const startTime = Date.now();
+
+  if (!OPENROUTER_API_KEY) {
+    throw new Error("OPENROUTER_API_KEY not configured");
+  }
+
+  console.log("Attempting generation with OpenRouter fallback...");
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": SUPABASE_URL || "https://houspire.com",
+      "X-Title": "Houspire Interior Design",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Transform this empty room into a stunning interior design render.
+
+REQUIREMENTS:
+1. PRESERVE ALL ARCHITECTURAL ELEMENTS (windows, doors, ceiling)
+2. Apply this design: ${prompt}
+
+Create a photorealistic, magazine-quality result.`,
+            },
+            {
+              type: "image_url",
+              image_url: { url: cleanedImageUrl },
+            },
+          ],
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenRouter HTTP ${response.status}: ${errorText}`);
+  }
+
+  const data = await response.json();
+  const latency = Date.now() - startTime;
+
+  // OpenRouter may return image in different formats
+  const images = data.choices?.[0]?.message?.images;
+  const content = data.choices?.[0]?.message?.content;
+
+  let imageUrl: string | null = null;
+
+  if (images && images.length > 0) {
+    imageUrl = images[0].image_url?.url || images[0];
+  } else if (content && typeof content === "string" && content.startsWith("data:image")) {
+    imageUrl = content;
+  }
+
+  if (!imageUrl) {
+    throw new Error("No image in OpenRouter response");
+  }
+
+  console.log(`✅ OpenRouter fallback succeeded in ${latency}ms`);
+
+  return {
+    imageUrl,
+    model: "google/gemini-2.5-flash",
+    latency,
+  };
+}
+
+// Generate render with fallback
+async function generateRenderWithFallback(
+  cleanedImageUrl: string,
+  prompt: string
+): Promise<{ imageUrl: string; model: string; latency: number; provider: string }> {
+  // Try Lovable AI first
+  try {
+    const result = await callLovableAI(cleanedImageUrl, prompt);
+    return { ...result, provider: "lovable" };
+  } catch (lovableError) {
+    console.warn("⚠️ Lovable AI failed:", lovableError instanceof Error ? lovableError.message : String(lovableError));
+
+    // Fallback to OpenRouter
+    if (OPENROUTER_API_KEY) {
+      try {
+        const result = await callOpenRouter(cleanedImageUrl, prompt);
+        return { ...result, provider: "openrouter" };
+      } catch (openrouterError) {
+        console.error("❌ OpenRouter fallback also failed:", openrouterError instanceof Error ? openrouterError.message : String(openrouterError));
+        throw new Error(`All AI providers failed. Lovable: ${lovableError instanceof Error ? lovableError.message : "Unknown"}. OpenRouter: ${openrouterError instanceof Error ? openrouterError.message : "Unknown"}`);
+      }
+    } else {
+      throw lovableError;
+    }
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -40,81 +217,119 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    const { 
-      action, 
-      cleanedImageUrl, 
-      prompt, 
-      imageUrl, 
-      projectId, 
+    const {
+      action,
+      cleanedImageUrl,
+      prompt,
+      imageUrl,
+      projectId,
       roomId,
       // Seed image specific params
       seedPrompt,
       roomType,
       designStyle,
       city,
-      tier
+      tier,
     } = await req.json();
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!LOVABLE_API_KEY && !OPENROUTER_API_KEY) {
+      throw new Error("No AI API keys configured");
     }
 
-    let model = "google/gemini-2.5-flash";
-    let messages: any[] = [];
-    let modalities: string[] | undefined;
-    let costPerCall = 0.002;
-
     switch (action) {
-      case "generateRender":
-        model = "google/gemini-3-pro-image-preview";
-        modalities = ["image", "text"];
-        costPerCall = 0.04;
-        messages = [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Transform this empty room into a stunning, magazine-quality interior design render.
+      case "generateRender": {
+        console.log("generateRender called with prompt:", prompt?.slice(0, 100));
+        console.log("cleanedImageUrl:", cleanedImageUrl?.slice(0, 100));
 
-CRITICAL REQUIREMENTS:
-1. PRESERVE ALL ARCHITECTURAL ELEMENTS EXACTLY (windows, doors, ceiling height)
-2. Apply the following design:
-${prompt}
+        const result = await generateRenderWithFallback(cleanedImageUrl, prompt);
+        const latencyMs = Date.now() - startTime;
 
-The result must be photorealistic, professionally lit, and suitable for publication in an interior design magazine.`,
-              },
+        await logApiCall(supabase, {
+          projectId,
+          roomId,
+          service: result.provider === "lovable" ? "lovable-ai" : "openrouter",
+          endpoint: action,
+          model: result.model,
+          costUsd: result.provider === "lovable" ? 0.04 : 0.02,
+          latencyMs,
+          status: "success",
+          metadata: { provider: result.provider },
+        });
+
+        return new Response(
+          JSON.stringify({
+            result: { imageUrl: result.imageUrl },
+            usage: { costUsd: result.provider === "lovable" ? 0.04 : 0.02 },
+            provider: result.provider,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      case "quickAnalysis": {
+        if (!LOVABLE_API_KEY) {
+          throw new Error("LOVABLE_API_KEY required for analysis");
+        }
+
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash-lite",
+            messages: [
               {
-                type: "image_url",
-                image_url: { url: cleanedImageUrl },
+                role: "user",
+                content: [
+                  { type: "text", text: "Quickly identify the room type and basic features. Return JSON: { room_type, size_estimate, features: [] }" },
+                  { type: "image_url", image_url: { url: imageUrl } },
+                ],
               },
             ],
-          },
-        ];
-        break;
+          }),
+        });
 
-      case "quickAnalysis":
-        model = "google/gemini-2.5-flash-lite";
-        costPerCall = 0.0005;
-        messages = [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Quickly identify the room type and basic features. Return JSON: { room_type, size_estimate, features: [] }" },
-              { type: "image_url", image_url: { url: imageUrl } },
-            ],
-          },
-        ];
-        break;
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`AI API error: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        const latencyMs = Date.now() - startTime;
+
+        await logApiCall(supabase, {
+          projectId,
+          roomId,
+          service: "lovable-ai",
+          endpoint: action,
+          model: "google/gemini-2.5-flash-lite",
+          costUsd: 0.0005,
+          latencyMs,
+          status: "success",
+        });
+
+        let result;
+        try {
+          result = JSON.parse(data.choices[0].message.content);
+        } catch {
+          result = { raw: data.choices[0].message.content };
+        }
+
+        return new Response(JSON.stringify({ result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       case "generateSeedImage": {
-        // Generate a single seed image for the library
-        // seedPrompt, roomType, designStyle, city, tier are already extracted above
-        
-        const seedModel = "google/gemini-2.5-flash-image-preview";
+        if (!LOVABLE_API_KEY) {
+          throw new Error("LOVABLE_API_KEY required for seed generation");
+        }
+
+        const seedModel = "google/gemini-2.5-flash-image";
         const seedCostPerCall = 0.02;
-        
-        // Generate the image
+
         const seedResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -124,7 +339,7 @@ The result must be photorealistic, professionally lit, and suitable for publicat
           body: JSON.stringify({
             model: seedModel,
             messages: [{ role: "user", content: seedPrompt }],
-            modalities: ["image", "text"]
+            modalities: ["image", "text"],
           }),
         });
 
@@ -135,70 +350,64 @@ The result must be photorealistic, professionally lit, and suitable for publicat
 
         const seedData = await seedResponse.json();
         const seedLatencyMs = Date.now() - startTime;
-        
-        // Extract base64 image
+
         const seedImages = seedData.choices?.[0]?.message?.images;
         if (!seedImages || seedImages.length === 0) {
           throw new Error("No image generated");
         }
-        
+
         const imageDataUrl = seedImages[0].image_url.url;
-        const base64Data = imageDataUrl.replace(/^data:image\/\w+;base64,/, '');
-        
-        // Convert base64 to Uint8Array
+        const base64Data = imageDataUrl.replace(/^data:image\/\w+;base64,/, "");
+
         const binaryString = atob(base64Data);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
-        
-        // Upload to storage
+
         const fileName = `seed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.png`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('room-images')
-          .upload(`seed/${fileName}`, bytes, { 
-            contentType: 'image/png',
-            cacheControl: '3600'
+        const { error: uploadError } = await supabase.storage
+          .from("room-images")
+          .upload(`seed/${fileName}`, bytes, {
+            contentType: "image/png",
+            cacheControl: "3600",
           });
-        
+
         if (uploadError) {
           throw new Error(`Storage upload failed: ${uploadError.message}`);
         }
-        
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('room-images')
-          .getPublicUrl(`seed/${fileName}`);
-        
-        // Insert to style_library
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("room-images").getPublicUrl(`seed/${fileName}`);
+
         const { data: libraryData, error: insertError } = await supabase
-          .from('style_library')
+          .from("style_library")
           .insert({
             image_url: publicUrl,
             thumbnail_url: publicUrl,
-            source_type: 'houspire_generated',
+            source_type: "houspire_generated",
             room_type: roomType,
             design_style: designStyle,
             city: city,
-            tier: tier || 'standard',
-            status: 'active',
+            tier: tier || "standard",
+            status: "active",
             quality_score: 85,
             initial_performance_known: false,
-            tags: ['seed-collection', 'ai-generated'],
+            tags: ["seed-collection", "ai-generated"],
             ranking_score: 50,
             times_selected: 0,
             times_viewed: 0,
             times_led_to_approval: 0,
-            times_led_to_rejection: 0
+            times_led_to_rejection: 0,
           })
-          .select('id')
+          .select("id")
           .single();
-        
+
         if (insertError) {
           throw new Error(`Database insert failed: ${insertError.message}`);
         }
-        
-        // Log the API call
+
         await logApiCall(supabase, {
           service: "lovable-ai",
           endpoint: "generateSeedImage",
@@ -206,98 +415,22 @@ The result must be photorealistic, professionally lit, and suitable for publicat
           costUsd: seedCostPerCall,
           latencyMs: seedLatencyMs,
           status: "success",
-          metadata: { roomType, designStyle, city }
+          metadata: { roomType, designStyle, city },
         });
-        
-        return new Response(JSON.stringify({
-          success: true,
-          libraryId: libraryData.id,
-          imageUrl: publicUrl
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            libraryId: libraryData.id,
+            imageUrl: publicUrl,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       default:
         throw new Error(`Unknown action: ${action}`);
     }
-
-    const requestBody: any = {
-      model,
-      messages,
-    };
-
-    if (modalities) {
-      requestBody.modalities = modalities;
-    }
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      if (response.status === 429) {
-        throw new Error("Rate limit exceeded. Please try again later.");
-      }
-      if (response.status === 402) {
-        throw new Error("API credits exhausted. Please add credits.");
-      }
-      throw new Error(`AI API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    const latencyMs = Date.now() - startTime;
-    const inputTokens = data.usage?.prompt_tokens || 0;
-    const outputTokens = data.usage?.completion_tokens || 0;
-
-    await logApiCall(supabase, {
-      projectId,
-      roomId,
-      service: "lovable-ai",
-      endpoint: action,
-      model,
-      inputTokens,
-      outputTokens,
-      costUsd: costPerCall,
-      latencyMs,
-      status: "success",
-    });
-
-    // Handle image generation response
-    if (action === "generateRender") {
-      const images = data.choices?.[0]?.message?.images;
-      if (images && images.length > 0) {
-        return new Response(JSON.stringify({
-          result: {
-            imageUrl: images[0].image_url.url,
-            content: data.choices[0].message.content,
-          },
-          usage: { inputTokens, outputTokens, costUsd: costPerCall },
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
-
-    let result;
-    try {
-      result = JSON.parse(data.choices[0].message.content);
-    } catch {
-      result = { raw: data.choices[0].message.content };
-    }
-
-    return new Response(JSON.stringify({
-      result,
-      usage: { inputTokens, outputTokens, costUsd: costPerCall },
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
   } catch (error) {
     const latencyMs = Date.now() - startTime;
     console.error("Generate AI error:", error);
