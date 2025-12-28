@@ -1118,7 +1118,9 @@ export type Database = {
           batch_position: number | null
           created_at: string | null
           current_phase: number | null
+          custom_prompt: string | null
           final_quality_score: number | null
+          generation_path: string | null
           height_feet: number | null
           id: string
           length_feet: number | null
@@ -1143,7 +1145,9 @@ export type Database = {
           batch_position?: number | null
           created_at?: string | null
           current_phase?: number | null
+          custom_prompt?: string | null
           final_quality_score?: number | null
+          generation_path?: string | null
           height_feet?: number | null
           id?: string
           length_feet?: number | null
@@ -1168,7 +1172,9 @@ export type Database = {
           batch_position?: number | null
           created_at?: string | null
           current_phase?: number | null
+          custom_prompt?: string | null
           final_quality_score?: number | null
+          generation_path?: string | null
           height_feet?: number | null
           id?: string
           length_feet?: number | null

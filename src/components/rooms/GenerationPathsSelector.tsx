@@ -1,10 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Sparkles, Library, Edit, Check, AlertCircle } from 'lucide-react';
+import { Sparkles, Library, Edit, Check, AlertCircle, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type GenerationPath = 'smart_defaults' | 'library' | 'manual';
+export type GenerationPath = 'smart_defaults' | 'library' | 'manual' | 'bypass';
 
 interface GenerationPathsSelectorProps {
   value: GenerationPath;
@@ -52,6 +52,20 @@ const paths = [
       { text: 'Full creative control', positive: true },
       { text: 'Custom specifications', positive: true },
       { text: 'Variable quality', positive: false },
+    ],
+  },
+  {
+    id: 'bypass' as GenerationPath,
+    name: 'Bypass Mode',
+    icon: Zap,
+    iconColor: 'text-red-500',
+    badge: 'Emergency',
+    badgeVariant: 'destructive' as const,
+    description: 'Direct prompt entry, skip all style defaults',
+    features: [
+      { text: 'No guardrails', positive: false },
+      { text: 'Expert use only', positive: false },
+      { text: 'When others fail', positive: true },
     ],
   },
 ];

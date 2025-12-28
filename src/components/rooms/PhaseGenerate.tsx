@@ -32,6 +32,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { RenderRefinement } from './RenderRefinement';
 import { QualityScoreDisplay } from './QualityScoreDisplay';
+import { PromptEditor } from './PromptEditor';
 
 interface RegenerateOptions {
   useSmartDefaults: boolean;
@@ -48,6 +49,10 @@ interface Room {
   selected_style: string | null;
   final_quality_score: number | null;
   room_type: string | null;
+  generation_path?: string | null;
+  custom_prompt?: string | null;
+  smart_default_id?: string | null;
+  library_reference_id?: string | null;
 }
 
 interface PhaseGenerateProps {
@@ -114,6 +119,9 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [comparisonSlider, setComparisonSlider] = useState([50]);
   const [comparisonView, setComparisonView] = useState<'original' | 'cleaned' | 'final'>('final');
+  
+  // Editable prompt for generation
+  const [editablePrompt, setEditablePrompt] = useState('');
 
   // Fetch current generation job status
   const { data: currentJob, refetch: refetchJob } = useQuery({
@@ -264,6 +272,32 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     generationStatus === 'processing' ? 60 : 0;
   const estimatedTime = currentJob?.status === 'processing' ? '~2 min remaining' : '';
   const generationParams = { model: 'Gemini 3 Pro Image', resolution: '2048×2048' };
+
+  // Build initial prompt based on generation path
+  const buildInitialPrompt = (): string => {
+    const genPath = room.generation_path as string | null;
+    
+    if (genPath === 'bypass' && room.custom_prompt) {
+      return room.custom_prompt;
+    }
+    
+    if (genPath === 'manual' && room.custom_prompt) {
+      return room.custom_prompt;
+    }
+    
+    // Default prompt for smart_defaults or library
+    const styleText = room.selected_style?.replace('_', ' ') || 'contemporary';
+    const roomTypeText = room.room_type?.replace('_', ' ') || 'living room';
+    
+    return `Create a photorealistic ${roomTypeText} interior design render in ${styleText} style. Include appropriate furniture, lighting, materials, and decor elements that match the design aesthetic. Ensure the render looks like a professional magazine photograph.`;
+  };
+
+  // Initialize editable prompt
+  useEffect(() => {
+    if (!editablePrompt) {
+      setEditablePrompt(buildInitialPrompt());
+    }
+  }, [room.generation_path, room.custom_prompt, room.selected_style]);
 
   const qualityMetrics: QualityMetric[] = [
     { name: 'Architectural Preservation', score: 100, critical: true },
@@ -554,6 +588,18 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
           AI-generated interior design render
         </p>
       </div>
+
+      {/* Prompt Editor - Show before generation */}
+      {!hasRender && !isGenerating && (
+        <PromptEditor
+          initialPrompt={buildInitialPrompt()}
+          generationPath={room.generation_path as 'smart_defaults' | 'library' | 'manual' | 'bypass' | null}
+          selectedStyle={room.selected_style}
+          roomType={room.room_type}
+          onPromptChange={setEditablePrompt}
+          isReadOnly={false}
+        />
+      )}
 
       {/* Generation Status */}
       <div className="space-y-3">
