@@ -94,6 +94,117 @@ The result must be photorealistic, professionally lit, and suitable for publicat
         ];
         break;
 
+      case "generateSeedImage": {
+        // Generate a single seed image for the library
+        const { seedPrompt, roomType, designStyle, city, tier } = await req.json();
+        
+        const seedModel = "google/gemini-2.5-flash-image-preview";
+        const seedCostPerCall = 0.02;
+        
+        // Generate the image
+        const seedResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: seedModel,
+            messages: [{ role: "user", content: seedPrompt }],
+            modalities: ["image", "text"]
+          }),
+        });
+
+        if (!seedResponse.ok) {
+          const errorText = await seedResponse.text();
+          throw new Error(`AI image generation failed: ${seedResponse.status} - ${errorText}`);
+        }
+
+        const seedData = await seedResponse.json();
+        const seedLatencyMs = Date.now() - startTime;
+        
+        // Extract base64 image
+        const seedImages = seedData.choices?.[0]?.message?.images;
+        if (!seedImages || seedImages.length === 0) {
+          throw new Error("No image generated");
+        }
+        
+        const imageDataUrl = seedImages[0].image_url.url;
+        const base64Data = imageDataUrl.replace(/^data:image\/\w+;base64,/, '');
+        
+        // Convert base64 to Uint8Array
+        const binaryString = atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        // Upload to storage
+        const fileName = `seed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.png`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('room-images')
+          .upload(`seed/${fileName}`, bytes, { 
+            contentType: 'image/png',
+            cacheControl: '3600'
+          });
+        
+        if (uploadError) {
+          throw new Error(`Storage upload failed: ${uploadError.message}`);
+        }
+        
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('room-images')
+          .getPublicUrl(`seed/${fileName}`);
+        
+        // Insert to style_library
+        const { data: libraryData, error: insertError } = await supabase
+          .from('style_library')
+          .insert({
+            image_url: publicUrl,
+            thumbnail_url: publicUrl,
+            source_type: 'houspire_generated',
+            room_type: roomType,
+            design_style: designStyle,
+            city: city,
+            tier: tier || 'standard',
+            status: 'active',
+            quality_score: 85,
+            initial_performance_known: false,
+            tags: ['seed-collection', 'ai-generated'],
+            ranking_score: 50,
+            times_selected: 0,
+            times_viewed: 0,
+            times_led_to_approval: 0,
+            times_led_to_rejection: 0
+          })
+          .select('id')
+          .single();
+        
+        if (insertError) {
+          throw new Error(`Database insert failed: ${insertError.message}`);
+        }
+        
+        // Log the API call
+        await logApiCall(supabase, {
+          service: "lovable-ai",
+          endpoint: "generateSeedImage",
+          model: seedModel,
+          costUsd: seedCostPerCall,
+          latencyMs: seedLatencyMs,
+          status: "success",
+          metadata: { roomType, designStyle, city }
+        });
+        
+        return new Response(JSON.stringify({
+          success: true,
+          libraryId: libraryData.id,
+          imageUrl: publicUrl
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
