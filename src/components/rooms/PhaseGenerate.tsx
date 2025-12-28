@@ -30,6 +30,14 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
+import { RenderRefinement } from './RenderRefinement';
+
+interface RegenerateOptions {
+  useSmartDefaults: boolean;
+  useLibraryReference: boolean;
+  manualPrompt?: string;
+  customRequirements?: string;
+}
 
 interface Room {
   id: string;
@@ -345,21 +353,37 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     }
   };
 
-  // Submit real generation job
-  const handleRegenerate = async () => {
+  // Submit real generation job - now accepts options from RenderRefinement
+  const handleRegenerate = async (options?: RegenerateOptions) => {
     setIsSubmittingJob(true);
     
     try {
-      // Build prompt from room data
-      const stylePrompt = room.selected_style 
-        ? `Interior design style: ${room.selected_style.replace('_', ' ')}`
-        : 'Contemporary modern interior design';
-      
-      const roomTypePrompt = room.room_type 
-        ? `Room type: ${room.room_type.replace('_', ' ')}`
-        : '';
-      
-      const fullPrompt = `${stylePrompt}. ${roomTypePrompt}. Create a photorealistic interior design render with furniture, decor, and lighting.`;
+      // Build payload based on options
+      const payload: Record<string, any> = {
+        style: room.selected_style,
+        roomType: room.room_type
+      };
+
+      // If manual prompt is provided, pass it directly
+      if (options?.manualPrompt) {
+        payload.manualPrompt = options.manualPrompt;
+      } else {
+        // Build prompt from room data (fallback)
+        const stylePrompt = room.selected_style 
+          ? `Interior design style: ${room.selected_style.replace('_', ' ')}`
+          : 'Contemporary modern interior design';
+        
+        const roomTypePrompt = room.room_type 
+          ? `Room type: ${room.room_type.replace('_', ' ')}`
+          : '';
+        
+        payload.prompt = `${stylePrompt}. ${roomTypePrompt}. Create a photorealistic interior design render with furniture, decor, and lighting.`;
+      }
+
+      // Add custom requirements if provided
+      if (options?.customRequirements) {
+        payload.customRequirements = options.customRequirements;
+      }
 
       // Submit job to edge function
       const { data, error } = await supabase.functions.invoke('process-room-phase', {
@@ -368,11 +392,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
           jobType: 'generation',
           projectId: projectId,
           roomId: room.id,
-          payload: {
-            prompt: fullPrompt,
-            style: room.selected_style,
-            roomType: room.room_type
-          }
+          payload
         }
       });
 
@@ -672,13 +692,24 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         </div>
       )}
 
+      {/* Render Refinement UI - show when render exists */}
+      {hasRender && !room.phase_5_completed && (
+        <RenderRefinement
+          roomId={room.id}
+          projectId={projectId}
+          currentRenderUrl={renderImage?.signedUrl}
+          onRegenerate={handleRegenerate}
+          isGenerating={isGenerating}
+        />
+      )}
+
       {/* Actions */}
       <div className="pt-4 border-t space-y-2">
-        {/* Primary action - Generate or Approve */}
+      {/* Primary action - Generate or Approve */}
         {!hasRender ? (
           <Button
             className="w-full h-12 text-base"
-            onClick={handleRegenerate}
+            onClick={() => handleRegenerate()}
             disabled={isGenerating}
           >
             {isGenerating ? (
@@ -707,7 +738,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         <div className="grid grid-cols-2 gap-2">
           <Button 
             variant="outline" 
-            onClick={handleRegenerate}
+            onClick={() => handleRegenerate()}
             disabled={isGenerating}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />

@@ -444,7 +444,7 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    const { action, cleanedImageUrl, roomId, projectId } = await req.json();
+    const { action, cleanedImageUrl, roomId, projectId, manualPrompt, customRequirements } = await req.json();
 
     if (!LOVABLE_API_KEY && !OPENROUTER_API_KEY) {
       throw new Error("No AI API keys configured");
@@ -462,49 +462,60 @@ serve(async (req) => {
         console.log(`✓ Room: ${room.room_type}, Style: ${room.selected_style}`);
         console.log(`  Project: ${room.projects?.city}, Budget: ${room.projects?.budget_tier}`);
         
-        // Step 2: Fetch smart defaults (if available)
-        console.log("\n[2/5] Fetching smart defaults...");
-        const smartDefaultData = room.smart_default_id 
-          ? await fetchSmartDefaultData(supabase, room.smart_default_id)
-          : null;
-        
-        if (smartDefaultData) {
-          console.log(`✓ Smart defaults loaded: ${smartDefaultData.style} - ${smartDefaultData.room_type}`);
-          console.log(`  Specifications: ${smartDefaultData.specifications?.length || 0}`);
-          console.log(`  Checklist items: ${smartDefaultData.checklist?.length || 0}`);
-          console.log(`  Finishes: ${smartDefaultData.finishes?.length || 0}`);
-        } else {
-          console.log("  No smart defaults available");
-        }
-        
-        // Step 3: Fetch library reference (if available)
-        console.log("\n[3/5] Fetching library reference...");
-        const libraryImageData = room.library_reference_id
-          ? await fetchLibraryImageData(supabase, room.library_reference_id)
-          : null;
-        
+        let comprehensivePrompt: string;
         let libraryImageUrl: string | undefined;
-        if (libraryImageData) {
-          console.log(`✓ Library reference loaded: ${libraryImageData.design_style} - ${libraryImageData.room_type}`);
-          console.log(`  Image URL: ${libraryImageData.image_url?.slice(0, 50)}...`);
-          console.log(`  Has color palette: ${!!libraryImageData.color_palette}`);
-          console.log(`  Has analysis data: ${!!libraryImageData.analysis_data}`);
-          libraryImageUrl = libraryImageData.image_url;
-        } else {
-          console.log("  No library reference available");
-        }
+        let smartDefaultData: any = null;
+        let libraryImageData: any = null;
         
-        // Step 4: Build comprehensive prompt
-        console.log("\n[4/5] Building comprehensive prompt...");
-        const comprehensivePrompt = buildComprehensivePrompt({
-          roomType: room.room_type,
-          selectedStyle: room.selected_style,
-          smartDefaultData,
-          libraryImageData,
-          customRequirements: room.custom_requirements,
-          city: room.projects?.city,
-          budgetTier: room.projects?.budget_tier,
-        });
+        // Check if manual prompt is provided
+        if (manualPrompt && manualPrompt.trim().length > 0) {
+          console.log("\n[2/5] Using MANUAL PROMPT mode...");
+          comprehensivePrompt = manualPrompt;
+          console.log(`✓ Manual prompt: ${manualPrompt.length} characters`);
+        } else {
+          // Step 2: Fetch smart defaults (if available)
+          console.log("\n[2/5] Fetching smart defaults...");
+          smartDefaultData = room.smart_default_id 
+            ? await fetchSmartDefaultData(supabase, room.smart_default_id)
+            : null;
+          
+          if (smartDefaultData) {
+            console.log(`✓ Smart defaults loaded: ${smartDefaultData.style} - ${smartDefaultData.room_type}`);
+            console.log(`  Specifications: ${smartDefaultData.specifications?.length || 0}`);
+            console.log(`  Checklist items: ${smartDefaultData.checklist?.length || 0}`);
+            console.log(`  Finishes: ${smartDefaultData.finishes?.length || 0}`);
+          } else {
+            console.log("  No smart defaults available");
+          }
+          
+          // Step 3: Fetch library reference (if available)
+          console.log("\n[3/5] Fetching library reference...");
+          libraryImageData = room.library_reference_id
+            ? await fetchLibraryImageData(supabase, room.library_reference_id)
+            : null;
+          
+          if (libraryImageData) {
+            console.log(`✓ Library reference loaded: ${libraryImageData.design_style} - ${libraryImageData.room_type}`);
+            console.log(`  Image URL: ${libraryImageData.image_url?.slice(0, 50)}...`);
+            console.log(`  Has color palette: ${!!libraryImageData.color_palette}`);
+            console.log(`  Has analysis data: ${!!libraryImageData.analysis_data}`);
+            libraryImageUrl = libraryImageData.image_url;
+          } else {
+            console.log("  No library reference available");
+          }
+          
+          // Step 4: Build comprehensive prompt
+          console.log("\n[4/5] Building comprehensive prompt...");
+          comprehensivePrompt = buildComprehensivePrompt({
+            roomType: room.room_type,
+            selectedStyle: room.selected_style,
+            smartDefaultData,
+            libraryImageData,
+            customRequirements: customRequirements || room.custom_requirements,
+            city: room.projects?.city,
+            budgetTier: room.projects?.budget_tier,
+          });
+        }
         
         console.log(`✓ Prompt built: ${comprehensivePrompt.length} characters`);
         console.log("\n--- PROMPT PREVIEW ---");
@@ -542,7 +553,8 @@ serve(async (req) => {
             action: "generateRender",
             hasSmartDefaults: !!smartDefaultData,
             hasLibraryReference: !!libraryImageData,
-            hasCustomRequirements: !!room.custom_requirements,
+            hasCustomRequirements: !!(customRequirements || room.custom_requirements),
+            hasManualPrompt: !!(manualPrompt && manualPrompt.trim().length > 0),
             promptLength: comprehensivePrompt.length,
           },
         });
@@ -557,7 +569,8 @@ serve(async (req) => {
             dataUsed: {
               smartDefaults: !!smartDefaultData,
               libraryReference: !!libraryImageData,
-              customRequirements: !!room.custom_requirements,
+              customRequirements: !!(customRequirements || room.custom_requirements),
+              manualPrompt: !!(manualPrompt && manualPrompt.trim().length > 0),
             },
           }),
           {
