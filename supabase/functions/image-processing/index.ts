@@ -88,15 +88,11 @@ serve(async (req) => {
 
     switch (action) {
       case "cleanRoom":
-        model = "cjwbw/lama-cleaner:8c0acea2d4f2af1f33c71c8c8b07ea0d8a0ad87c08c1a7ab4f611e98dee6f1a3";
+        model = "allenhooo/lama:cdac78a1bec5b23c07fd29692fb70baa513ea403a39e643c48ec5edadb15fe72";
         costKey = "lama-cleaner";
         input = {
           image: imageUrl,
-          mask: mask,
-          ldm_steps: 25,
-          ldm_sampler: "plms",
-          hd_strategy: "Resize",
-          hd_strategy_resize_limit: 2048,
+          mask: mask || imageUrl,
         };
         break;
 
