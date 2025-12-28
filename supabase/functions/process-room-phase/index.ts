@@ -150,45 +150,64 @@ Respond in JSON format:
   };
 }
 
-// Call Replicate for room cleaning using stable-diffusion-inpainting
+async function resolveRoomImageUrl(supabase: any, storagePath: string): Promise<string> {
+  if (!storagePath) return "";
+  if (storagePath.startsWith("http://") || storagePath.startsWith("https://")) return storagePath;
+
+  const { data, error } = await supabase.storage
+    .from("room-images")
+    .createSignedUrl(storagePath, 3600);
+
+  if (error) throw error;
+  return data?.signedUrl || "";
+}
+
+// Call Replicate for room cleaning using LaMa Cleaner (latest)
 async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
   if (!REPLICATE_API_KEY) {
     throw new Error("REPLICATE_API_KEY not configured");
   }
 
   const startTime = Date.now();
-  
-  // Use andreasjansson/stable-diffusion-inpainting model - a reliable inpainting model
-  const response = await fetch("https://api.replicate.com/v1/predictions", {
-    method: "POST",
-    headers: {
-      Authorization: `Token ${REPLICATE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      version: "95b7223104132402a9ae91cc677285bc5eb997834bd2349fa486f53910fd68b3",
-      input: { 
-        image: imageUrl, 
-        mask: mask === 'full_image' ? imageUrl : mask, // Use image as mask for full cleanup
-        prompt: "empty room, clean walls, no furniture, bare floor, clean ceiling, photorealistic",
-        negative_prompt: "furniture, clutter, objects, decorations, people, animals"
-      }
-    }),
-  });
+
+  const input = {
+    image: imageUrl,
+    mask: mask === "full_image" ? imageUrl : mask,
+    ldm_steps: 25,
+    ldm_sampler: "plms",
+    hd_strategy: "Resize",
+    hd_strategy_resize_limit: 2048,
+  };
+
+  // Use the model endpoint to avoid hardcoding a version (prevents "Invalid version" errors)
+  const response = await fetch(
+    "https://api.replicate.com/v1/models/cjwbw/lama-cleaner/predictions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Token ${REPLICATE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ input }),
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Replicate error: ${await response.text()}`);
   }
 
   const prediction = await response.json();
-  
+
   // Poll for completion
   let result = prediction;
   while (result.status !== "succeeded" && result.status !== "failed") {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    const pollResponse = await fetch(`https://api.replicate.com/v1/predictions/${result.id}`, {
-      headers: { Authorization: `Token ${REPLICATE_API_KEY}` }
-    });
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const pollResponse = await fetch(
+      `https://api.replicate.com/v1/predictions/${result.id}`,
+      {
+        headers: { Authorization: `Token ${REPLICATE_API_KEY}` },
+      }
+    );
     result = await pollResponse.json();
   }
 
@@ -198,7 +217,6 @@ async function cleanRoom(imageUrl: string, mask: string): Promise<any> {
     throw new Error(result.error || "Cleaning failed");
   }
 
-  // Handle array output (some models return array)
   const output = Array.isArray(result.output) ? result.output[0] : result.output;
 
   return {
@@ -295,13 +313,10 @@ async function processJob(supabase: any, job: any): Promise<void> {
           throw new Error("No original image found for analysis");
         }
 
-        // Get public URL
-        const { data: urlData } = await supabase.storage
-          .from("room-images")
-          .createSignedUrl(originalImage.storage_path, 3600);
+        const imageUrl = await resolveRoomImageUrl(supabase, originalImage.storage_path);
 
         const analysisResult = await analyzeRoom(
-          urlData?.signedUrl || "",
+          imageUrl,
           job.project_id,
           job.room_id
         );
@@ -368,11 +383,9 @@ async function processJob(supabase: any, job: any): Promise<void> {
           throw new Error("No original image found for cleaning");
         }
 
-        const { data: urlData } = await supabase.storage
-          .from("room-images")
-          .createSignedUrl(originalImage.storage_path, 3600);
+        const imageUrl = await resolveRoomImageUrl(supabase, originalImage.storage_path);
 
-        const cleanResult = await cleanRoom(urlData?.signedUrl || "", mask);
+        const cleanResult = await cleanRoom(imageUrl, mask);
 
         // Save cleaned image
         const cleanedImagePath = `${job.project_id}/${job.room_id}/cleaned_${Date.now()}.png`;
@@ -427,11 +440,9 @@ async function processJob(supabase: any, job: any): Promise<void> {
           throw new Error("No cleaned image found for generation");
         }
 
-        const { data: urlData } = await supabase.storage
-          .from("room-images")
-          .createSignedUrl(cleanedImage.storage_path, 3600);
+        const cleanedUrl = await resolveRoomImageUrl(supabase, cleanedImage.storage_path);
 
-        const genResult = await generateRender(urlData?.signedUrl || "", prompt);
+        const genResult = await generateRender(cleanedUrl, prompt);
 
         if (!genResult.result.imageUrl) {
           throw new Error("No image generated");
@@ -631,16 +642,21 @@ serve(async (req) => {
       }
 
       case "retry": {
-        // Retry a failed job
+        // Retry a failed job OR a pending job that has an error_message (stuck retries)
+        const nowIso = new Date().toISOString();
+
         const { error } = await supabase
           .from("job_queue")
-          .update({ 
-            status: "pending", 
-            scheduled_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+          .update({
+            status: "pending",
+            error_message: null,
+            scheduled_at: nowIso,
+            started_at: null,
+            completed_at: null,
+            updated_at: nowIso,
           })
           .eq("id", jobId)
-          .eq("status", "failed");
+          .in("status", ["failed", "pending", "cancelled"]);
 
         if (error) throw error;
 

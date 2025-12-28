@@ -63,16 +63,21 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         .maybeSingle();
       
       if (data?.storage_path) {
-        const { data: urlData } = await supabase.storage
-          .from('room-images')
-          .createSignedUrl(data.storage_path, 3600);
-        return { 
+        const signedUrl = data.storage_path.startsWith('http')
+          ? data.storage_path
+          : (
+              await supabase.storage
+                .from('room-images')
+                .createSignedUrl(data.storage_path, 3600)
+            ).data?.signedUrl;
+
+        return {
           id: data.id,
           room_id: data.room_id,
           storage_path: data.storage_path,
           image_type: data.image_type,
           phase: data.phase,
-          signedUrl: urlData?.signedUrl 
+          signedUrl,
         };
       }
       return null;
@@ -93,16 +98,21 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         .maybeSingle();
       
       if (data?.storage_path) {
-        const { data: urlData } = await supabase.storage
-          .from('room-images')
-          .createSignedUrl(data.storage_path, 3600);
-        return { 
+        const signedUrl = data.storage_path.startsWith('http')
+          ? data.storage_path
+          : (
+              await supabase.storage
+                .from('room-images')
+                .createSignedUrl(data.storage_path, 3600)
+            ).data?.signedUrl;
+
+        return {
           id: data.id,
           room_id: data.room_id,
           storage_path: data.storage_path,
           image_type: data.image_type,
           phase: data.phase,
-          signedUrl: urlData?.signedUrl 
+          signedUrl,
         };
       }
       return null;
@@ -110,12 +120,13 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   });
 
   // Use job queue hooks
-  const { submitJob } = useJobQueue({ roomId: room.id, projectId });
-  const { isProcessing, hasCompleted, hasFailed } = useRoomJobStatus(room.id, 'cleaning');
+  const { submitJob, retryJob, cancelJob } = useJobQueue({ roomId: room.id, projectId });
+  const { job, isProcessing, hasCompleted, hasFailed, errorMessage } = useRoomJobStatus(room.id, 'cleaning');
 
   // Determine status based on room state and job status
   const getCleaningStatus = (): CleaningStatus => {
     if (room.phase_3_completed || hasCompleted) return 'completed';
+    if (job?.status === 'cancelled') return 'pending';
     if (isProcessing) return 'processing';
     if (hasFailed || room.retry_count > 2) return 'failed';
     return 'pending';
@@ -180,8 +191,20 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   };
 
   const handleRetry = async () => {
+    // If there's a failed/errored job, retry it via backend; otherwise submit a fresh job.
     setIsRetrying(true);
     try {
+      if (hasFailed && job?.id) {
+        retryJob.mutate(job.id);
+      } else {
+        submitJob.mutate({
+          roomId: room.id,
+          projectId,
+          phase: 3,
+          payload: { mask: 'full_image' },
+        });
+      }
+
       const { error } = await supabase
         .from('rooms')
         .update({
@@ -193,20 +216,33 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
       if (error) throw error;
 
       toast({
-        title: 'Retry Initiated',
-        description: 'Cleaning process will restart shortly.',
+        title: 'Reset started',
+        description: 'Cleaning has been re-queued.',
       });
 
       queryClient.invalidateQueries({ queryKey: ['room', room.id] });
+      queryClient.invalidateQueries({ queryKey: ['jobs', projectId, room.id] });
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to initiate retry.',
+        description: 'Failed to reset cleaning job.',
         variant: 'destructive',
       });
     } finally {
       setIsRetrying(false);
     }
+  };
+
+  const handleResetJob = () => {
+    if (!job?.id) {
+      toast({
+        title: 'Nothing to reset',
+        description: 'No cleaning job was found for this room.',
+      });
+      return;
+    }
+
+    cancelJob.mutate(job.id);
   };
 
   const handleFlagForReview = () => {
@@ -334,6 +370,12 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
             Retry attempts: {room.retry_count}
           </p>
         )}
+        {hasFailed && errorMessage && (
+          <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+            <p className="text-xs font-medium text-destructive">Cleaning failed</p>
+            <p className="mt-1 text-xs text-muted-foreground">{errorMessage}</p>
+          </div>
+        )}
       </div>
 
       {/* Validation Checklist */}
@@ -450,13 +492,13 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         )}
         
         <div className="grid grid-cols-2 gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handleRetry}
-            disabled={isRetrying || isProcessing}
+            disabled={isRetrying || isProcessing || retryJob.isPending || submitJob.isPending}
           >
             <RotateCcw className="mr-2 h-4 w-4" />
-            Retry Cleaning
+            Reset & Retry
           </Button>
           <Button 
             variant="outline"
@@ -466,6 +508,17 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
             Flag for Review
           </Button>
         </div>
+
+        {hasFailed && job?.id && (
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={handleResetJob}
+            disabled={cancelJob.isPending || isProcessing}
+          >
+            Reset stuck job
+          </Button>
+        )}
 
         {cleaningStatus === 'failed' && (
           <Button variant="ghost" className="w-full text-muted-foreground">
