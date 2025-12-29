@@ -83,6 +83,50 @@ export type Database = {
           },
         ]
       }
+      architectural_preservation: {
+        Row: {
+          created_at: string | null
+          id: string
+          original_doors: number | null
+          original_windows: number | null
+          preservation_validated: boolean | null
+          rendered_doors: number | null
+          rendered_windows: number | null
+          room_id: string
+          validation_score: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          original_doors?: number | null
+          original_windows?: number | null
+          preservation_validated?: boolean | null
+          rendered_doors?: number | null
+          rendered_windows?: number | null
+          room_id: string
+          validation_score?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          original_doors?: number | null
+          original_windows?: number | null
+          preservation_validated?: boolean | null
+          rendered_doors?: number | null
+          rendered_windows?: number | null
+          room_id?: string
+          validation_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "architectural_preservation_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       batches: {
         Row: {
           batch_type: string
