@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -13,40 +14,43 @@ const sizeClasses = {
   lg: 'h-8 w-8',
 };
 
-export function LoadingSpinner({
-  size = 'md',
-  className = '',
-  text,
-}: LoadingSpinnerProps) {
-  return (
-    <div
-      className={cn('flex items-center justify-center gap-2', className)}
-      role="status"
-      aria-label={text || 'Loading'}
-    >
-      <Loader2
-        className={cn('animate-spin text-primary', sizeClasses[size])}
-        aria-hidden="true"
-      />
-      {text && <span className="text-sm text-muted-foreground">{text}</span>}
-      <span className="sr-only">{text || 'Loading...'}</span>
-    </div>
-  );
-}
+export const LoadingSpinner = forwardRef<HTMLDivElement, LoadingSpinnerProps>(
+  function LoadingSpinner({ size = 'md', className = '', text }, ref) {
+    return (
+      <div
+        ref={ref}
+        className={cn('flex items-center justify-center gap-2', className)}
+        role="status"
+        aria-label={text || 'Loading'}
+      >
+        <Loader2
+          className={cn('animate-spin text-primary', sizeClasses[size])}
+          aria-hidden="true"
+        />
+        {text && <span className="text-sm text-muted-foreground">{text}</span>}
+        <span className="sr-only">{text || 'Loading...'}</span>
+      </div>
+    );
+  }
+);
 
-export function PageLoader({ text }: { text?: string }) {
-  return (
-    <div className="flex h-64 items-center justify-center">
-      <LoadingSpinner size="lg" text={text} />
-    </div>
-  );
-}
+export const PageLoader = forwardRef<HTMLDivElement, { text?: string }>(
+  function PageLoader({ text }, ref) {
+    return (
+      <div ref={ref} className="flex h-64 items-center justify-center">
+        <LoadingSpinner size="lg" text={text} />
+      </div>
+    );
+  }
+);
 
-export function InlineLoader({ text }: { text?: string }) {
-  return (
-    <div className="flex items-center gap-2 py-2">
-      <LoadingSpinner size="sm" />
-      {text && <span className="text-sm text-muted-foreground">{text}</span>}
-    </div>
-  );
-}
+export const InlineLoader = forwardRef<HTMLDivElement, { text?: string }>(
+  function InlineLoader({ text }, ref) {
+    return (
+      <div ref={ref} className="flex items-center gap-2 py-2">
+        <LoadingSpinner size="sm" />
+        {text && <span className="text-sm text-muted-foreground">{text}</span>}
+      </div>
+    );
+  }
+);
