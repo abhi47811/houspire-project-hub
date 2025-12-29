@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, forwardRef } from 'react';
 import { Search, Filter, Star, MapPin, Sparkles, Pin, Upload, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -298,141 +298,139 @@ interface LibraryImageCardProps {
   onUse: () => void;
 }
 
-function LibraryImageCard({
-  image,
-  userCity,
-  isSelected,
-  onSelect,
-  onUse
-}: LibraryImageCardProps) {
-  
-  const getPerformanceLabel = () => {
-    if (image.times_selected === 0) return { label: 'New', color: 'bg-muted text-muted-foreground' };
-    if (!image.approval_rate) return { label: 'New', color: 'bg-muted text-muted-foreground' };
-    
-    if (image.approval_rate >= 0.9) return { label: 'Excellent', color: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300' };
-    if (image.approval_rate >= 0.8) return { label: 'Good', color: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300' };
-    if (image.approval_rate >= 0.7) return { label: 'Fair', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300' };
-    return { label: 'Poor', color: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300' };
-  };
+const LibraryImageCard = forwardRef<HTMLDivElement, LibraryImageCardProps>(
+  function LibraryImageCard({ image, userCity, isSelected, onSelect, onUse }, ref) {
+    const getPerformanceLabel = () => {
+      if (image.times_selected === 0) return { label: 'New', color: 'bg-muted text-muted-foreground' };
+      if (!image.approval_rate) return { label: 'New', color: 'bg-muted text-muted-foreground' };
+      
+      if (image.approval_rate >= 0.9) return { label: 'Excellent', color: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300' };
+      if (image.approval_rate >= 0.8) return { label: 'Good', color: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300' };
+      if (image.approval_rate >= 0.7) return { label: 'Fair', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300' };
+      return { label: 'Poor', color: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300' };
+    };
 
-  const performance = getPerformanceLabel();
-  const isCityMatch = image.city === userCity;
+    const performance = getPerformanceLabel();
+    const isCityMatch = image.city === userCity;
 
-  return (
-    <Card
-      className={cn(
-        "overflow-hidden transition-all cursor-pointer hover:shadow-lg",
-        isSelected && "ring-2 ring-primary"
-      )}
-      onClick={onSelect}
-    >
-      {/* Image */}
-      <div className="relative aspect-video bg-muted">
-        <img
-          src={image.thumbnail_url || image.image_url}
-          alt={`${image.room_type} ${image.design_style}`}
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
-        
-        {/* Source Badge */}
-        <div className="absolute top-2 left-2">
-          {image.source_type === 'houspire_generated' ? (
-            <Badge className="bg-primary text-primary-foreground gap-1">
-              <Sparkles className="h-3 w-3" />
-              Houspire
-            </Badge>
-          ) : (
-            <Badge className="bg-purple-600 text-white gap-1">
-              <Pin className="h-3 w-3" />
-              Reference
-            </Badge>
+    return (
+      <Card
+        ref={ref}
+        className={cn(
+          "overflow-hidden transition-all cursor-pointer hover:shadow-lg",
+          isSelected && "ring-2 ring-primary"
+        )}
+        onClick={onSelect}
+      >
+        {/* Image */}
+        <div className="relative aspect-video bg-muted">
+          <img
+            src={image.thumbnail_url || image.image_url}
+            alt={`${image.room_type} ${image.design_style}`}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+          
+          {/* Source Badge */}
+          <div className="absolute top-2 left-2">
+            {image.source_type === 'houspire_generated' ? (
+              <Badge className="bg-primary text-primary-foreground gap-1">
+                <Sparkles className="h-3 w-3" />
+                Houspire
+              </Badge>
+            ) : (
+              <Badge className="bg-purple-600 text-white gap-1">
+                <Pin className="h-3 w-3" />
+                Reference
+              </Badge>
+            )}
+          </div>
+
+          {/* Tier Badge */}
+          {image.tier === 'featured' && (
+            <div className="absolute top-2 right-2">
+              <Badge className="bg-yellow-500 text-yellow-950 gap-1">
+                <Star className="h-3 w-3 fill-current" />
+                Featured
+              </Badge>
+            </div>
+          )}
+
+          {/* City Match */}
+          {isCityMatch && (
+            <div className="absolute bottom-2 left-2">
+              <Badge className="bg-green-600 text-white gap-1">
+                <MapPin className="h-3 w-3" />
+                Your City
+              </Badge>
+            </div>
           )}
         </div>
 
-        {/* Tier Badge */}
-        {image.tier === 'featured' && (
-          <div className="absolute top-2 right-2">
-            <Badge className="bg-yellow-500 text-yellow-950 gap-1">
-              <Star className="h-3 w-3 fill-current" />
-              Featured
+        {/* Info */}
+        <CardContent className="p-2 space-y-1.5 min-w-0">
+          {/* Quality & Performance Row */}
+          <div className="flex items-center justify-between text-xs">
+            {image.quality_score !== null && (
+              <span className="font-medium">{image.quality_score}% quality</span>
+            )}
+            <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0", performance.color)}>
+              {performance.label}
             </Badge>
           </div>
-        )}
 
-        {/* City Match */}
-        {isCityMatch && (
-          <div className="absolute bottom-2 left-2">
-            <Badge className="bg-green-600 text-white gap-1">
-              <MapPin className="h-3 w-3" />
-              Your City
-            </Badge>
+          {/* Usage Stats */}
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span className="truncate">Used: {image.times_selected}×</span>
+            {image.approval_rate !== null && (
+              <span className="truncate">Success: {Math.round(image.approval_rate * 100)}%</span>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Info */}
-      <CardContent className="p-2 space-y-1.5 min-w-0">
-        {/* Quality & Performance Row */}
-        <div className="flex items-center justify-between text-xs">
-          {image.quality_score !== null && (
-            <span className="font-medium">{image.quality_score}% quality</span>
+          {/* Color Palette */}
+          {image.color_palette && (
+            <div className="flex gap-0.5">
+              {Object.values(image.color_palette).slice(0, 3).map((color, i) => (
+                <div
+                  key={i}
+                  className="w-4 h-4 rounded-sm border border-border"
+                  style={{ backgroundColor: color as string }}
+                />
+              ))}
+            </div>
           )}
-          <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0", performance.color)}>
-            {performance.label}
-          </Badge>
-        </div>
 
-        {/* Usage Stats */}
-        <div className="flex justify-between text-[10px] text-muted-foreground">
-          <span className="truncate">Used: {image.times_selected}×</span>
-          {image.approval_rate !== null && (
-            <span className="truncate">Success: {Math.round(image.approval_rate * 100)}%</span>
-          )}
-        </div>
-
-        {/* Color Palette */}
-        {image.color_palette && (
-          <div className="flex gap-0.5">
-            {Object.values(image.color_palette).slice(0, 3).map((color, i) => (
-              <div
-                key={i}
-                className="w-4 h-4 rounded-sm border border-border"
-                style={{ backgroundColor: color as string }}
-              />
-            ))}
+          {/* Actions */}
+          <div className="flex gap-1.5 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 h-7 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect();
+              }}
+            >
+              View
+            </Button>
+            <Button
+              size="sm"
+              className="flex-1 h-7 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUse();
+              }}
+            >
+              Use
+            </Button>
           </div>
-        )}
+        </CardContent>
+      </Card>
+    );
+  }
+);
 
-        {/* Actions */}
-        <div className="flex gap-1.5 pt-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 h-7 text-xs"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect();
-            }}
-          >
-            View
-          </Button>
-          <Button
-            size="sm"
-            className="flex-1 h-7 text-xs"
-            onClick={(e) => {
-              e.stopPropagation();
-              onUse();
-            }}
-          >
-            Use
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+LibraryImageCard.displayName = 'LibraryImageCard';
 
 export { LibraryImageCard };
 export default LibraryBrowser;
