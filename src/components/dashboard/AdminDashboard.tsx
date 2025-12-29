@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, forwardRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -51,7 +51,7 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export function AdminDashboard() {
+export const AdminDashboard = forwardRef<HTMLDivElement, Record<string, never>>(function AdminDashboard(_props, ref) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentProjects, setRecentProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,7 +130,7 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div ref={ref} className="space-y-6">
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statsCards.map((stat) => (
@@ -233,11 +233,11 @@ export function AdminDashboard() {
       </div>
     </div>
   );
-}
+});
 
-function AdminDashboardSkeleton() {
+const AdminDashboardSkeleton = forwardRef<HTMLDivElement, Record<string, never>>(function AdminDashboardSkeleton(_props, ref) {
   return (
-    <div className="space-y-6">
+    <div ref={ref} className="space-y-6">
       {/* Stats Skeleton */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
@@ -294,4 +294,4 @@ function AdminDashboardSkeleton() {
       </div>
     </div>
   );
-}
+});

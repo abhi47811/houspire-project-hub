@@ -12,6 +12,9 @@ import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hooks/useEnhancedKeyboardShortcuts';
+import { handleApiError } from '@/lib/api-error';
 import {
   CheckCircle,
   RefreshCw,
@@ -340,7 +343,7 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
       if (error.name === 'AbortError' || error.message.includes('aborted')) {
         toast({ title: 'Analysis timed out', description: 'Try again or check your connection.', variant: 'destructive' });
       } else {
-        toast({ title: 'Analysis failed', description: error.message, variant: 'destructive' });
+        handleApiError(error, { showToast: true });
       }
     },
   });
@@ -445,8 +448,27 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
       toast({ title: 'Analysis verified', description: 'Moving to Phase 3: Clean' });
     },
     onError: (error: Error) => {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      handleApiError(error, { showToast: true });
     },
+  });
+
+  // Keyboard shortcut handlers - must be after verifyAnalysis is defined
+  const handleKeyboardContinue = useCallback(() => {
+    if (!verifyAnalysis.isPending && !analysis?.is_verified && !reAnalyze.isPending) {
+      verifyAnalysis.mutate();
+    }
+  }, [verifyAnalysis, analysis?.is_verified, reAnalyze.isPending]);
+
+  const handleKeyboardRegenerate = useCallback(() => {
+    if (!reAnalyze.isPending) {
+      reAnalyze.mutate();
+    }
+  }, [reAnalyze]);
+
+  // Register keyboard shortcuts
+  useEnhancedKeyboardShortcuts({
+    onContinue: handleKeyboardContinue,
+    onRegenerate: handleKeyboardRegenerate,
   });
 
   // Skip analysis and proceed to next phase
@@ -732,18 +754,25 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
 
       {/* Actions */}
       <div className="pt-4 border-t space-y-2">
-        <Button 
-          className="w-full" 
-          onClick={() => verifyAnalysis.mutate()}
-          disabled={verifyAnalysis.isPending || analysis?.is_verified || reAnalyze.isPending}
-        >
-          {verifyAnalysis.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <CheckCircle className="mr-2 h-4 w-4" />
-          )}
-          {analysis?.is_verified ? 'Verified' : 'Verify & Approve'}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              className="w-full" 
+              onClick={() => verifyAnalysis.mutate()}
+              disabled={verifyAnalysis.isPending || analysis?.is_verified || reAnalyze.isPending}
+            >
+              {verifyAnalysis.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle className="mr-2 h-4 w-4" />
+              )}
+              {analysis?.is_verified ? 'Verified' : 'Verify & Approve'}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Verify & Continue ({getShortcutHint(SHORTCUTS.continue)})</p>
+          </TooltipContent>
+        </Tooltip>
         
         {reAnalyze.isPending ? (
           <div className="space-y-2">
@@ -769,15 +798,22 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
             </Button>
           </div>
         ) : (
-          <Button 
-            variant="outline" 
-            className="w-full"
-            onClick={() => reAnalyze.mutate()}
-            disabled={reAnalyze.isPending}
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Re-analyze
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => reAnalyze.mutate()}
+                disabled={reAnalyze.isPending}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Re-analyze
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Re-analyze ({getShortcutHint(SHORTCUTS.regenerate)})</p>
+            </TooltipContent>
+          </Tooltip>
         )}
       </div>
     </div>
