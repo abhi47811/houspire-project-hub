@@ -82,8 +82,14 @@ export function PopularCombinationsCard() {
             <p className="text-xs text-muted-foreground">Top 5 this month</p>
           </>
         ) : (
-          <div className="flex h-[180px] items-center justify-center">
-            <p className="text-sm text-muted-foreground">No combination data available</p>
+          <div className="flex h-[180px] flex-col items-center justify-center gap-3 text-center">
+            <Palette className="h-10 w-10 text-muted-foreground/50" />
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">No style data yet</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                Create projects to see popular combinations
+              </p>
+            </div>
           </div>
         )}
       </CardContent>
