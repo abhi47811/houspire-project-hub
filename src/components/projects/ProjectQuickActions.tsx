@@ -58,13 +58,14 @@ export function ProjectQuickActions({
           <Button 
             variant="secondary" 
             size="icon" 
-            className="h-7 w-7 bg-background/90 hover:bg-background"
+            className="h-7 w-7 bg-background/90 hover:bg-background shadow-sm transition-all hover:shadow-md"
             onClick={(e) => e.stopPropagation()}
+            aria-label={`Actions for ${projectName}`}
           >
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent align="end" className="w-48 animate-scale-in bg-popover/95 backdrop-blur-sm">
           <DropdownMenuItem onClick={() => navigate(`/projects/${projectId}`)}>
             <Eye className="h-4 w-4 mr-2" />
             View Details

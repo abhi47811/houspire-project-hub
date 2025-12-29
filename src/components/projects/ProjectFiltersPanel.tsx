@@ -42,13 +42,13 @@ export function ProjectFiltersPanel({
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="flex items-center gap-2">
         <CollapsibleTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2 hover-lift">
             <Filter className="h-4 w-4" />
             Advanced Filters
             {hasActiveFilters && (
-              <span className="ml-1 h-2 w-2 rounded-full bg-primary" />
+              <span className="ml-1 h-2 w-2 rounded-full bg-primary animate-pulse" />
             )}
-            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
           </Button>
         </CollapsibleTrigger>
         {hasActiveFilters && (
@@ -59,9 +59,9 @@ export function ProjectFiltersPanel({
         )}
       </div>
 
-      <CollapsibleContent className="mt-4">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <CollapsibleContent className="mt-4 animate-fade-in">
+        <div className="rounded-lg border border-border bg-card/50 backdrop-blur-sm p-4 shadow-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Status Filter */}
             <div className="space-y-2">
               <Label className="text-xs font-medium">Status</Label>

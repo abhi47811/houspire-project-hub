@@ -156,14 +156,15 @@ export function ProjectSearch({ value, onChange, projects = [] }: ProjectSearchP
   };
 
   return (
-    <div className="relative flex-1 min-w-[200px]">
-      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+    <div className="relative flex-1 min-w-[200px] group/search">
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none transition-colors group-focus-within/search:text-primary" />
       <Input
         ref={inputRef}
         placeholder="Search projects, clients, cities, rooms..."
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setIsFocused(true)}
+        className="pl-10 pr-8 transition-shadow focus:shadow-md focus:shadow-primary/10"
         onBlur={() => {
           // Delay to allow click on suggestions
           setTimeout(() => setIsFocused(false), 200);
@@ -178,7 +179,6 @@ export function ProjectSearch({ value, onChange, projects = [] }: ProjectSearchP
             inputRef.current?.blur();
           }
         }}
-        className="pl-10 pr-8"
       />
       {value && (
         <button
@@ -191,7 +191,7 @@ export function ProjectSearch({ value, onChange, projects = [] }: ProjectSearchP
 
       {/* Suggestions Dropdown */}
       {showDropdown && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-popover/95 backdrop-blur-sm border border-border rounded-lg shadow-premium-md z-50 overflow-hidden animate-fade-in">
           <ScrollArea className="max-h-64">
             {/* Recent Searches */}
             {!value && recentSearches.length > 0 && (

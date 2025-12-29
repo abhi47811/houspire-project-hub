@@ -249,16 +249,16 @@ export default function Projects() {
   const resetFilters = () => setFilters(defaultFilters);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Projects</h1>
+          <h1 className="text-2xl font-bold text-foreground text-gradient">Projects</h1>
           <p className="text-muted-foreground">Manage and track your design projects</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Bulk Upload Button */}
-          <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)}>
+          <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)} className="hover-lift">
             <Upload className="mr-2 h-4 w-4" />
             Bulk Upload
           </Button>
@@ -266,7 +266,7 @@ export default function Projects() {
           {/* Create Project Dialog */}
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="hover-lift shadow-premium-sm hover:shadow-premium-md">
                 <Plus className="mr-2 h-4 w-4" />
                 New Project
               </Button>
@@ -316,7 +316,7 @@ export default function Projects() {
           </Select>
 
           {/* View Mode Toggle */}
-          <div className="flex rounded-lg border border-input">
+          <div className="flex rounded-lg border border-input overflow-hidden shadow-sm">
             <Button
               variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
               size="icon"
@@ -366,7 +366,7 @@ export default function Projects() {
             onSelectProject={handleSelectProject}
           />
         ) : viewMode === 'grid' ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {projects?.map((project) => (
               <EnhancedProjectCard
                 key={project.id}
@@ -503,23 +503,26 @@ function EmptyState({
   onBulkUploadClick: () => void;
 }) {
   return (
-    <Card>
-      <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="rounded-full bg-muted p-4">
-          <FolderOpen className="h-8 w-8 text-muted-foreground" />
+    <Card className="border-dashed animate-fade-in">
+      <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="relative">
+          <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
+          <div className="relative rounded-full bg-gradient-to-br from-primary/10 to-accent/10 p-6">
+            <FolderOpen className="h-10 w-10 text-primary" />
+          </div>
         </div>
-        <h3 className="mt-4 text-lg font-semibold">No projects found</h3>
-        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
-          Create your first project to get started with interior design management.
+        <h3 className="mt-6 text-xl font-semibold text-gradient">No projects yet</h3>
+        <p className="mt-2 text-sm text-muted-foreground max-w-md">
+          Get started by creating your first interior design project. You can also bulk upload existing project data.
         </p>
-        <div className="flex gap-3 mt-4">
-          <Button variant="outline" onClick={onBulkUploadClick}>
+        <div className="flex flex-col sm:flex-row gap-3 mt-6">
+          <Button variant="outline" onClick={onBulkUploadClick} className="hover-lift">
             <Upload className="mr-2 h-4 w-4" />
             Bulk Upload
           </Button>
-          <Button onClick={onCreateClick}>
+          <Button onClick={onCreateClick} className="hover-lift shadow-premium-sm hover:shadow-premium-md">
             <Plus className="mr-2 h-4 w-4" />
-            Create Project
+            Create First Project
           </Button>
         </div>
       </CardContent>
