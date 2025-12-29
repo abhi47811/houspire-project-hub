@@ -260,6 +260,8 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   const handleApprove = async () => {
     setIsApproving(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const { error } = await supabase
         .from('rooms')
         .update({
@@ -269,6 +271,19 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         .eq('id', room.id);
 
       if (error) throw error;
+
+      // Log activity for cleaning approval
+      try {
+        await supabase.rpc('log_project_activity', {
+          p_project_id: projectId,
+          p_user_id: user?.id,
+          p_activity_type: 'cleaning_approved',
+          p_description: 'Room cleaning approved, moving to customization phase',
+          p_room_id: room.id,
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
 
       toast({
         title: 'Image Approved',
