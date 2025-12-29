@@ -13,9 +13,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
-// Seed collection specifications - 20 professional AI-generated images
+// Seed collection specifications - 60+ professional AI-generated images
 const SEED_COLLECTION_SPECS = [
-  // LIVING ROOMS (8 images)
+  // LIVING ROOMS (12 images - expanded coverage)
   {
     seedPrompt: "Modern Indian living room interior, contemporary furniture with traditional touches, terracotta accents, brass elements, marble flooring, false ceiling with cove lighting, Mumbai apartment style, magazine quality, professional photography, ultra high resolution",
     roomType: "living_room",
@@ -52,13 +52,6 @@ const SEED_COLLECTION_SPECS = [
     tier: "standard"
   },
   {
-    seedPrompt: "Minimalist living room, monochrome palette, essential furniture only, open space, Chennai modern apartment, zen aesthetic, professional photography, ultra high resolution",
-    roomType: "living_room",
-    designStyle: "minimalist",
-    city: "Chennai",
-    tier: "standard"
-  },
-  {
     seedPrompt: "Scandinavian living room, light wood furniture, cozy textiles, neutral tones, hygge atmosphere, Bangalore apartment, natural materials, magazine photography, ultra high resolution",
     roomType: "living_room",
     designStyle: "scandinavian",
@@ -66,25 +59,53 @@ const SEED_COLLECTION_SPECS = [
     tier: "standard"
   },
   {
-    seedPrompt: "Scandinavian style living room, white walls, wooden accents, green plants, natural light, Delhi apartment, Nordic design, interior design photography, ultra high resolution",
+    seedPrompt: "Industrial living room, exposed brick wall, metal shelving, leather sofa, concrete elements, loft style, Mumbai apartment, urban aesthetic, professional photography, ultra high resolution",
     roomType: "living_room",
-    designStyle: "scandinavian",
+    designStyle: "industrial",
+    city: "Mumbai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Bohemian living room, colorful textiles, floor cushions, macrame, plants, eclectic decor, Delhi boho apartment, artistic vibe, editorial photography, ultra high resolution",
+    roomType: "living_room",
+    designStyle: "bohemian",
     city: "Delhi",
     tier: "standard"
   },
-  // MASTER BEDROOMS (4 images)
+  {
+    seedPrompt: "Art Deco living room, geometric patterns, velvet furniture, gold accents, statement chandelier, luxury Mumbai apartment, glamorous style, magazine quality, ultra high resolution",
+    roomType: "living_room",
+    designStyle: "art_deco",
+    city: "Mumbai",
+    tier: "featured"
+  },
+  {
+    seedPrompt: "Japandi living room, minimal furniture, natural wood, neutral palette, zen atmosphere, clean lines, Bangalore apartment, serene design, architectural photography, ultra high resolution",
+    roomType: "living_room",
+    designStyle: "japandi",
+    city: "Bangalore",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Traditional Indian living room, carved wooden furniture, rich textiles, brass lamps, ethnic artwork, cultural elements, Jaipur home, heritage style, professional photography, ultra high resolution",
+    roomType: "living_room",
+    designStyle: "traditional_indian",
+    city: "Jaipur",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Farmhouse living room, rustic wood beams, comfortable sofas, natural textures, cozy fireplace area, Pune countryside home, warm atmosphere, interior photography, ultra high resolution",
+    roomType: "living_room",
+    designStyle: "farmhouse",
+    city: "Pune",
+    tier: "standard"
+  },
+  // MASTER BEDROOMS (8 images - expanded)
   {
     seedPrompt: "Contemporary master bedroom, king size bed, elegant headboard, bedside tables, soft lighting, Mumbai luxury apartment, hotel-like quality, professional photography, ultra high resolution",
     roomType: "master_bedroom",
     designStyle: "contemporary",
     city: "Mumbai",
-    tier: "standard"
-  },
-  {
-    seedPrompt: "Contemporary master bedroom, modern furniture, neutral bedding, walk-in wardrobe visible, Bangalore residential, clean aesthetic, architectural photography, ultra high resolution",
-    roomType: "master_bedroom",
-    designStyle: "contemporary",
-    city: "Bangalore",
     tier: "standard"
   },
   {
@@ -95,25 +116,53 @@ const SEED_COLLECTION_SPECS = [
     tier: "standard"
   },
   {
-    seedPrompt: "Scandinavian bedroom, wooden furniture, soft textiles, plants, calm atmosphere, Pune home, hygge design, professional interior photography, ultra high resolution",
+    seedPrompt: "Minimalist master bedroom, platform bed, neutral colors, clean lines, hidden storage, Bangalore apartment, zen aesthetic, architectural photography, ultra high resolution",
     roomType: "master_bedroom",
-    designStyle: "scandinavian",
+    designStyle: "minimalist",
+    city: "Bangalore",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Modern Indian master bedroom, wooden bed with carved headboard, silk cushions, warm lighting, traditional touches, Chennai home, elegant design, professional photography, ultra high resolution",
+    roomType: "master_bedroom",
+    designStyle: "modern_indian",
+    city: "Chennai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Industrial master bedroom, metal bed frame, exposed pipes, concrete walls, leather accents, loft style, Hyderabad apartment, urban design, editorial photography, ultra high resolution",
+    roomType: "master_bedroom",
+    designStyle: "industrial",
+    city: "Hyderabad",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Bohemian master bedroom, canopy bed, colorful textiles, plants, fairy lights, artistic decor, Goa beach house, relaxed vibe, lifestyle photography, ultra high resolution",
+    roomType: "master_bedroom",
+    designStyle: "bohemian",
+    city: "Mumbai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Traditional Indian master bedroom, four poster bed, rich fabrics, antique furniture, ornate details, Rajasthani style, Jaipur palace room, heritage design, ultra high resolution",
+    roomType: "master_bedroom",
+    designStyle: "traditional_indian",
+    city: "Jaipur",
+    tier: "featured"
+  },
+  {
+    seedPrompt: "Japandi master bedroom, low platform bed, natural materials, paper screens, minimalist decor, peaceful atmosphere, Pune home, zen style, architectural photography, ultra high resolution",
+    roomType: "master_bedroom",
+    designStyle: "japandi",
     city: "Pune",
     tier: "standard"
   },
-  // KITCHENS (4 images)
+  // KITCHENS (8 images - expanded)
   {
     seedPrompt: "Modern Indian kitchen, L-shaped layout, granite countertops, modular cabinets, chimney hood, tiles backsplash, Mumbai apartment kitchen, professional photography, ultra high resolution",
     roomType: "kitchen",
     designStyle: "modern_indian",
     city: "Mumbai",
-    tier: "standard"
-  },
-  {
-    seedPrompt: "Modern Indian kitchen, U-shaped design, wooden cabinets, granite counters, stainless steel appliances, Delhi home, contemporary Indian style, architectural photography, ultra high resolution",
-    roomType: "kitchen",
-    designStyle: "modern_indian",
-    city: "Delhi",
     tier: "standard"
   },
   {
@@ -124,13 +173,48 @@ const SEED_COLLECTION_SPECS = [
     tier: "standard"
   },
   {
-    seedPrompt: "Contemporary kitchen, white cabinets, marble countertops, built-in appliances, Hyderabad luxury apartment, clean modern aesthetic, interior photography, ultra high resolution",
+    seedPrompt: "Minimalist kitchen, white cabinets, clean countertops, hidden appliances, no clutter, Chennai apartment, streamlined design, architectural photography, ultra high resolution",
     roomType: "kitchen",
-    designStyle: "contemporary",
-    city: "Hyderabad",
+    designStyle: "minimalist",
+    city: "Chennai",
     tier: "standard"
   },
-  // DINING ROOMS (2 images)
+  {
+    seedPrompt: "Scandinavian kitchen, light wood cabinets, white tiles, open shelving, natural light, Pune apartment, cozy Nordic style, interior photography, ultra high resolution",
+    roomType: "kitchen",
+    designStyle: "scandinavian",
+    city: "Pune",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Industrial kitchen, metal cabinets, concrete countertops, exposed pipes, pendant lights, Delhi loft, urban style, professional photography, ultra high resolution",
+    roomType: "kitchen",
+    designStyle: "industrial",
+    city: "Delhi",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Traditional Indian kitchen, wooden cabinets, brass handles, masala box storage, pooja shelf, warm lighting, Ahmedabad home, cultural design, ultra high resolution",
+    roomType: "kitchen",
+    designStyle: "traditional_indian",
+    city: "Ahmedabad",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Farmhouse kitchen, rustic wood cabinets, apron sink, open shelves, vintage accessories, countryside style, Pune farmhouse, warm atmosphere, ultra high resolution",
+    roomType: "kitchen",
+    designStyle: "farmhouse",
+    city: "Pune",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Coastal kitchen, white and blue palette, nautical accents, beadboard cabinets, beach house style, Mumbai seaside apartment, fresh design, professional photography, ultra high resolution",
+    roomType: "kitchen",
+    designStyle: "coastal_indian",
+    city: "Mumbai",
+    tier: "standard"
+  },
+  // DINING ROOMS (6 images - expanded)
   {
     seedPrompt: "Contemporary dining room, rectangular wooden table, 6 upholstered chairs, pendant chandelier, Mumbai apartment, elegant setup, professional photography, ultra high resolution",
     roomType: "dining_room",
@@ -145,7 +229,222 @@ const SEED_COLLECTION_SPECS = [
     city: "Bangalore",
     tier: "standard"
   },
-  // BALCONIES (2 images)
+  {
+    seedPrompt: "Modern Indian dining room, 8-seater wooden table, carved chairs, brass chandelier, traditional art, Delhi home, festive ready, professional photography, ultra high resolution",
+    roomType: "dining_room",
+    designStyle: "modern_indian",
+    city: "Delhi",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Scandinavian dining room, light oak table, wishbone chairs, pendant lamp, plants, Hyderabad apartment, Nordic warmth, interior photography, ultra high resolution",
+    roomType: "dining_room",
+    designStyle: "scandinavian",
+    city: "Hyderabad",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Traditional Indian dining room, round marble table, ornate chairs, crystal chandelier, formal setting, Chennai heritage home, grand style, ultra high resolution",
+    roomType: "dining_room",
+    designStyle: "traditional_indian",
+    city: "Chennai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Art Deco dining room, geometric table design, velvet chairs, statement lighting, gold accents, Mumbai luxury apartment, glamorous setting, magazine quality, ultra high resolution",
+    roomType: "dining_room",
+    designStyle: "art_deco",
+    city: "Mumbai",
+    tier: "featured"
+  },
+  // BATHROOMS (6 images - new category)
+  {
+    seedPrompt: "Modern Indian bathroom, marble tiles, wooden vanity, brass fixtures, glass shower, luxury finish, Mumbai apartment, spa-like design, professional photography, ultra high resolution",
+    roomType: "bathroom",
+    designStyle: "modern_indian",
+    city: "Mumbai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Contemporary bathroom, floating vanity, large mirror, rain shower, neutral tiles, Delhi apartment, clean design, architectural photography, ultra high resolution",
+    roomType: "bathroom",
+    designStyle: "contemporary",
+    city: "Delhi",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Minimalist bathroom, white tiles, simple fixtures, frameless mirror, hidden storage, Bangalore home, zen aesthetic, interior photography, ultra high resolution",
+    roomType: "bathroom",
+    designStyle: "minimalist",
+    city: "Bangalore",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Scandinavian bathroom, light wood accents, white tiles, natural light, plants, cozy atmosphere, Pune apartment, Nordic style, professional photography, ultra high resolution",
+    roomType: "bathroom",
+    designStyle: "scandinavian",
+    city: "Pune",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Industrial bathroom, concrete walls, black fixtures, metal accents, exposed pipes, urban loft style, Hyderabad apartment, edgy design, ultra high resolution",
+    roomType: "bathroom",
+    designStyle: "industrial",
+    city: "Hyderabad",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Traditional Indian bathroom, Jaisalmer stone, brass fittings, carved mirror frame, ethnic tiles, heritage style, Jaipur home, cultural design, ultra high resolution",
+    roomType: "bathroom",
+    designStyle: "traditional_indian",
+    city: "Jaipur",
+    tier: "standard"
+  },
+  // HOME OFFICES (6 images - new category)
+  {
+    seedPrompt: "Contemporary home office, L-shaped desk, ergonomic chair, monitor setup, storage shelves, Mumbai apartment, productive design, professional photography, ultra high resolution",
+    roomType: "home_office",
+    designStyle: "contemporary",
+    city: "Mumbai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Minimalist home office, simple desk, clean workspace, minimal decor, natural light, Bangalore tech professional, zen focus, architectural photography, ultra high resolution",
+    roomType: "home_office",
+    designStyle: "minimalist",
+    city: "Bangalore",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Industrial home office, reclaimed wood desk, metal shelving, exposed brick, vintage accessories, Delhi creative studio, artistic vibe, professional photography, ultra high resolution",
+    roomType: "home_office",
+    designStyle: "industrial",
+    city: "Delhi",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Scandinavian home office, white desk, light wood accents, plants, cozy corner, Pune apartment, hygge workspace, interior photography, ultra high resolution",
+    roomType: "home_office",
+    designStyle: "scandinavian",
+    city: "Pune",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Modern Indian home office, wooden desk, brass lamp, traditional artwork, warm lighting, Chennai professional space, cultural touch, professional photography, ultra high resolution",
+    roomType: "home_office",
+    designStyle: "modern_indian",
+    city: "Chennai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Japandi home office, low desk, floor seating option, minimal setup, natural materials, serene atmosphere, Hyderabad apartment, zen design, ultra high resolution",
+    roomType: "home_office",
+    designStyle: "japandi",
+    city: "Hyderabad",
+    tier: "standard"
+  },
+  // KIDS ROOMS (5 images - new category)
+  {
+    seedPrompt: "Modern Indian kids room, colorful walls, study desk, bunk bed, play area, storage units, Mumbai apartment, fun design, professional photography, ultra high resolution",
+    roomType: "kids_room",
+    designStyle: "modern_indian",
+    city: "Mumbai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Contemporary kids room, neutral palette, playful accents, study corner, toy storage, gender neutral, Delhi apartment, stylish design, interior photography, ultra high resolution",
+    roomType: "kids_room",
+    designStyle: "contemporary",
+    city: "Delhi",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Bohemian kids room, colorful textiles, teepee tent, floor cushions, fairy lights, creative space, Bangalore home, whimsical design, professional photography, ultra high resolution",
+    roomType: "kids_room",
+    designStyle: "bohemian",
+    city: "Bangalore",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Scandinavian kids room, light colors, wooden furniture, cozy reading nook, minimal toys, Pune apartment, calm design, architectural photography, ultra high resolution",
+    roomType: "kids_room",
+    designStyle: "scandinavian",
+    city: "Pune",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Minimalist kids room, clean lines, essential furniture, organized storage, play space, Chennai home, clutter-free design, interior photography, ultra high resolution",
+    roomType: "kids_room",
+    designStyle: "minimalist",
+    city: "Chennai",
+    tier: "standard"
+  },
+  // POOJA ROOMS (5 images - new category)
+  {
+    seedPrompt: "Modern Indian pooja room, wooden temple unit, marble platform, brass bells, diya holder, warm lighting, Mumbai apartment, spiritual design, professional photography, ultra high resolution",
+    roomType: "pooja_room",
+    designStyle: "modern_indian",
+    city: "Mumbai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Traditional Indian pooja room, carved wooden temple, brass idols, oil lamps, flower decorations, puja essentials, Chennai home, sacred design, ultra high resolution",
+    roomType: "pooja_room",
+    designStyle: "traditional_indian",
+    city: "Chennai",
+    tier: "featured"
+  },
+  {
+    seedPrompt: "Contemporary pooja room, sleek temple design, backlit panel, marble flooring, minimal decor, Bangalore apartment, modern spirituality, architectural photography, ultra high resolution",
+    roomType: "pooja_room",
+    designStyle: "contemporary",
+    city: "Bangalore",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Minimalist pooja room, simple altar, clean design, essential elements only, peaceful space, Hyderabad apartment, zen sacred space, interior photography, ultra high resolution",
+    roomType: "pooja_room",
+    designStyle: "minimalist",
+    city: "Hyderabad",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Art Deco pooja room, geometric patterns, gold accents, ornate temple, statement lighting, Delhi luxury home, glamorous sacred space, magazine quality, ultra high resolution",
+    roomType: "pooja_room",
+    designStyle: "art_deco",
+    city: "Delhi",
+    tier: "featured"
+  },
+  // GUEST BEDROOMS (4 images - new category)
+  {
+    seedPrompt: "Contemporary guest bedroom, queen bed, neutral decor, side table, reading lamp, welcoming space, Mumbai apartment, hotel comfort, professional photography, ultra high resolution",
+    roomType: "guest_room",
+    designStyle: "contemporary",
+    city: "Mumbai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Scandinavian guest bedroom, cozy bed, light colors, simple furniture, natural textures, Delhi home, Nordic comfort, interior photography, ultra high resolution",
+    roomType: "guest_room",
+    designStyle: "scandinavian",
+    city: "Delhi",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Modern Indian guest bedroom, traditional touches, warm colors, ethnic bedding, brass accents, Jaipur home, cultural hospitality, professional photography, ultra high resolution",
+    roomType: "guest_room",
+    designStyle: "modern_indian",
+    city: "Jaipur",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Minimalist guest bedroom, essential furniture, clean lines, peaceful colors, uncluttered space, Bangalore apartment, serene design, architectural photography, ultra high resolution",
+    roomType: "guest_room",
+    designStyle: "minimalist",
+    city: "Bangalore",
+    tier: "standard"
+  },
+  // BALCONIES (4 images - expanded)
   {
     seedPrompt: "Tropical balcony, wooden deck flooring, outdoor furniture, potted plants, greenery, Mumbai apartment balcony, resort style, professional photography, ultra high resolution",
     roomType: "balcony",
@@ -158,6 +457,78 @@ const SEED_COLLECTION_SPECS = [
     roomType: "balcony",
     designStyle: "contemporary",
     city: "Bangalore",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Modern Indian balcony, swing chair, potted plants, terracotta pots, ethnic cushions, cozy reading corner, Delhi apartment, cultural design, professional photography, ultra high resolution",
+    roomType: "balcony",
+    designStyle: "modern_indian",
+    city: "Delhi",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Scandinavian balcony, wooden furniture, plants, cozy textiles, fairy lights, hygge outdoor space, Pune apartment, Nordic charm, interior photography, ultra high resolution",
+    roomType: "balcony",
+    designStyle: "scandinavian",
+    city: "Pune",
+    tier: "standard"
+  },
+  // FOYER/ENTRYWAY (4 images - new category)
+  {
+    seedPrompt: "Contemporary foyer, console table, mirror, ambient lighting, artwork, shoe storage, Mumbai apartment entrance, welcoming design, professional photography, ultra high resolution",
+    roomType: "foyer",
+    designStyle: "contemporary",
+    city: "Mumbai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Modern Indian foyer, wooden console, brass mirror frame, traditional artwork, warm lighting, Delhi home entrance, cultural welcome, interior photography, ultra high resolution",
+    roomType: "foyer",
+    designStyle: "modern_indian",
+    city: "Delhi",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Art Deco foyer, geometric mirror, statement console, marble flooring, chandelier, glamorous entrance, Bangalore luxury apartment, magazine quality, ultra high resolution",
+    roomType: "foyer",
+    designStyle: "art_deco",
+    city: "Bangalore",
+    tier: "featured"
+  },
+  {
+    seedPrompt: "Minimalist foyer, simple console, clean lines, essential decor, hidden storage, Chennai apartment, zen entrance, architectural photography, ultra high resolution",
+    roomType: "foyer",
+    designStyle: "minimalist",
+    city: "Chennai",
+    tier: "standard"
+  },
+  // WARDROBE/CLOSET (4 images - new category)
+  {
+    seedPrompt: "Contemporary walk-in wardrobe, modular shelving, glass doors, island unit, organized storage, Mumbai luxury apartment, designer closet, professional photography, ultra high resolution",
+    roomType: "wardrobe",
+    designStyle: "contemporary",
+    city: "Mumbai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Minimalist wardrobe, clean lines, hidden handles, neutral colors, efficient storage, Bangalore apartment, streamlined design, architectural photography, ultra high resolution",
+    roomType: "wardrobe",
+    designStyle: "minimalist",
+    city: "Bangalore",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Modern Indian wardrobe, wooden finish, brass handles, saree storage, traditional elements, Chennai home, cultural organization, interior photography, ultra high resolution",
+    roomType: "wardrobe",
+    designStyle: "modern_indian",
+    city: "Chennai",
+    tier: "standard"
+  },
+  {
+    seedPrompt: "Scandinavian wardrobe, light wood, open shelving, minimal design, natural materials, Delhi apartment, Nordic style, professional photography, ultra high resolution",
+    roomType: "wardrobe",
+    designStyle: "scandinavian",
+    city: "Delhi",
     tier: "standard"
   }
 ];
@@ -386,7 +757,7 @@ export function LibraryContributeTab() {
                   🚀 QUICK START: AI Seed Collection
                 </CardTitle>
                 <CardDescription>
-                  Generate 20 professional AI interior design images to bootstrap your library instantly
+                  Generate {SEED_COLLECTION_SPECS.length} professional AI interior design images to bootstrap your library instantly
                 </CardDescription>
               </div>
               <Badge variant="secondary" className="bg-primary/20 text-primary">
@@ -399,18 +770,20 @@ export function LibraryContributeTab() {
               <div className="space-y-2">
                 <p className="font-medium text-sm">📦 What's included:</p>
                 <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• 8 Living Rooms (4 styles)</li>
-                  <li>• 4 Master Bedrooms</li>
-                  <li>• 4 Kitchens</li>
-                  <li>• 2 Dining Rooms</li>
-                  <li>• 2 Balconies</li>
-                  <li>• Mix of Indian cities</li>
+                  <li>• 12 Living Rooms (10 styles)</li>
+                  <li>• 8 Bedrooms (Master, Guest, Kids)</li>
+                  <li>• 8 Kitchens (7 styles)</li>
+                  <li>• 6 Dining Rooms</li>
+                  <li>• 6 Bathrooms</li>
+                  <li>• 6 Home Offices</li>
+                  <li>• 5 Pooja Rooms</li>
+                  <li>• 4 Balconies, Foyers, Wardrobes</li>
                 </ul>
               </div>
               <div className="space-y-2">
                 <p className="font-medium text-sm">⏱️ Estimated time:</p>
                 <p className="text-sm text-muted-foreground">
-                  ~10-15 minutes (AI generation + upload)
+                  ~30-40 minutes (AI generation + upload)
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
                   Please keep this tab open during generation.
@@ -447,7 +820,7 @@ export function LibraryContributeTab() {
               ) : (
                 <>
                   <Sparkles className="h-4 w-4 mr-2" />
-                  Generate & Import 20 AI Images
+                  Generate & Import {SEED_COLLECTION_SPECS.length} AI Images
                 </>
               )}
             </Button>
