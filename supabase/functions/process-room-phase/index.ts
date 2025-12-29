@@ -581,48 +581,61 @@ async function processJob(supabase: any, job: any): Promise<void> {
           resolution: "high",
         });
 
-        // Get signed URL for the render
-        const { data: signedUrlData } = await supabase.storage
-          .from("room-images")
-          .createSignedUrl(renderImagePath, 86400 * 30); // 30 day expiry
-        
-        const renderImageUrl = signedUrlData?.signedUrl || renderImagePath;
+        // ===== SAVE TO RENDERS TABLE (for approval workflow & version tracking) =====
+        try {
+          // Get signed URL for the render
+          const { data: signedUrlData } = await supabase.storage
+            .from("room-images")
+            .createSignedUrl(renderImagePath, 86400 * 30); // 30 day expiry
+          
+          const renderImageUrl = signedUrlData?.signedUrl || renderImagePath;
 
-        // Get version number for this room
-        const { data: existingRenders } = await supabase
-          .from("renders")
-          .select("version_number")
-          .eq("room_id", job.room_id)
-          .order("version_number", { ascending: false })
-          .limit(1);
-        
-        const newVersionNumber = (existingRenders?.[0]?.version_number || 0) + 1;
-        const parentRenderId = existingRenders?.[0]?.id || null;
+          // Get version number and parent render for this room
+          const { data: existingRenders } = await supabase
+            .from("renders")
+            .select("id, version_number")
+            .eq("room_id", job.room_id)
+            .order("version_number", { ascending: false })
+            .limit(1);
+          
+          const newVersionNumber = (existingRenders?.[0]?.version_number || 0) + 1;
+          const parentRenderId = existingRenders?.[0]?.id || null;
 
-        // INSERT INTO RENDERS TABLE - Critical for approval workflow
-        const { data: renderRecord, error: renderInsertError } = await supabase
-          .from("renders")
-          .insert({
-            room_id: job.room_id,
-            image_url: renderImageUrl,
-            storage_path: renderImagePath,
-            prompt_used: prompt,
-            model_used: "gemini-3-pro-image-preview",
-            provider: "lovable-ai",
-            generation_time_ms: genResult.latency,
-            approval_status: "pending",
-            quality_score: null, // Will be updated after scoring
-            version_number: newVersionNumber,
-            parent_render_id: parentRenderId,
-          })
-          .select()
-          .single();
+          // INSERT INTO RENDERS TABLE - Critical for approval workflow
+          const { data: renderRecord, error: renderInsertError } = await supabase
+            .from("renders")
+            .insert({
+              room_id: job.room_id,
+              image_url: renderImageUrl,
+              storage_path: renderImagePath,
+              prompt_used: prompt,
+              model_used: "gemini-3-pro-image-preview",
+              provider: "lovable-ai",
+              generation_time_ms: genResult.latency,
+              approval_status: "pending",
+              quality_score: null, // Will be updated after scoring
+              version_number: newVersionNumber,
+              parent_render_id: parentRenderId,
+              quality_details: {
+                style: room?.selected_style || null,
+                room_type: room?.room_type || null,
+                smart_default_used: room?.smart_default_id !== null,
+                phase: 5,
+                generated_at: new Date().toISOString(),
+              },
+            })
+            .select()
+            .single();
 
-        if (renderInsertError) {
-          console.error("Failed to insert render record:", renderInsertError);
-          // Don't throw - room_images already has the image
-        } else {
-          console.log(`Render record created: ${renderRecord?.id}, version ${newVersionNumber}`);
+          if (renderInsertError) {
+            console.error("❌ Failed to insert render record:", renderInsertError);
+            // Don't throw - room_images already has the image, approval workflow will be incomplete
+          } else {
+            console.log(`✅ Render saved to renders table: id=${renderRecord?.id}, version=${newVersionNumber}, room=${job.room_id}`);
+          }
+        } catch (renderTableError) {
+          console.error("❌ Error saving to renders table (non-fatal):", renderTableError);
+          // Non-fatal: room_images still has the image, but approval workflow won't work for this render
         }
 
         // Update room phase
