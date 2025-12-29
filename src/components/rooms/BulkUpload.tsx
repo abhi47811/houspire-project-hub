@@ -139,6 +139,11 @@ export function BulkUpload({
     });
   };
 
+  const applyRoomTypeToAll = (roomType: string) => {
+    setFiles(prev => prev.map(f => ({ ...f, roomType })));
+    toast({ title: `Applied "${roomTypes.find(r => r.value === roomType)?.label}" to all files` });
+  };
+
   const handleUpload = async () => {
     if (files.length === 0) return;
 
@@ -184,13 +189,14 @@ export function BulkUpload({
               // Update file status to uploading
               updateFile(fileIndex, { uploadStatus: 'uploading' });
 
-              // Create room record
+              // Create room record - use room type label as room name
+              const roomTypeLabel = roomTypes.find(t => t.value === file.roomType)?.label || 'Room';
               const { data: room, error: roomError } = await supabase
                 .from('rooms')
                 .insert({
                   project_id: projectId,
                   room_number: currentRoomNumber,
-                  room_name: file.roomName,
+                  room_name: `${roomTypeLabel} ${currentRoomNumber}`,
                   room_type: file.roomType as any,
                   batch_id: batch.id,
                   batch_position: fileIndex,
@@ -332,37 +338,52 @@ export function BulkUpload({
 
           {/* File List */}
           {files.length > 0 && (
-            <ScrollArea className="h-[300px] border rounded-lg p-4 overflow-x-hidden">
-              <div className="space-y-3 overflow-x-hidden">
-                {files.map((file, index) => (
-                  <div
-                    key={`${file.file?.name || 'file'}-${index}`}
-                    className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg"
-                  >
-                    {/* Preview */}
-                    <div className="h-16 w-16 rounded overflow-hidden flex-shrink-0 bg-muted">
-                      {file.preview ? (
-                        <img
-                          src={file.preview}
-                          alt={file.roomName}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center">
-                          <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
+            <div className="space-y-3">
+              {/* Batch apply header */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">
+                  {files.length} file{files.length !== 1 ? 's' : ''} selected
+                </span>
+                {!isUploading && (
+                  <Select onValueChange={applyRoomTypeToAll}>
+                    <SelectTrigger className="w-[180px] h-8">
+                      <SelectValue placeholder="Apply type to all..." />
+                    </SelectTrigger>
+                    <SelectContent className="z-[1000] bg-popover">
+                      {roomTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
 
-                    {/* Details - Grid layout to prevent overflow */}
-                    <div className="flex-1 min-w-0 space-y-2">
-                      <div className="grid grid-cols-[1fr_140px] gap-2">
-                        <Input
-                          value={file.roomName}
-                          onChange={(e) => updateFile(index, { roomName: e.target.value })}
-                          className="h-8 min-w-0"
-                          disabled={isUploading}
-                        />
+              <ScrollArea className="h-[280px] border rounded-lg p-4 overflow-x-hidden">
+                <div className="space-y-3 overflow-x-hidden">
+                  {files.map((file, index) => (
+                    <div
+                      key={`${file.file?.name || 'file'}-${index}`}
+                      className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg"
+                    >
+                      {/* Preview */}
+                      <div className="h-14 w-14 rounded overflow-hidden flex-shrink-0 bg-muted">
+                        {file.preview ? (
+                          <img
+                            src={file.preview}
+                            alt="Room preview"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center">
+                            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Room type select and filename */}
+                      <div className="flex-1 min-w-0 space-y-1">
                         <Select
                           value={file.roomType}
                           onValueChange={(value) => updateFile(index, { roomType: value })}
@@ -371,7 +392,7 @@ export function BulkUpload({
                           <SelectTrigger className="h-8">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="z-[1000]">
+                          <SelectContent className="z-[1000] bg-popover">
                             {roomTypes.map((type) => (
                               <SelectItem key={type.value} value={type.value}>
                                 {type.label}
@@ -379,39 +400,39 @@ export function BulkUpload({
                             ))}
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {file.file?.name || 'Unknown file'}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {file.file?.name || 'Unknown file'} ({((file.file?.size || 0) / 1024 / 1024).toFixed(2)} MB)
-                      </p>
-                    </div>
 
-                    {/* Status */}
-                    <div className="flex-shrink-0">
-                      {file.uploadStatus === 'pending' && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => removeFile(index)}
-                          disabled={isUploading}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {file.uploadStatus === 'uploading' && (
-                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                      )}
-                      {file.uploadStatus === 'success' && (
-                        <Check className="h-5 w-5 text-success" />
-                      )}
-                      {file.uploadStatus === 'error' && (
-                        <AlertCircle className="h-5 w-5 text-destructive" />
-                      )}
+                      {/* Status */}
+                      <div className="flex-shrink-0">
+                        {file.uploadStatus === 'pending' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => removeFile(index)}
+                            disabled={isUploading}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {file.uploadStatus === 'uploading' && (
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        )}
+                        {file.uploadStatus === 'success' && (
+                          <Check className="h-5 w-5 text-success" />
+                        )}
+                        {file.uploadStatus === 'error' && (
+                          <AlertCircle className="h-5 w-5 text-destructive" />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
           )}
 
           {/* Upload Progress */}
@@ -426,10 +447,7 @@ export function BulkUpload({
           )}
 
           {/* Actions */}
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-muted-foreground">
-              {files.length} file{files.length !== 1 ? 's' : ''} selected
-            </div>
+          <div className="flex justify-end items-center">
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleClose} disabled={isUploading}>
                 Cancel
