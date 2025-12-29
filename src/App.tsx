@@ -10,6 +10,9 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { PageLoader } from "@/components/ui/loading-spinner";
+import { FlowTracker } from "@/components/debug/FlowTracker";
+import { MutationMonitorProvider } from "@/components/debug/MutationMonitorProvider";
+import { RouteErrorBoundary } from "@/components/debug/RouteErrorBoundary";
 
 // Lazy load pages for code splitting
 const Login = lazy(() => import("./pages/Login"));
@@ -39,16 +42,22 @@ const queryClient = new QueryClient({
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
+      <MutationMonitorProvider />
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <FlowTracker />
         <BrowserRouter>
           <AuthProvider>
             <GlobalSearch />
             <Suspense fallback={<PageLoader text="Loading..." />}>
               <Routes>
                 {/* Public Routes */}
-                <Route path="/login" element={<Login />} />
+                <Route path="/login" element={
+                  <RouteErrorBoundary routeName="Login">
+                    <Login />
+                  </RouteErrorBoundary>
+                } />
 
                 {/* Protected Routes with App Layout */}
                 <Route
@@ -58,19 +67,53 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 >
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/projects" element={<Projects />} />
-                  <Route path="/projects/:id" element={<ProjectDetail />} />
-                  <Route path="/projects/:projectId/rooms/:roomId" element={<RoomDetail />} />
-                  <Route path="/projects/:projectId/budget" element={<Budget />} />
-                  <Route path="/projects/:projectId/vendors" element={<Vendors />} />
-                  <Route path="/library" element={<Library />} />
-                  <Route path="/team" element={<Team />} />
+                  <Route path="/" element={
+                    <RouteErrorBoundary routeName="Dashboard">
+                      <Dashboard />
+                    </RouteErrorBoundary>
+                  } />
+                  <Route path="/projects" element={
+                    <RouteErrorBoundary routeName="Projects">
+                      <Projects />
+                    </RouteErrorBoundary>
+                  } />
+                  <Route path="/projects/:id" element={
+                    <RouteErrorBoundary routeName="ProjectDetail">
+                      <ProjectDetail />
+                    </RouteErrorBoundary>
+                  } />
+                  <Route path="/projects/:projectId/rooms/:roomId" element={
+                    <RouteErrorBoundary routeName="RoomDetail">
+                      <RoomDetail />
+                    </RouteErrorBoundary>
+                  } />
+                  <Route path="/projects/:projectId/budget" element={
+                    <RouteErrorBoundary routeName="Budget">
+                      <Budget />
+                    </RouteErrorBoundary>
+                  } />
+                  <Route path="/projects/:projectId/vendors" element={
+                    <RouteErrorBoundary routeName="Vendors">
+                      <Vendors />
+                    </RouteErrorBoundary>
+                  } />
+                  <Route path="/library" element={
+                    <RouteErrorBoundary routeName="Library">
+                      <Library />
+                    </RouteErrorBoundary>
+                  } />
+                  <Route path="/team" element={
+                    <RouteErrorBoundary routeName="Team">
+                      <Team />
+                    </RouteErrorBoundary>
+                  } />
                   <Route
                     path="/admin"
                     element={
                       <ProtectedRoute allowedRoles={['admin']}>
-                        <Admin />
+                        <RouteErrorBoundary routeName="Admin">
+                          <Admin />
+                        </RouteErrorBoundary>
                       </ProtectedRoute>
                     }
                   />
@@ -78,7 +121,9 @@ const App = () => (
                     path="/admin/approval"
                     element={
                       <ProtectedRoute allowedRoles={['admin']}>
-                        <ApprovalDashboard />
+                        <RouteErrorBoundary routeName="ApprovalDashboard">
+                          <ApprovalDashboard />
+                        </RouteErrorBoundary>
                       </ProtectedRoute>
                     }
                   />
@@ -86,7 +131,9 @@ const App = () => (
                     path="/admin/library-analyzer"
                     element={
                       <ProtectedRoute allowedRoles={['admin']}>
-                        <LibraryAnalyzer />
+                        <RouteErrorBoundary routeName="LibraryAnalyzer">
+                          <LibraryAnalyzer />
+                        </RouteErrorBoundary>
                       </ProtectedRoute>
                     }
                   />
