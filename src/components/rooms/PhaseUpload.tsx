@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,8 @@ import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { ImageUpload } from './ImageUpload';
 import { ImageViewer } from './ImageViewer';
 import { useToast } from '@/hooks/use-toast';
+import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hooks/useEnhancedKeyboardShortcuts';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Room {
   id: string;
@@ -24,6 +26,7 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
   const { toast } = useToast();
   const [uploadComplete, setUploadComplete] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: existingImage } = useQuery({
     queryKey: ['room-images', room.id, 1, 'original'],
@@ -42,6 +45,26 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
   });
 
   const hasImage = !!existingImage || uploadComplete;
+
+  // Keyboard shortcut: trigger file picker
+  const triggerUpload = useCallback(() => {
+    // Try to click the hidden file input in ImageUpload
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fileInput?.click();
+  }, []);
+
+  // Keyboard shortcut: continue to analysis
+  const handleKeyboardContinue = useCallback(() => {
+    if (hasImage && !isLoading) {
+      handleContinue();
+    }
+  }, [hasImage, isLoading]);
+
+  // Register keyboard shortcuts
+  useEnhancedKeyboardShortcuts({
+    onUpload: triggerUpload,
+    onContinue: handleKeyboardContinue,
+  });
 
   const handleUploadComplete = () => {
     setUploadComplete(true);
@@ -140,23 +163,45 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
       </div>
 
       {/* Actions */}
-      <div className="pt-4 border-t flex justify-end">
-        <Button 
-          onClick={handleContinue}
-          disabled={!hasImage || isLoading}
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            <>
-              Continue to Analysis
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </>
-          )}
-        </Button>
+      <div className="pt-4 border-t flex justify-end gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="outline"
+              onClick={triggerUpload}
+              disabled={isLoading}
+            >
+              Upload Image
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Upload Image ({getShortcutHint(SHORTCUTS.upload)})</p>
+          </TooltipContent>
+        </Tooltip>
+        
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              onClick={handleContinue}
+              disabled={!hasImage || isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  Continue to Analysis
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Continue ({getShortcutHint(SHORTCUTS.continue)})</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
