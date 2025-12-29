@@ -45,7 +45,7 @@ export const AdminDashboard = forwardRef<HTMLDivElement, Record<string, never>>(
       )}
 
       {/* Row 1: Core KPIs (4 cards) */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
         <ActiveProjectsCard />
         <RenderingProgressCard />
         <CostTrackingCard />
@@ -53,23 +53,25 @@ export const AdminDashboard = forwardRef<HTMLDivElement, Record<string, never>>(
       </div>
 
       {/* Row 2: Status & Compliance (2 wide cards) */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
         <DeadlineTrackerCard />
         <PreservationComplianceCard />
       </div>
 
       {/* Row 3: Pipeline Visualization (full width) */}
-      <PipelineVisualizationCard />
+      <div className="animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+        <PipelineVisualizationCard />
+      </div>
 
       {/* Row 4: Analytics Charts (3 cards) */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-fade-in-up" style={{ animationDelay: '300ms' }}>
         <CityBreakdownCard />
         <PopularCombinationsCard />
         <TeamPerformanceCard />
       </div>
 
       {/* Row 5: Activity (2 wide cards) */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 animate-fade-in-up" style={{ animationDelay: '400ms' }}>
         <RecentProjectsCard />
         <TeamActivityFeed />
       </div>

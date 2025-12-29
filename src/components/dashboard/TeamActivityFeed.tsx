@@ -15,7 +15,7 @@ export function TeamActivityFeed() {
   if (isLoading) return <TeamActivitySkeleton />;
 
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card className="card-interactive">
       <CardHeader>
         <CardTitle>Team Activity</CardTitle>
         <CardDescription>Recent activity from your team</CardDescription>
@@ -23,10 +23,14 @@ export function TeamActivityFeed() {
       <CardContent>
         {(activities || []).length > 0 ? (
           <div className="space-y-4">
-            {activities?.map((activity) => (
-              <div key={activity.id} className="flex items-start gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+            {activities?.map((activity, index) => (
+              <div 
+                key={activity.id} 
+                className="flex items-start gap-3 animate-fade-in"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <Avatar className="h-8 w-8 ring-2 ring-transparent hover:ring-primary/20 transition-all duration-200">
+                  <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary text-xs">
                     {activity.userName.split(' ').map(n => n[0]).join('')}
                   </AvatarFallback>
                 </Avatar>

@@ -53,7 +53,7 @@ export function MetricCard({
   return (
     <Card 
       className={cn(
-        'opacity-0 animate-fade-in-up',
+        'opacity-0 animate-fade-in-up card-interactive',
         delayClass,
         className
       )}
@@ -65,11 +65,11 @@ export function MetricCard({
         </CardTitle>
         <div 
           className={cn(
-            'rounded-xl p-2.5 transition-transform duration-200 group-hover:scale-105',
+            'rounded-xl p-2.5 transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg',
             'bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5'
           )}
         >
-          <Icon className={cn('h-5 w-5', iconColor)} />
+          <Icon className={cn('h-5 w-5 transition-colors', iconColor)} />
         </div>
       </CardHeader>
       <CardContent className="pt-0">

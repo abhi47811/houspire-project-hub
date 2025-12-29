@@ -17,11 +17,11 @@ export default function Dashboard() {
   const userName = profile?.full_name || user?.email?.split('@')[0] || 'there';
 
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container animate-fade-in">
       <div className="space-y-8">
         {/* Welcome Section */}
         <div className="animate-fade-in-up">
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">
+          <h1 className="text-3xl font-bold text-gradient tracking-tight">
             Welcome back, {userName}!
           </h1>
           <p className="text-muted-foreground mt-1 text-base">
