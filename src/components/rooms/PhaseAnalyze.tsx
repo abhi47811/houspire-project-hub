@@ -14,6 +14,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hooks/useEnhancedKeyboardShortcuts';
+import { useProjectStyle } from '@/hooks/useProjectStyle';
+import { useApplyStyleToAllRooms } from '@/hooks/useBulkOperations';
+import { StyleConflictDialog } from '@/components/dialogs/StyleConflictDialog';
 import { handleApiError } from '@/lib/api-error';
 import {
   CheckCircle,
@@ -98,6 +101,15 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
     outletCount: 0,
   });
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  
+  // Project style conflict detection
+  const { 
+    checkAndConfirmStyle, 
+    conflictDialog, 
+    closeConflictDialog,
+    refetch: refetchProjectStyles 
+  } = useProjectStyle(projectId, room.id);
+  const applyStyleToAll = useApplyStyleToAllRooms();
   
   // Analysis timing state
   const [analysisStartTime, setAnalysisStartTime] = useState<number | null>(null);
@@ -735,7 +747,45 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
           Suggested Styles
         </h4>
         
-        <RadioGroup value={selectedStyle || ''} onValueChange={setSelectedStyle}>
+        <RadioGroup 
+          value={selectedStyle || ''} 
+          onValueChange={async (newStyle) => {
+            const previousStyle = selectedStyle;
+            const action = await checkAndConfirmStyle(newStyle);
+            
+            if (action === 'cancel') {
+              // Revert to previous style (user cancelled)
+              return;
+            }
+            
+            if (action === 'apply_all') {
+              // Apply to all rooms in project
+              try {
+                await applyStyleToAll.mutateAsync({
+                  projectId,
+                  designStyle: newStyle,
+                  userId: user?.id || '',
+                });
+                setSelectedStyle(newStyle);
+                refetchProjectStyles();
+                toast({
+                  title: 'Style applied to all rooms',
+                  description: `"${newStyle}" has been applied to all rooms in this project.`,
+                });
+              } catch (error) {
+                toast({
+                  title: 'Failed to apply style',
+                  description: error instanceof Error ? error.message : 'Unknown error',
+                  variant: 'destructive',
+                });
+              }
+              return;
+            }
+            
+            // Override: apply to this room only
+            setSelectedStyle(newStyle);
+          }}
+        >
           <div className="space-y-2">
             {analysis?.suggested_styles?.map((style) => (
               <label
@@ -765,6 +815,16 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
           </div>
         </RadioGroup>
       </div>
+
+      {/* Style Conflict Dialog */}
+      <StyleConflictDialog
+        open={conflictDialog.isOpen}
+        onOpenChange={(open) => !open && closeConflictDialog()}
+        newStyle={conflictDialog.newStyle}
+        existingStyles={conflictDialog.existingStyles}
+        dominantStyle={conflictDialog.dominantStyle}
+        onResolve={conflictDialog.onResolve || (() => {})}
+      />
 
       {/* Actions */}
       <div className="pt-4 border-t space-y-2">
