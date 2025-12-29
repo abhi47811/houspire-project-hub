@@ -4,3 +4,6 @@ export { BulkApprovalDialog } from './BulkApprovalDialog';
 export { NotificationCenter } from './NotificationCenter';
 export { LibraryCatalogPrompt } from './LibraryCatalogPrompt';
 export { LibraryContributionNotification } from './LibraryContributionNotification';
+export { SaveTemplateDialog } from './SaveTemplateDialog';
+export { UseTemplateDialog } from './UseTemplateDialog';
+export { KeyboardShortcutsDialog } from './KeyboardShortcutsDialog';

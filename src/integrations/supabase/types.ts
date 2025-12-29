@@ -333,6 +333,42 @@ export type Database = {
           },
         ]
       }
+      design_templates: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_public: boolean | null
+          name: string
+          room_type: string | null
+          settings: Json
+          times_used: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_public?: boolean | null
+          name: string
+          room_type?: string | null
+          settings?: Json
+          times_used?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_public?: boolean | null
+          name?: string
+          room_type?: string | null
+          settings?: Json
+          times_used?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       job_queue: {
         Row: {
           completed_at: string | null
