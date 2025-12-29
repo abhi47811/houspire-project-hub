@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface MetricCardProps {
   title: string;
@@ -21,6 +21,7 @@ interface MetricCardProps {
   };
   isLoading?: boolean;
   className?: string;
+  animationDelay?: number;
 }
 
 const badgeVariants = {
@@ -36,45 +37,68 @@ export function MetricCard({
   subtitle,
   icon: Icon,
   iconColor = 'text-primary',
-  iconBgColor = 'bg-primary/10',
+  iconBgColor,
   trend,
   badge,
   isLoading,
   className,
+  animationDelay = 0,
 }: MetricCardProps) {
   if (isLoading) {
     return <MetricCardSkeleton />;
   }
 
+  const delayClass = animationDelay > 0 ? `delay-${animationDelay}` : '';
+
   return (
-    <Card className={cn('transition-shadow hover:shadow-md', className)}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+    <Card 
+      className={cn(
+        'opacity-0 animate-fade-in-up',
+        delayClass,
+        className
+      )}
+      style={{ animationDelay: `${animationDelay}ms` }}
+    >
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle className="text-sm font-medium text-muted-foreground tracking-wide">
           {title}
         </CardTitle>
-        <div className={cn('rounded-lg p-2', iconBgColor)}>
-          <Icon className={cn('h-4 w-4', iconColor)} />
+        <div 
+          className={cn(
+            'rounded-xl p-2.5 transition-transform duration-200 group-hover:scale-105',
+            'bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5'
+          )}
+        >
+          <Icon className={cn('h-5 w-5', iconColor)} />
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="flex items-baseline justify-between">
-          <div className="text-2xl font-bold">{value}</div>
+      <CardContent className="pt-0">
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="metric-number text-foreground">{value}</div>
           {badge && (
-            <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', badgeVariants[badge.variant])}>
+            <span className={cn(
+              'rounded-full px-2.5 py-1 text-xs font-semibold',
+              badgeVariants[badge.variant]
+            )}>
               {badge.text}
             </span>
           )}
         </div>
         {subtitle && (
-          <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
         )}
         {trend && (
-          <p className={cn(
-            'mt-1 text-xs',
+          <div className={cn(
+            'mt-3 flex items-center gap-1.5 text-sm font-medium',
             trend.isPositive ? 'text-success' : 'text-destructive'
           )}>
-            {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}% from last month
-          </p>
+            {trend.isPositive ? (
+              <TrendingUp className="h-4 w-4" />
+            ) : (
+              <TrendingDown className="h-4 w-4" />
+            )}
+            <span>{Math.abs(trend.value)}% from last month</span>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -84,13 +108,13 @@ export function MetricCard({
 export function MetricCardSkeleton() {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <Skeleton className="h-4 w-24" />
-        <Skeleton className="h-8 w-8 rounded-lg" />
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-10 w-10 rounded-xl" />
       </CardHeader>
-      <CardContent>
-        <Skeleton className="h-8 w-16" />
-        <Skeleton className="mt-2 h-3 w-32" />
+      <CardContent className="pt-0">
+        <Skeleton className="h-9 w-20" />
+        <Skeleton className="mt-3 h-4 w-36" />
       </CardContent>
     </Card>
   );
