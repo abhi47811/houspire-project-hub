@@ -34,12 +34,6 @@ export const AdminDashboard = forwardRef<HTMLDivElement, Record<string, never>>(
 
   return (
     <div ref={ref} className="space-y-6 pb-20">
-      {/* Welcome Section */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Welcome back, {userName}!</h1>
-        <p className="text-muted-foreground">Here's an overview of all projects and team activity.</p>
-      </div>
-
       {/* Critical Alerts */}
       {hasOverdue && (
         <Alert variant="destructive">

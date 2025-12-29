@@ -2,17 +2,24 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { useTeamActivity } from '@/hooks/useDashboardData';
 import { formatDistanceToNow, parseISO } from 'date-fns';
+import { Users, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export function TeamActivityFeed() {
   const { data: activities, isLoading } = useTeamActivity();
+  const navigate = useNavigate();
 
   if (isLoading) return <TeamActivitySkeleton />;
 
   return (
     <Card className="transition-shadow hover:shadow-md">
-      <CardHeader><CardTitle>Team Activity</CardTitle><CardDescription>Recent activity from your team</CardDescription></CardHeader>
+      <CardHeader>
+        <CardTitle>Team Activity</CardTitle>
+        <CardDescription>Recent activity from your team</CardDescription>
+      </CardHeader>
       <CardContent>
         {(activities || []).length > 0 ? (
           <div className="space-y-4">
@@ -37,7 +44,23 @@ export function TeamActivityFeed() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">No recent activity</p>
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <Users className="h-10 w-10 text-muted-foreground/50 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">No activity yet</p>
+            <p className="text-xs text-muted-foreground/70 mt-1 max-w-[200px]">
+              Team activity will appear here when members start working on projects.
+            </p>
+            <div className="flex gap-2 mt-4">
+              <Button variant="outline" size="sm" onClick={() => navigate('/team')}>
+                <Users className="h-4 w-4 mr-1" />
+                Invite Team
+              </Button>
+              <Button size="sm" onClick={() => navigate('/projects/new')}>
+                <Plus className="h-4 w-4 mr-1" />
+                Create Project
+              </Button>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>
