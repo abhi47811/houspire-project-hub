@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Palette, Copy, Save, Sparkles, Check, ChevronDown, Compass, Library, Upload, ArrowLeft, MapPin, Star, Clock, CheckCircle2, AlertTriangle, Zap, Edit3, FileBox, Undo2, Redo2 } from 'lucide-react';
+import { Palette, Copy, Save, Sparkles, Check, ChevronDown, Compass, Library, Upload, ArrowLeft, MapPin, Star, Clock, CheckCircle2, AlertTriangle, Zap, Edit3, FileBox, Undo2, Redo2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
@@ -29,7 +29,8 @@ import { ManualPromptEditor } from './ManualPromptEditor';
 import { PromptPreview } from './PromptPreview';
 import { CopySettingsDialog, SaveTemplateDialog, UseTemplateDialog } from '@/components/dialogs';
 import { useHistory } from '@/hooks/useHistory';
-import { useEnhancedKeyboardShortcuts, getShortcutHint } from '@/hooks/useEnhancedKeyboardShortcuts';
+import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hooks/useEnhancedKeyboardShortcuts';
+import { handleApiError } from '@/lib/api-error';
 
 interface Room {
   id: string;
@@ -250,6 +251,11 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
     onCopySettings: () => {
       if (mode === 'customize') {
         setShowCopyDialog(true);
+      }
+    },
+    onContinue: () => {
+      if (mode === 'customize' && !isApplying) {
+        handleApplyAndContinue();
       }
     },
   });
@@ -1236,36 +1242,46 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
 
       {/* Actions */}
       <div className="pt-4 border-t space-y-2">
-        <Button
-          className={cn(
-            "w-full",
-            generationPath === 'bypass' && "bg-destructive hover:bg-destructive/90"
-          )}
-          onClick={handleApplyAndContinue}
-          disabled={
-            isApplying || 
-            room.phase_4_completed || 
-            ((generationPath === 'smart_defaults' || generationPath === 'library') && !selectedStyle) ||
-            (generationPath === 'manual' && !manualPrompt.trim()) ||
-            (generationPath === 'bypass' && !bypassPrompt.trim())
-          }
-        >
-          {room.phase_4_completed ? (
-            <>
-              <Check className="mr-2 h-4 w-4" />
-              Customization Complete
-            </>
-          ) : isApplying ? (
-            'Applying...'
-          ) : generationPath === 'bypass' ? (
-            <>
-              <Zap className="mr-2 h-4 w-4" />
-              Apply Bypass & Continue →
-            </>
-          ) : (
-            'Apply & Continue to Phase 5'
-          )}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              className={cn(
+                "w-full",
+                generationPath === 'bypass' && "bg-destructive hover:bg-destructive/90"
+              )}
+              onClick={handleApplyAndContinue}
+              disabled={
+                isApplying || 
+                room.phase_4_completed || 
+                ((generationPath === 'smart_defaults' || generationPath === 'library') && !selectedStyle) ||
+                (generationPath === 'manual' && !manualPrompt.trim()) ||
+                (generationPath === 'bypass' && !bypassPrompt.trim())
+              }
+            >
+              {room.phase_4_completed ? (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Customization Complete
+                </>
+              ) : isApplying ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Applying...
+                </>
+              ) : generationPath === 'bypass' ? (
+                <>
+                  <Zap className="mr-2 h-4 w-4" />
+                  Apply Bypass & Continue →
+                </>
+              ) : (
+                'Apply & Continue to Phase 5'
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Continue to next phase {getShortcutHint(SHORTCUTS.continue)}</p>
+          </TooltipContent>
+        </Tooltip>
 
         {/* Undo/Redo and Quick Actions */}
         <div className="flex gap-2">

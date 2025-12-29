@@ -4,13 +4,19 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { useJobQueue, useRoomJobStatus } from '@/hooks/useJobQueue';
 import { CleaningRefinement } from './CleaningRefinement';
 import { BatchCleanup } from './BatchCleanup';
+import { handleApiError } from '@/lib/api-error';
+import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hooks/useEnhancedKeyboardShortcuts';
+import { PhaseCleanSkeleton } from './PhaseSkeletons';
+
 interface Room {
   id: string;
   current_phase: number;
@@ -271,10 +277,10 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
 
       queryClient.invalidateQueries({ queryKey: ['room', room.id] });
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to approve cleaned image.',
-        variant: 'destructive',
+      handleApiError(error, {
+        showToast: true,
+        defaultMessage: 'Failed to approve cleaned image.',
+        onRetry: handleApprove,
       });
     } finally {
       setIsApproving(false);
@@ -313,10 +319,10 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
       queryClient.invalidateQueries({ queryKey: ['room', room.id] });
       queryClient.invalidateQueries({ queryKey: ['jobs', projectId, room.id] });
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to reset cleaning job.',
-        variant: 'destructive',
+      handleApiError(error, {
+        showToast: true,
+        defaultMessage: 'Failed to reset cleaning job.',
+        onRetry: handleRetry,
       });
     } finally {
       setIsRetrying(false);
@@ -592,14 +598,25 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
 
         {/* Approve Button - show when completed and NOT already approved */}
         {cleaningStatus === 'completed' && !room.phase_3_completed && (
-          <Button 
-            className="w-full" 
-            onClick={handleApprove}
-            disabled={!allValidationsPassed || isApproving}
-          >
-            <Check className="mr-2 h-4 w-4" />
-            Approve Cleaned Image
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                className="w-full" 
+                onClick={handleApprove}
+                disabled={!allValidationsPassed || isApproving}
+              >
+                {isApproving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="mr-2 h-4 w-4" />
+                )}
+                Approve Cleaned Image
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Approve {getShortcutHint(SHORTCUTS.approve)}</p>
+            </TooltipContent>
+          </Tooltip>
         )}
         
         {/* Show success message when already approved */}
@@ -633,14 +650,25 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         )}
         
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            onClick={handleRetry}
-            disabled={isRetrying || isProcessing || retryJob.isPending || submitJob.isPending}
-          >
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Reset & Retry
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                onClick={handleRetry}
+                disabled={isRetrying || isProcessing || retryJob.isPending || submitJob.isPending}
+              >
+                {isRetrying ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                )}
+                Reset & Retry
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Reset and retry cleaning {getShortcutHint(SHORTCUTS.regenerate)}</p>
+            </TooltipContent>
+          </Tooltip>
           <Button 
             variant="outline"
             onClick={handleFlagForReview}
