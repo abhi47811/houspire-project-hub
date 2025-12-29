@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LayoutDashboard, Users, Building2, IndianRupee, BarChart3, Activity, Image, Database } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, IndianRupee, BarChart3, Activity, Image, Database, Upload } from 'lucide-react';
 import { SystemDashboard } from '@/components/admin/SystemDashboard';
 import { UserManagement } from '@/components/admin/UserManagement';
 import { VendorManagement } from '@/components/admin/VendorManagement';
@@ -8,6 +8,7 @@ import { AnalyticsView } from '@/components/admin/AnalyticsView';
 import { MonitoringDashboard } from '@/components/admin/MonitoringDashboard';
 import { LibraryAnalytics } from '@/components/admin/LibraryAnalytics';
 import { LoadSmartDefaults } from '@/components/admin/LoadSmartDefaults';
+import { LibraryCuratorUpload } from '@/components/admin/LibraryCuratorUpload';
 
 export default function Admin() {
   return (
@@ -74,7 +75,10 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="library">
-          <LibraryAnalytics />
+          <div className="space-y-6">
+            <LibraryCuratorUpload />
+            <LibraryAnalytics />
+          </div>
         </TabsContent>
 
         <TabsContent value="analytics">
