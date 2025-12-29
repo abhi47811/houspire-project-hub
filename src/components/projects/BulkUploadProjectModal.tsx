@@ -33,6 +33,23 @@ import {
 } from 'lucide-react';
 import { cities } from '@/hooks/useProjectsData';
 
+const roomTypes = [
+  { value: 'living_room', label: 'Living Room' },
+  { value: 'master_bedroom', label: 'Master Bedroom' },
+  { value: 'bedroom', label: 'Bedroom' },
+  { value: 'kitchen', label: 'Kitchen' },
+  { value: 'dining_room', label: 'Dining Room' },
+  { value: 'balcony', label: 'Balcony' },
+  { value: 'study_room', label: 'Study Room' },
+  { value: 'kids_room', label: "Kids Room" },
+  { value: 'guest_room', label: 'Guest Room' },
+  { value: 'pooja_room', label: 'Pooja Room' },
+  { value: 'home_office', label: 'Home Office' },
+  { value: 'gym', label: 'Gym' },
+  { value: 'entertainment_room', label: 'Entertainment Room' },
+  { value: 'utility_room', label: 'Utility Room' },
+];
+
 interface BulkUploadProjectModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -42,6 +59,7 @@ interface UploadedFile {
   file: File;
   preview: string;
   id: string;
+  roomType: string;
 }
 
 export function BulkUploadProjectModal({
@@ -71,9 +89,21 @@ export function BulkUploadProjectModal({
       file,
       preview: URL.createObjectURL(file),
       id: crypto.randomUUID(),
+      roomType: 'living_room',
     }));
     setUploadedFiles(prev => [...prev, ...newFiles]);
   }, [uploadedFiles.length]);
+
+  const updateFileRoomType = (id: string, roomType: string) => {
+    setUploadedFiles(prev => 
+      prev.map(f => f.id === id ? { ...f, roomType } : f)
+    );
+  };
+
+  const applyRoomTypeToAll = (roomType: string) => {
+    setUploadedFiles(prev => prev.map(f => ({ ...f, roomType })));
+    toast({ title: `Applied "${roomTypes.find(r => r.value === roomType)?.label}" to all images` });
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -147,12 +177,14 @@ export function BulkUploadProjectModal({
         const { file, id } = uploadedFiles[i];
         
         // Create room
+        const roomTypeLabel = roomTypes.find(t => t.value === uploadedFiles[i].roomType)?.label || 'Room';
         const { data: room, error: roomError } = await supabase
           .from('rooms')
           .insert({
             project_id: project.id,
             room_number: i + 1,
-            room_name: `Room ${i + 1}`,
+            room_name: `${roomTypeLabel} ${i + 1}`,
+            room_type: uploadedFiles[i].roomType as any,
             current_phase: 1,
           })
           .select()
@@ -349,43 +381,77 @@ export function BulkUploadProjectModal({
 
               {/* Uploaded Files Preview */}
               {uploadedFiles.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">
                       Uploaded: {uploadedFiles.length} images
                     </span>
-                    {!isSubmitting && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => {
-                          uploadedFiles.forEach(f => URL.revokeObjectURL(f.preview));
-                          setUploadedFiles([]);
-                        }}
-                      >
-                        Clear All
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {!isSubmitting && (
+                        <Select onValueChange={applyRoomTypeToAll}>
+                          <SelectTrigger className="w-[160px] h-8">
+                            <SelectValue placeholder="Apply to all..." />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            {roomTypes.map((type) => (
+                              <SelectItem key={type.value} value={type.value}>
+                                {type.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {!isSubmitting && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            uploadedFiles.forEach(f => URL.revokeObjectURL(f.preview));
+                            setUploadedFiles([]);
+                          }}
+                        >
+                          Clear All
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-4 gap-3">
                     {uploadedFiles.map((file) => (
-                      <div key={file.id} className="relative group aspect-square">
-                        <img
-                          src={file.preview}
-                          alt={file.file.name}
-                          className="w-full h-full object-cover rounded-lg"
-                        />
-                        {!isSubmitting && (
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            className="absolute top-1 right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => removeFile(file.id)}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        )}
+                      <div key={file.id} className="space-y-2">
+                        <div className="relative group aspect-square">
+                          <img
+                            src={file.preview}
+                            alt={file.file.name}
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                          {!isSubmitting && (
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-1 right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => removeFile(file.id)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                        <Select 
+                          value={file.roomType} 
+                          onValueChange={(v) => updateFileRoomType(file.id, v)}
+                          disabled={isSubmitting}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            {roomTypes.map((type) => (
+                              <SelectItem key={type.value} value={type.value}>
+                                {type.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     ))}
                   </div>
