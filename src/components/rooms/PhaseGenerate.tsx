@@ -40,12 +40,14 @@ import { QualityControlPanel } from './QualityControlPanel';
 import { PromptEditor } from './PromptEditor';
 import { useBatches } from '@/hooks/useBatches';
 import { useQualityControl } from '@/hooks/useQualityControl';
+import { buildRichPrompt, buildRefinementPrompt, getRoomTemplate } from '@/lib/promptTemplates';
 
 interface RegenerateOptions {
   useSmartDefaults: boolean;
   useLibraryReference: boolean;
   manualPrompt?: string;
   customRequirements?: string;
+  refinementPrompt?: string;
 }
 
 interface Room {
@@ -333,11 +335,75 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       return room.custom_prompt;
     }
     
-    // Default prompt for smart_defaults or library
-    const styleText = room.selected_style?.replace('_', ' ') || 'contemporary';
-    const roomTypeText = room.room_type?.replace('_', ' ') || 'living room';
+    // Use room template for rich initial prompt
+    const template = getRoomTemplate(room.room_type);
+    const hasFan = room.ceiling_fan_detected || false;
     
-    return `Create a photorealistic ${roomTypeText} interior design render in ${styleText} style. Include appropriate furniture, lighting, materials, and decor elements that match the design aesthetic. Ensure the render looks like a professional magazine photograph.`;
+    return buildRichPrompt(
+      room.room_type,
+      room.selected_style,
+      hasFan,
+      undefined, // specs loaded async
+      undefined, // checklist loaded async
+      undefined, // finishes loaded async
+      room.custom_prompt || undefined
+    );
+  };
+
+  // Build detailed prompt with smart defaults data
+  const buildDetailedPrompt = async (): Promise<{ prompt: string; smartDefaultData: any | null }> => {
+    const genPath = room.generation_path as string | null;
+    
+    // For bypass/manual, use custom prompt directly
+    if ((genPath === 'bypass' || genPath === 'manual') && room.custom_prompt) {
+      return { prompt: room.custom_prompt, smartDefaultData: null };
+    }
+    
+    // Fetch smart defaults if available
+    let smartDefaultData = null;
+    if (room.smart_default_id) {
+      const { data } = await supabase
+        .from('smart_defaults')
+        .select('id, style, room_type, specifications, checklist, finishes')
+        .eq('id', room.smart_default_id)
+        .single();
+      smartDefaultData = data;
+    }
+    
+    // Detect ceiling fan from room analysis or explicit flag
+    let hasCeilingFan = room.ceiling_fan_detected || false;
+    if (!hasCeilingFan) {
+      const { data: analysis } = await supabase
+        .from('room_analysis')
+        .select('ceiling_fan_count, other_features')
+        .eq('room_id', room.id)
+        .single();
+      
+      if (analysis?.ceiling_fan_count && analysis.ceiling_fan_count > 0) {
+        hasCeilingFan = true;
+      }
+    }
+    
+    // Build rich prompt using template and smart defaults
+    const prompt = buildRichPrompt(
+      room.room_type,
+      room.selected_style,
+      hasCeilingFan,
+      smartDefaultData?.specifications,
+      smartDefaultData?.checklist,
+      smartDefaultData?.finishes,
+      room.custom_prompt || undefined
+    );
+    
+    console.log('Built detailed prompt with smart defaults:', {
+      roomType: room.room_type,
+      style: room.selected_style,
+      hasCeilingFan,
+      hasSmartDefaults: !!smartDefaultData,
+      promptLength: prompt.length
+    });
+    
+    return { prompt, smartDefaultData };
   };
 
   // Initialize editable prompt
@@ -508,29 +574,43 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       // Build payload based on options
       const payload: Record<string, any> = {
         style: room.selected_style,
-        roomType: room.room_type
+        roomType: room.room_type,
+        smartDefaultId: room.smart_default_id,
+        libraryReferenceId: room.library_reference_id
       };
+
+      // Handle refinement prompts with detail preservation
+      if (options?.refinementPrompt) {
+        payload.refinementPrompt = buildRefinementPrompt(options.refinementPrompt, true);
+      }
 
       // If manual prompt is provided, pass it directly
       if (options?.manualPrompt) {
         payload.manualPrompt = options.manualPrompt;
-      } else {
-        // Build prompt from room data (fallback)
-        const stylePrompt = room.selected_style 
-          ? `Interior design style: ${room.selected_style.replace('_', ' ')}`
-          : 'Contemporary modern interior design';
+      } else if (!options?.refinementPrompt) {
+        // Build detailed prompt with smart defaults for initial generation
+        const { prompt, smartDefaultData } = await buildDetailedPrompt();
+        payload.prompt = prompt;
         
-        const roomTypePrompt = room.room_type 
-          ? `Room type: ${room.room_type.replace('_', ' ')}`
-          : '';
-        
-        payload.prompt = `${stylePrompt}. ${roomTypePrompt}. Create a photorealistic interior design render with furniture, decor, and lighting.`;
+        // Pass smart defaults data to edge function for additional processing
+        if (smartDefaultData) {
+          payload.smartDefaultData = {
+            specifications: smartDefaultData.specifications,
+            checklist: smartDefaultData.checklist,
+            finishes: smartDefaultData.finishes
+          };
+        }
       }
 
       // Add custom requirements if provided
       if (options?.customRequirements) {
         payload.customRequirements = options.customRequirements;
       }
+
+      console.log('Submitting generation with payload:', {
+        ...payload,
+        prompt: payload.prompt?.substring(0, 200) + '...' // Log first 200 chars
+      });
 
       // Submit job to edge function
       const { data, error } = await supabase.functions.invoke('process-room-phase', {
