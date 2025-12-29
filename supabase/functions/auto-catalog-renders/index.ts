@@ -183,29 +183,17 @@ async function catalogSingleRender(
   userId: string
 ): Promise<CatalogResult> {
   
-  const qualityScore = room.final_quality_score || 0;
   const refinements = room.retry_count || 0;
 
   console.log(`📋 Checking room ${room.id}:`, {
-    qualityScore,
+    final_quality_score: room.final_quality_score,
     phase_5_completed: room.phase_5_completed,
     room_type: room.room_type,
     selected_style: room.selected_style,
     refinements
   });
 
-  // Step 1: Quality gate - relaxed to 70%+ for broader cataloging
-  if (qualityScore < 70) {
-    console.log(`❌ Room ${room.id}: Quality ${qualityScore}% below 70% threshold`);
-    return {
-      room_id: room.id,
-      cataloged: false,
-      reason: "quality_too_low",
-      message: `Quality score ${qualityScore}% below 70% threshold.`
-    };
-  }
-
-  // Step 2: Phase 5 completion check (render must be complete)
+  // Step 1: Phase 5 completion check (render must be complete) - check this FIRST
   if (!room.phase_5_completed) {
     console.log(`❌ Room ${room.id}: Phase 5 not completed`);
     return {
@@ -213,6 +201,26 @@ async function catalogSingleRender(
       cataloged: false,
       reason: "not_complete",
       message: "Render not completed yet."
+    };
+  }
+
+  // Step 2: Quality gate - now handles NULL quality scores gracefully
+  // If phase_5_completed is true but quality is null, use a default of 80 (approved = good quality)
+  let qualityScore = room.final_quality_score;
+  
+  if (qualityScore === null || qualityScore === undefined) {
+    console.log(`⚠️ Room ${room.id}: Quality score is null, using default 80 (approved render)`);
+    qualityScore = 80; // Default score for approved renders without explicit scoring
+  }
+
+  // Relaxed threshold to 60% for broader cataloging
+  if (qualityScore < 60) {
+    console.log(`❌ Room ${room.id}: Quality ${qualityScore}% below 60% threshold`);
+    return {
+      room_id: room.id,
+      cataloged: false,
+      reason: "quality_too_low",
+      message: `Quality score ${qualityScore}% below 60% threshold.`
     };
   }
 

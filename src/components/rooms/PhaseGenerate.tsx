@@ -13,7 +13,8 @@ import {
   AlertCircle,
   Clock,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Library
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -125,6 +126,8 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const queryClient = useQueryClient();
   const [isApproving, setIsApproving] = useState(false);
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
+  const [isCataloging, setIsCataloging] = useState(false);
+  const [isScoringRender, setIsScoringRender] = useState(false);
   const [changeRequestOpen, setChangeRequestOpen] = useState(false);
   const [changeRequest, setChangeRequest] = useState('');
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
@@ -484,11 +487,105 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     }
   };
 
+  // Score render using AI quality assessment
+  const scoreRender = async (imageUrl: string): Promise<number> => {
+    try {
+      setIsScoringRender(true);
+      console.log('🎯 Scoring render with AI...');
+      
+      const { data, error } = await supabase.functions.invoke('score-render', {
+        body: { imageUrl }
+      });
+      
+      if (error) {
+        console.error('Score render error:', error);
+        return 85; // Default score if scoring fails
+      }
+      
+      const score = data?.overallScore || 85;
+      console.log('✅ Render scored:', score);
+      return score;
+    } catch (err) {
+      console.error('Failed to score render:', err);
+      return 85; // Default score
+    } finally {
+      setIsScoringRender(false);
+    }
+  };
+
+  // Auto-catalog render to library
+  const catalogRenderToLibrary = async (): Promise<{ success: boolean; tier?: string; message?: string }> => {
+    try {
+      setIsCataloging(true);
+      console.log('📚 Auto-cataloging render to library...');
+      
+      const { data, error } = await supabase.functions.invoke('auto-catalog-renders', {
+        body: { projectId }
+      });
+      
+      if (error) {
+        console.error('Auto-catalog error:', error);
+        return { success: false, message: error.message };
+      }
+      
+      console.log('✅ Auto-catalog result:', data);
+      
+      // Find this room's result
+      const roomResult = data?.results?.find((r: any) => r.room_id === room.id);
+      
+      if (roomResult?.cataloged) {
+        return { 
+          success: true, 
+          tier: roomResult.tier, 
+          message: roomResult.message 
+        };
+      }
+      
+      return { 
+        success: false, 
+        message: roomResult?.message || 'Room not cataloged' 
+      };
+    } catch (err: any) {
+      console.error('Failed to catalog render:', err);
+      return { success: false, message: err.message || 'Catalog failed' };
+    } finally {
+      setIsCataloging(false);
+    }
+  };
+
+  // Manual catalog button handler
+  const handleCatalogToLibrary = async () => {
+    const result = await catalogRenderToLibrary();
+    
+    if (result.success) {
+      toast({
+        title: `✨ Added to Library (${result.tier})`,
+        description: result.message || 'Render cataloged successfully.',
+      });
+    } else {
+      toast({
+        title: 'Catalog Skipped',
+        description: result.message || 'Render was not added to library.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleApprove = async () => {
     setIsApproving(true);
     try {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
+      
+      // Get actual quality score from AI if render exists
+      let qualityScore = overallScore;
+      if (renderUrl && !room.final_quality_score) {
+        try {
+          qualityScore = await scoreRender(renderUrl);
+        } catch (scoreErr) {
+          console.error('Scoring failed, using default:', scoreErr);
+        }
+      }
       
       // Update render approval status in renders table
       if (currentRender?.id) {
@@ -498,7 +595,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
             approval_status: 'approved',
             approved_by: user?.id,
             approved_at: new Date().toISOString(),
-            quality_score: overallScore ? overallScore / 100 : null, // Convert to 0-1 scale
+            quality_score: qualityScore ? qualityScore / 100 : null, // Convert to 0-1 scale
           })
           .eq('id', currentRender.id);
 
@@ -507,13 +604,13 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         }
       }
 
-      // Update room status
+      // Update room status with actual quality score
       const { error: roomError } = await supabase
         .from('rooms')
         .update({
           phase_5_completed: true,
           current_phase: Math.max(room.current_phase, 6),
-          final_quality_score: overallScore,
+          final_quality_score: qualityScore,
         })
         .eq('id', room.id);
 
@@ -524,6 +621,21 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         await trackOutcomeToLibrary(true);
       } catch (trackError) {
         console.error('Failed to track outcome to library:', trackError);
+      }
+
+      // Auto-catalog this render to the style library
+      try {
+        const catalogResult = await catalogRenderToLibrary();
+        if (catalogResult.success) {
+          toast({
+            title: `✨ Render Added to Library (${catalogResult.tier})`,
+            description: catalogResult.message,
+          });
+        } else {
+          console.log('Render not cataloged:', catalogResult.message);
+        }
+      } catch (catalogError) {
+        console.error('Failed to auto-catalog render:', catalogError);
       }
 
       const { data: rooms, error: fetchError } = await supabase
@@ -1086,6 +1198,28 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
             Add to Budget
           </Button>
         </div>
+
+        {/* Add to Library button - shows after approval */}
+        {room.phase_5_completed && hasRender && (
+          <Button 
+            variant="outline" 
+            className="w-full"
+            onClick={handleCatalogToLibrary}
+            disabled={isCataloging}
+          >
+            {isCataloging ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Adding to Library...
+              </>
+            ) : (
+              <>
+                <Library className="mr-2 h-4 w-4" />
+                Add to Library
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {/* Fullscreen Dialog */}
