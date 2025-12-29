@@ -26,7 +26,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Upload, X, Check, AlertCircle, Loader2, ImageIcon } from 'lucide-react';
 
-interface FileWithPreview extends File {
+// Proper wrapper interface - don't extend File as Object.assign on Files is unreliable
+interface FileWithPreview {
+  file: File;           // Original File object (never mutated)
   preview: string;
   roomName: string;
   roomType: string;
@@ -91,18 +93,21 @@ export function BulkUpload({
 
     const newFiles: FileWithPreview[] = limitedFiles.map((file, index) => {
       // Extract room name from filename
-      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+      const fileName = file.name || 'unknown';
+      const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
       const cleanName = nameWithoutExt
         .replace(/[-_]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
 
-      return Object.assign(file, {
+      // Use proper wrapper pattern instead of Object.assign on File objects
+      return {
+        file,  // Store original File object
         preview: URL.createObjectURL(file),
         roomName: cleanName || `Room ${currentRoomCount + index + 1}`,
         roomType: 'living_room',
         uploadStatus: 'pending' as const,
-      });
+      };
     });
 
     setFiles(prev => [...prev, ...newFiles].slice(0, remainingSlots));
@@ -150,7 +155,7 @@ export function BulkUpload({
         projectId,
         batchType: 'upload',
         totalItems: files.length,
-        metadata: { fileNames: files.map(f => f.name) },
+        metadata: { fileNames: files.map(f => f.file?.name || 'unknown') },
       });
 
       // Get current max room number
@@ -196,13 +201,14 @@ export function BulkUpload({
 
               if (roomError) throw roomError;
 
-              // Upload image to storage
-              const fileExt = file.name.split('.').pop();
-              const fileName = `${room.id}/original.${fileExt}`;
+              // Upload image to storage - use file.file for the actual File object
+              const originalFile = file.file;
+              const fileExt = originalFile.name?.split('.').pop() || 'jpg';
+              const storagePath = `${room.id}/original.${fileExt}`;
               
               const { error: uploadError } = await supabase.storage
                 .from('room-images')
-                .upload(fileName, file);
+                .upload(storagePath, originalFile);
 
               if (uploadError) throw uploadError;
 
@@ -211,9 +217,9 @@ export function BulkUpload({
                 .from('room_images')
                 .insert({
                   room_id: room.id,
-                  storage_path: fileName,
-                  file_name: file.name,
-                  file_size: file.size,
+                  storage_path: storagePath,
+                  file_name: originalFile.name || 'unknown',
+                  file_size: originalFile.size || 0,
                   image_type: 'original',
                   phase: 1,
                   resolution: 'original',
@@ -330,7 +336,7 @@ export function BulkUpload({
               <div className="space-y-3">
                 {files.map((file, index) => (
                   <div
-                    key={`${file.name}-${index}`}
+                    key={`${file.file?.name || 'file'}-${index}`}
                     className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg"
                   >
                     {/* Preview */}
@@ -375,7 +381,7 @@ export function BulkUpload({
                         </Select>
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
-                        {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                        {file.file?.name || 'Unknown file'} ({((file.file?.size || 0) / 1024 / 1024).toFixed(2)} MB)
                       </p>
                     </div>
 

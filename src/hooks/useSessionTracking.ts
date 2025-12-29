@@ -25,18 +25,38 @@ export function useSessionTracking(options: UseSessionTrackingOptions = {}) {
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   const sessionIdRef = useRef<string | null>(null);
 
+  // UUID validation regex
+  const isValidUUID = (id: string | undefined | null): boolean => {
+    if (!id) return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  };
+
   // Upsert session
   const updateSession = useCallback(async () => {
     if (!user) return;
 
+    // Validate foreign keys before RPC call to avoid FK constraint errors
+    const validProjectId = isValidUUID(projectId) ? projectId : null;
+    const validRoomId = isValidUUID(roomId) ? roomId : null;
+
     try {
       const { data, error } = await supabase.rpc('upsert_user_session', {
-        p_project_id: projectId || null,
-        p_room_id: roomId || null,
+        p_project_id: validProjectId,
+        p_room_id: validRoomId,
         p_client_id: clientId.current,
       });
 
-      if (!error && data) {
+      if (error) {
+        // Silently handle FK constraint errors - these happen when navigating away
+        if (error.message?.includes('foreign key constraint')) {
+          console.debug('Session tracking: Invalid project/room reference, skipping update');
+          return;
+        }
+        console.error('Session update error:', error);
+        return;
+      }
+
+      if (data) {
         sessionIdRef.current = data;
       }
     } catch (e) {
