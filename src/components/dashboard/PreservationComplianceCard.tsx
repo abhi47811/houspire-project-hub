@@ -43,7 +43,7 @@ export function PreservationComplianceCard() {
   const StatusIcon = status.icon;
 
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card className="card-interactive">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <Building2 className="h-5 w-5 text-primary" />
@@ -63,8 +63,11 @@ export function PreservationComplianceCard() {
             </div>
           </div>
           
-          <div className={cn('flex items-center gap-2 rounded-lg px-3 py-2', status.bgColor)}>
-            <StatusIcon className={cn('h-4 w-4', status.color)} />
+          <div className={cn(
+            'flex items-center gap-2 rounded-lg px-3 py-2 transition-all duration-200 hover:scale-[1.02]',
+            status.bgColor
+          )}>
+            <StatusIcon className={cn('h-4 w-4', status.color, successRate < 100 && 'animate-pulse')} />
             <span className={cn('text-sm font-medium', status.color)}>{status.text}</span>
           </div>
           
@@ -81,20 +84,20 @@ function PreservationComplianceSkeleton() {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-5 w-40 animate-shimmer" />
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex justify-between">
           <div>
-            <Skeleton className="h-8 w-12" />
-            <Skeleton className="mt-1 h-3 w-16" />
+            <Skeleton className="h-8 w-12 animate-shimmer" />
+            <Skeleton className="mt-1 h-3 w-16 animate-shimmer" />
           </div>
           <div className="text-right">
-            <Skeleton className="h-8 w-12" />
-            <Skeleton className="mt-1 h-3 w-20" />
+            <Skeleton className="h-8 w-12 animate-shimmer" />
+            <Skeleton className="mt-1 h-3 w-20 animate-shimmer" />
           </div>
         </div>
-        <Skeleton className="h-8 w-full rounded-lg" />
+        <Skeleton className="h-8 w-full rounded-lg animate-shimmer" />
       </CardContent>
     </Card>
   );
