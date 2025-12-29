@@ -51,5 +51,8 @@ verify_jwt = false
 [functions.seed-smart-defaults]
 verify_jwt = false
 
+[functions.audit-smart-defaults]
+verify_jwt = false
+
 [functions.score-render]
 verify_jwt = false
