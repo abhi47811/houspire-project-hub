@@ -159,7 +159,7 @@ export function LibraryCuratorUpload() {
               storage_path: fileName,
               room_type: roomType,
               design_style: designStyle,
-              city: city || null,
+              city: city && city !== 'any' ? city : null,
               tier: tier as 'unverified' | 'learning' | 'standard' | 'featured',
               source_type: 'user_upload',
               status: 'active',
@@ -282,7 +282,7 @@ export function LibraryCuratorUpload() {
                   <SelectValue placeholder="Select city" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Any City</SelectItem>
+                  <SelectItem value="any">Any City</SelectItem>
                   {CITIES.map(c => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
