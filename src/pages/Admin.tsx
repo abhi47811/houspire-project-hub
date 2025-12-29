@@ -1,5 +1,8 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LayoutDashboard, Users, Building2, IndianRupee, BarChart3, Activity, Image, Database, Upload, Shield } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, IndianRupee, BarChart3, Activity, Image, Database, Upload, Shield, CheckCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SystemDashboard } from '@/components/admin/SystemDashboard';
 import { UserManagement } from '@/components/admin/UserManagement';
 import { VendorManagement } from '@/components/admin/VendorManagement';
@@ -49,6 +52,10 @@ export default function Admin() {
             <Shield className="h-4 w-4" />
             Quality
           </TabsTrigger>
+          <TabsTrigger value="approvals" className="gap-2">
+            <CheckCircle className="h-4 w-4" />
+            Approvals
+          </TabsTrigger>
           <TabsTrigger value="analytics" className="gap-2">
             <BarChart3 className="h-4 w-4" />
             Analytics
@@ -88,6 +95,27 @@ export default function Admin() {
 
         <TabsContent value="quality">
           <QualityViolationsPanel />
+        </TabsContent>
+
+        <TabsContent value="approvals">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5" />
+                Render Approvals
+              </CardTitle>
+              <CardDescription>
+                Review and approve pending renders from all projects
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild>
+                <Link to="/admin/approval">
+                  Open Approval Dashboard
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="analytics">
