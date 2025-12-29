@@ -23,6 +23,7 @@ import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -39,9 +40,12 @@ import { RenderRefinement } from './RenderRefinement';
 import { QualityScoreDisplay } from './QualityScoreDisplay';
 import { QualityControlPanel } from './QualityControlPanel';
 import { PromptEditor } from './PromptEditor';
+import { PhaseGenerateSkeleton } from './PhaseSkeletons';
 import { useBatches } from '@/hooks/useBatches';
 import { useQualityControl } from '@/hooks/useQualityControl';
 import { buildRichPrompt, buildRefinementPrompt, getRoomTemplate } from '@/lib/promptTemplates';
+import { handleApiError } from '@/lib/api-error';
+import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hooks/useEnhancedKeyboardShortcuts';
 
 interface RegenerateOptions {
   useSmartDefaults: boolean;
@@ -1171,43 +1175,77 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       <div className="pt-4 border-t space-y-2">
       {/* Primary action - Generate or Approve */}
         {!hasRender ? (
-          <Button
-            className="w-full h-12 text-base"
-            onClick={() => handleRegenerate()}
-            disabled={isGenerating}
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Image className="mr-2 h-5 w-5" />
-                Generate Render
-              </>
-            )}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className="w-full h-12 text-base"
+                onClick={() => handleRegenerate()}
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Image className="mr-2 h-5 w-5" />
+                    Generate Render
+                  </>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Generate AI render {getShortcutHint(SHORTCUTS.regenerate)}</p>
+            </TooltipContent>
+          </Tooltip>
         ) : (
-          <Button
-            className="w-full h-12 text-base"
-            onClick={handleApprove}
-            disabled={!allValidationsPassed || isApproving || room.phase_5_completed}
-          >
-            <Check className="mr-2 h-5 w-5" />
-            {room.phase_5_completed ? 'Already Approved' : 'Approve Final Render'}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className="w-full h-12 text-base"
+                onClick={handleApprove}
+                disabled={!allValidationsPassed || isApproving || room.phase_5_completed}
+              >
+                {isApproving ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Approving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="mr-2 h-5 w-5" />
+                    {room.phase_5_completed ? 'Already Approved' : 'Approve Final Render'}
+                  </>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Approve render {getShortcutHint(SHORTCUTS.approve)}</p>
+            </TooltipContent>
+          </Tooltip>
         )}
         
         <div className="grid grid-cols-2 gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => handleRegenerate()}
-            disabled={isGenerating}
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
-            {hasRender ? 'Regenerate' : 'Generate'}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="outline" 
+                onClick={() => handleRegenerate()}
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                {hasRender ? 'Regenerate' : 'Generate'}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Regenerate {getShortcutHint(SHORTCUTS.regenerate)}</p>
+            </TooltipContent>
+          </Tooltip>
           <Dialog open={changeRequestOpen} onOpenChange={setChangeRequestOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" disabled={!hasRender}>

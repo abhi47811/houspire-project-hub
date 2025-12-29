@@ -131,9 +131,28 @@ export function useEnhancedKeyboardShortcuts(handlers: ShortcutHandlers = {}) {
   }, [handleKeyDown]);
 }
 
-// Hook for shortcut hints
+// Hook for shortcut hints - returns platform-specific shortcut display
 export function getShortcutHint(shortcut: string): string {
   const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
   const cmdKey = isMac ? '⌘' : 'Ctrl+';
   return shortcut.replace('Cmd+', cmdKey);
 }
+
+// Predefined shortcuts for consistent display
+export const SHORTCUTS = {
+  search: 'Cmd+K',
+  newProject: 'Cmd+N',
+  continue: 'Cmd+Enter',
+  regenerate: 'Cmd+R',
+  approve: 'Cmd+A',
+  save: 'Cmd+S',
+  upload: 'Cmd+U',
+  undo: 'Cmd+Z',
+  redo: 'Cmd+Shift+Z',
+  copySettings: 'Cmd+C',
+  saveTemplate: 'Cmd+T',
+  help: '?',
+  escape: 'Esc',
+  prevRoom: '←',
+  nextRoom: '→',
+} as const;

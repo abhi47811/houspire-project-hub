@@ -1,6 +1,9 @@
 // Phase components
 export { PhaseStatusBar } from './PhaseStatusBar';
 
+// Phase skeletons
+export { PhaseCleanSkeleton, PhaseGenerateSkeleton, PhaseCustomizeSkeleton, PhaseAnalyzeSkeleton } from './PhaseSkeletons';
+
 // Bulk operations
 export { BulkUpload } from './BulkUpload';
 export { BatchAnalysis } from './BatchAnalysis';
