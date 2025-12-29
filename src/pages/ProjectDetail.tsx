@@ -800,12 +800,46 @@ function RoomCard({
 }) {
   const [renderStatus, setRenderStatus] = useState<'idle' | 'pending' | 'generating' | 'completed' | 'failed'>('idle');
   const [latestRender, setLatestRender] = useState<{ image_url: string; approval_status: string } | null>(null);
+  const [bestAvailableImage, setBestAvailableImage] = useState<string | null>(null);
   const [isInLibrary, setIsInLibrary] = useState(false);
   
   const roomType = room.room_type ? roomTypeLabels[room.room_type] : 'Unknown';
   const dimensions = room.length_feet && room.width_feet
     ? `${room.length_feet} × ${room.width_feet} ft`
     : 'No dimensions';
+
+  // Fetch best available image from room_images table
+  useEffect(() => {
+    const fetchBestImage = async () => {
+      // Priority: render > styled > cleaned > analysis > original
+      const imageTypePriority = ['render', 'styled', 'cleaned', 'analysis', 'original'];
+      
+      const { data: roomImages } = await supabase
+        .from('room_images')
+        .select('image_type, storage_path')
+        .eq('room_id', room.id)
+        .in('image_type', imageTypePriority);
+      
+      if (roomImages && roomImages.length > 0) {
+        // Find highest priority image
+        for (const type of imageTypePriority) {
+          const match = roomImages.find(img => img.image_type === type);
+          if (match) {
+            const { data: signedUrl } = await supabase.storage
+              .from('room-images')
+              .createSignedUrl(match.storage_path, 3600);
+            
+            if (signedUrl?.signedUrl) {
+              setBestAvailableImage(signedUrl.signedUrl);
+              return;
+            }
+          }
+        }
+      }
+    };
+    
+    fetchBestImage();
+  }, [room.id]);
 
   // Check if room is in library
   useEffect(() => {
@@ -892,9 +926,9 @@ function RoomCard({
 
       {/* Room Image/Placeholder */}
       <div className="relative h-32 bg-gradient-to-br from-primary/20 to-accent/10">
-        {latestRender?.image_url ? (
+        {latestRender?.image_url || bestAvailableImage ? (
           <img 
-            src={latestRender.image_url} 
+            src={latestRender?.image_url || bestAvailableImage!} 
             alt={room.room_name || `Room ${room.room_number}`}
             className="absolute inset-0 w-full h-full object-cover"
           />
