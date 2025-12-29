@@ -1,12 +1,33 @@
-import { Outlet } from 'react-router-dom';
+import { useState } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
-import { useGlobalShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useEnhancedKeyboardShortcuts } from '@/hooks/useEnhancedKeyboardShortcuts';
+import { KeyboardShortcutsDialog } from '@/components/dialogs/KeyboardShortcutsDialog';
 
 export function AppLayout() {
-  // Initialize global keyboard shortcuts
-  useGlobalShortcuts();
+  const navigate = useNavigate();
+  const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
+  
+  // Initialize enhanced keyboard shortcuts
+  useEnhancedKeyboardShortcuts({
+    onSearch: () => {
+      window.dispatchEvent(new CustomEvent('openGlobalSearch'));
+    },
+    onNewProject: () => {
+      navigate('/projects');
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('openNewProjectDialog'));
+      }, 100);
+    },
+    onShowHelp: () => {
+      setShowShortcutsDialog(true);
+    },
+    onEscape: () => {
+      setShowShortcutsDialog(false);
+    },
+  });
   
   // Monitor network status
   useNetworkStatus();
@@ -30,6 +51,11 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+      
+      <KeyboardShortcutsDialog 
+        open={showShortcutsDialog} 
+        onOpenChange={setShowShortcutsDialog} 
+      />
     </div>
   );
 }
