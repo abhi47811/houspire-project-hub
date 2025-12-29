@@ -48,8 +48,8 @@ import { handleApiError } from '@/lib/api-error';
 import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hooks/useEnhancedKeyboardShortcuts';
 
 interface RegenerateOptions {
-  useSmartDefaults: boolean;
-  useLibraryReference: boolean;
+  useSmartDefaults?: boolean;
+  useLibraryReference?: boolean;
   manualPrompt?: string;
   customRequirements?: string;
   refinementPrompt?: string;
@@ -813,13 +813,23 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     }
   }, [cleanedImage, currentRender, renderImage, currentJob, room.phase_5_completed, room.current_phase, room.id, room.selected_style, room.custom_prompt, room.generation_path, isSubmittingJob]);
 
-  const handleSubmitChangeRequest = () => {
-    toast({
-      title: 'Change Request Submitted',
-      description: 'Your feedback has been recorded.',
-    });
+  const handleSubmitChangeRequest = async () => {
+    if (!changeRequest.trim()) {
+      toast({
+        title: 'No Changes Specified',
+        description: 'Please describe the changes you want.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Close dialog and clear input
     setChangeRequestOpen(false);
+    const refinementText = changeRequest;
     setChangeRequest('');
+
+    // Trigger regeneration with refinement prompt
+    await handleRegenerate({ refinementPrompt: refinementText });
   };
 
   const handleDownload = async () => {
