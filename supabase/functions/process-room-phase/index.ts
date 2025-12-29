@@ -243,12 +243,105 @@ Output an improved clean, empty room.`;
   };
 }
 
+// Essential elements checklist - always added to prompts
+const ESSENTIAL_ELEMENTS = `
+
+ESSENTIAL ELEMENTS (MUST INCLUDE):
+- Window treatments (curtains, blinds, or drapes)
+- Wall decor (artwork, mirrors, or decorative elements)
+- Plants and greenery in appropriate planters
+- Area rug with proper sizing
+- Decorative accessories and styling elements
+- Proper layered lighting (natural + artificial)
+- Rich, lived-in, luxurious feel`;
+
+// Build prompt details from smart default specifications
+function buildSmartDefaultPromptDetails(smartDefaultData: any): string {
+  if (!smartDefaultData) return '';
+  
+  let promptDetails = '';
+  const specs = Array.isArray(smartDefaultData.specifications) ? smartDefaultData.specifications : [];
+  
+  // Add furniture specifications
+  const furnitureItems = specs.filter((s: any) => 
+    ['SEATING', 'FURNITURE', 'STORAGE', 'SURFACES', 'SOFA', 'COFFEE TABLE', 'BED', 'WARDROBE'].includes(s.CATEGORY?.toUpperCase())
+  ).map((s: any) => {
+    let item = s.ITEM || s.item || '';
+    const material = s.MATERIAL || s.material;
+    const color = s.COLOR || s.color;
+    if (material) item += ` (${material})`;
+    if (color) item += ` in ${color}`;
+    return item;
+  }).filter(Boolean);
+  
+  if (furnitureItems.length > 0) {
+    promptDetails += `\n\nFURNITURE: Include ${furnitureItems.join(', ')}.`;
+  }
+  
+  // Add lighting specifications
+  const lightingItems = specs.filter((s: any) => 
+    ['LIGHTING', 'CHANDELIER', 'LAMP', 'LIGHT'].includes(s.CATEGORY?.toUpperCase())
+  );
+  if (lightingItems.length > 0) {
+    promptDetails += `\n\nLIGHTING: `;
+    lightingItems.forEach((item: any) => {
+      const itemName = item.ITEM || item.item || '';
+      const notes = item.NOTES || item.notes || '';
+      promptDetails += `${itemName}${notes ? ' - ' + notes : ''}. `;
+    });
+  }
+  
+  // Add textiles/soft furnishings
+  const textileItems = specs.filter((s: any) => 
+    ['TEXTILES', 'SOFT FURNISHINGS', 'WINDOW TREATMENT', 'RUG', 'CURTAINS', 'DRAPES'].includes(s.CATEGORY?.toUpperCase())
+  );
+  if (textileItems.length > 0) {
+    promptDetails += `\n\nTEXTILES & WINDOW TREATMENTS: `;
+    textileItems.forEach((item: any) => {
+      const itemName = item.ITEM || item.item || '';
+      const material = item.MATERIAL || item.material || '';
+      const color = item.COLOR || item.color || '';
+      promptDetails += `${itemName}${material ? ' (' + material + ')' : ''}${color ? ' in ' + color : ''}. `;
+    });
+  }
+  
+  // Add decor items
+  const decorItems = specs.filter((s: any) => 
+    ['DECOR', 'ACCESSORIES', 'WALL DECOR', 'PLANTS', 'MIRROR', 'ARTWORK', 'VASES'].includes(s.CATEGORY?.toUpperCase())
+  );
+  if (decorItems.length > 0) {
+    promptDetails += `\n\nDECOR & ACCESSORIES: `;
+    decorItems.forEach((item: any) => {
+      const itemName = item.ITEM || item.item || '';
+      const notes = item.NOTES || item.notes || '';
+      promptDetails += `${itemName}${notes ? ' - ' + notes : ''}. `;
+    });
+  }
+
+  // Add finishes if available
+  const finishes = smartDefaultData.finishes;
+  if (finishes && Array.isArray(finishes) && finishes.length > 0) {
+    promptDetails += `\n\nFINISHES: `;
+    finishes.forEach((finish: any) => {
+      const category = finish.CATEGORY || finish.category || '';
+      const material = finish.MATERIAL || finish.material || '';
+      const color = finish.COLOR || finish.color || '';
+      if (category || material) {
+        promptDetails += `${category}${material ? ': ' + material : ''}${color ? ' in ' + color : ''}. `;
+      }
+    });
+  }
+  
+  return promptDetails;
+}
+
 // Call AI for render generation
 async function generateRender(cleanedImageUrl: string, prompt: string): Promise<any> {
   const startTime = Date.now();
   
   console.log('generateRender called with Gemini 3 Pro Image...');
-  console.log('prompt:', prompt?.slice(0, 100));
+  console.log('prompt length:', prompt?.length);
+  console.log('prompt preview:', prompt?.slice(0, 300));
   console.log('cleanedImageUrl:', cleanedImageUrl?.slice(0, 100));
   
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -541,7 +634,37 @@ async function processJob(supabase: any, job: any): Promise<void> {
       }
 
       case "generation": {
-        const prompt = job.payload?.prompt || "";
+        const basePrompt = job.payload?.prompt || "";
+        
+        // Fetch smart default data if available
+        let smartDefaultData = null;
+        if (room?.smart_default_id) {
+          const { data: sdData, error: sdError } = await supabase
+            .from('smart_defaults')
+            .select('*')
+            .eq('id', room.smart_default_id)
+            .single();
+          
+          if (sdData && !sdError) {
+            smartDefaultData = sdData;
+            console.log('✅ Using smart default:', sdData.style, sdData.room_type);
+          } else if (sdError) {
+            console.warn('⚠️ Failed to fetch smart default:', sdError.message);
+          }
+        }
+
+        // Build enriched prompt with smart default details
+        const smartDefaultDetails = buildSmartDefaultPromptDetails(smartDefaultData);
+        const finalPrompt = basePrompt + smartDefaultDetails + ESSENTIAL_ELEMENTS;
+
+        console.log('=== GENERATION PROMPT DETAILS ===');
+        console.log('Smart default used:', !!smartDefaultData);
+        console.log('Style:', smartDefaultData?.style || room?.selected_style || 'none');
+        console.log('Room type:', smartDefaultData?.room_type || room?.room_type);
+        console.log('Base prompt length:', basePrompt.length);
+        console.log('Final prompt length:', finalPrompt.length);
+        console.log('Prompt preview:', finalPrompt.substring(0, 500));
+        console.log('=================================');
         
         // Get cleaned image
         const cleanedImage = room?.room_images?.find((img: any) => 
@@ -554,7 +677,7 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
         const cleanedUrl = await resolveRoomImageUrl(supabase, cleanedImage.storage_path);
 
-        const genResult = await generateRender(cleanedUrl, prompt);
+        const genResult = await generateRender(cleanedUrl, finalPrompt);
 
         if (!genResult.result.imageUrl) {
           throw new Error("No image generated");
@@ -608,7 +731,7 @@ async function processJob(supabase: any, job: any): Promise<void> {
               room_id: job.room_id,
               image_url: renderImageUrl,
               storage_path: renderImagePath,
-              prompt_used: prompt,
+              prompt_used: finalPrompt,
               model_used: "gemini-3-pro-image-preview",
               provider: "lovable-ai",
               generation_time_ms: genResult.latency,
