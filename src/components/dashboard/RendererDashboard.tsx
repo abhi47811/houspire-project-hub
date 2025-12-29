@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FolderOpen, ListTodo, CheckCircle, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 
 interface Project {
   id: string;
@@ -133,16 +134,16 @@ export const RendererDashboard = forwardRef<HTMLDivElement>(
     }
 
     return (
-      <div ref={ref} className="space-y-6">
+      <div ref={ref} className="space-y-6 animate-fade-in">
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-3">
-          {statsCards.map((stat) => (
-            <Card key={stat.name}>
+          {statsCards.map((stat, index) => (
+            <Card key={stat.name} className="card-interactive animate-fade-in-up" style={{ animationDelay: `${index * 100}ms` }}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   {stat.name}
                 </CardTitle>
-                <div className={`rounded-lg p-2 ${stat.bgColor}`}>
+                <div className={`rounded-lg p-2 transition-transform duration-200 group-hover:scale-110 ${stat.bgColor}`}>
                   <stat.icon className={`h-4 w-4 ${stat.color}`} />
                 </div>
               </CardHeader>
@@ -155,17 +156,18 @@ export const RendererDashboard = forwardRef<HTMLDivElement>(
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Pending Tasks */}
-          <Card>
+          <Card className="card-interactive">
             <CardHeader>
               <CardTitle>Pending Tasks</CardTitle>
               <CardDescription>Tasks that need your attention</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {tasks.filter(t => !t.completed).map((task) => (
+                {tasks.filter(t => !t.completed).map((task, index) => (
                   <div
                     key={task.id}
-                    className="flex items-start gap-3 rounded-lg border p-3"
+                    className="flex items-start gap-3 rounded-lg border p-3 transition-all duration-200 hover:bg-muted/50 hover:shadow-sm animate-fade-in"
+                    style={{ animationDelay: `${index * 50}ms` }}
                   >
                     <Checkbox
                       checked={task.completed}
@@ -197,7 +199,7 @@ export const RendererDashboard = forwardRef<HTMLDivElement>(
           </Card>
 
           {/* My Projects */}
-          <Card>
+          <Card className="card-interactive">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>My Projects</CardTitle>
@@ -205,7 +207,7 @@ export const RendererDashboard = forwardRef<HTMLDivElement>(
               </div>
               <Link 
                 to="/projects" 
-                className="text-sm text-primary hover:underline flex items-center gap-1"
+                className="text-sm text-primary hover:underline flex items-center gap-1 hover-lift transition-transform"
               >
                 View all <ArrowRight className="h-3 w-3" />
               </Link>
@@ -213,11 +215,12 @@ export const RendererDashboard = forwardRef<HTMLDivElement>(
             <CardContent>
               {myProjects.length > 0 ? (
                 <div className="grid gap-3">
-                  {myProjects.slice(0, 4).map((project) => (
+                  {myProjects.slice(0, 4).map((project, index) => (
                     <Link
                       key={project.id}
                       to={`/projects/${project.id}`}
-                      className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                      className="flex items-center justify-between rounded-lg border p-3 transition-all duration-200 hover:bg-muted/50 hover:shadow-sm hover:-translate-y-0.5 animate-fade-in"
+                      style={{ animationDelay: `${index * 50}ms` }}
                     >
                       <div className="space-y-1">
                         <p className="text-sm font-medium leading-none">{project.name}</p>
@@ -225,7 +228,8 @@ export const RendererDashboard = forwardRef<HTMLDivElement>(
                           {project.total_rooms || 0} rooms • Phase {project.current_phase}
                         </p>
                       </div>
-                      <Badge className={statusColors[project.status] || statusColors.draft}>
+                      <Badge className={cn(statusColors[project.status] || statusColors.draft, 'flex items-center gap-1.5')}>
+                        {project.status === 'in_progress' && <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />}
                         {project.status.replace('_', ' ')}
                       </Badge>
                     </Link>

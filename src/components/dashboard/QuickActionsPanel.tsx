@@ -27,7 +27,7 @@ export function QuickActionsPanel() {
             key={action.label}
             variant="secondary"
             size="sm"
-            className="shadow-lg justify-start gap-2 px-4"
+            className="shadow-premium-md justify-start gap-2 px-4 hover:shadow-premium-lg transition-all duration-200 hover:-translate-x-1 bg-card/95 backdrop-blur-sm"
             onClick={() => { navigate(action.path); setIsOpen(false); }}
           >
             <action.icon className="h-4 w-4" />
@@ -40,10 +40,12 @@ export function QuickActionsPanel() {
       <Button
         size="lg"
         className={cn(
-          'h-14 w-14 rounded-full shadow-lg transition-transform',
+          'h-14 w-14 rounded-full shadow-premium-lg transition-all duration-300',
+          'bg-gradient-to-br from-primary to-primary/80 hover:shadow-premium-xl hover:scale-105',
           isOpen && 'rotate-45'
         )}
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? "Close quick actions" : "Open quick actions"}
       >
         {isOpen ? <X className="h-6 w-6" /> : <Zap className="h-6 w-6" />}
       </Button>

@@ -29,7 +29,7 @@ export function PipelineVisualizationCard() {
   const bottleneckIndex = pipelinePhases.findIndex(p => p.count === maxCount && p.count > 0);
 
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card className="card-interactive">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-primary" />
@@ -58,9 +58,9 @@ export function PipelineVisualizationCard() {
                   {phase.name}
                 </span>
                 {phase.count > 0 && (
-                  <div className="mt-1 h-1 w-full rounded-full bg-primary/30">
+                  <div className="mt-1 h-1 w-full rounded-full bg-primary/30 overflow-hidden">
                     <div 
-                      className="h-full rounded-full bg-primary animate-pulse" 
+                      className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-500 ease-out" 
                       style={{ width: `${Math.min((phase.count / Math.max(maxCount, 1)) * 100, 100)}%` }}
                     />
                   </div>

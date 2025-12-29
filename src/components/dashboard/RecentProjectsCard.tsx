@@ -35,10 +35,10 @@ export function RecentProjectsCard() {
   };
 
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card className="card-interactive">
       <CardHeader className="flex flex-row items-center justify-between">
         <div><CardTitle>Recent Projects</CardTitle><CardDescription>Most recently created projects</CardDescription></div>
-        <Link to="/projects" className="text-sm text-primary hover:underline flex items-center gap-1">View all <ArrowRight className="h-3 w-3" /></Link>
+        <Link to="/projects" className="text-sm text-primary hover:underline flex items-center gap-1 hover-lift transition-transform">View all <ArrowRight className="h-3 w-3" /></Link>
       </CardHeader>
       <CardContent>
         {(projects || []).length > 0 ? (
@@ -46,7 +46,7 @@ export function RecentProjectsCard() {
             {projects?.map((project) => {
               const deadline = getDeadlineInfo(project.deadline);
               return (
-                <Link key={project.id} to={`/projects/${project.id}`} className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50">
+                <Link key={project.id} to={`/projects/${project.id}`} className="flex items-center justify-between rounded-lg border p-3 transition-all duration-200 hover:bg-muted/50 hover:shadow-sm hover:-translate-y-0.5">
                   <div className="space-y-1 min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{project.name}</p>
                     <p className="text-xs text-muted-foreground">{project.clientName || 'No client'} • {project.city || 'No city'}</p>
@@ -56,9 +56,12 @@ export function RecentProjectsCard() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <Badge className={statusColors[project.status] || statusColors.draft}>{project.status.replace('_', ' ')}</Badge>
+                    <Badge className={cn(statusColors[project.status] || statusColors.draft, 'flex items-center gap-1.5')}>
+                      {project.status === 'in_progress' && <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />}
+                      {project.status.replace('_', ' ')}
+                    </Badge>
                     <span className="text-xs text-muted-foreground">Phase {project.currentPhase}</span>
-                    {deadline && <span className={cn('text-xs', deadline.color)}>{deadline.text}</span>}
+                    {deadline && <span className={cn('text-xs font-medium', deadline.color)}>{deadline.text}</span>}
                   </div>
                 </Link>
               );
