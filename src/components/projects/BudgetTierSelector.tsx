@@ -1,3 +1,4 @@
+import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -46,9 +47,12 @@ const budgetTiers = [
   },
 ];
 
-export function BudgetTierSelector({ value, onChange }: BudgetTierSelectorProps) {
+export const BudgetTierSelector = React.forwardRef<
+  HTMLDivElement,
+  BudgetTierSelectorProps
+>(({ value, onChange }, ref) => {
   return (
-    <div className="space-y-3">
+    <div ref={ref} className="space-y-3">
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium">Budget Tier *</label>
         <span className="text-xs text-muted-foreground">Affects material & finish suggestions</span>
@@ -108,4 +112,6 @@ export function BudgetTierSelector({ value, onChange }: BudgetTierSelectorProps)
       </RadioGroup>
     </div>
   );
-}
+});
+
+BudgetTierSelector.displayName = "BudgetTierSelector";
