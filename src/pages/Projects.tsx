@@ -253,8 +253,8 @@ export default function Projects() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground text-gradient">Projects</h1>
-          <p className="text-muted-foreground">Manage and track your design projects</p>
+          <h1 className="text-3xl font-bold tracking-tight text-gradient">Projects</h1>
+          <p className="text-muted-foreground mt-1">Manage and track your design projects</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Bulk Upload Button */}
@@ -429,10 +429,10 @@ function ProjectsSkeleton({ viewMode }: { viewMode: 'grid' | 'list' | 'kanban' }
       <div className="flex gap-4 overflow-x-auto pb-4">
         {[1, 2, 3, 4, 5].map((i) => (
           <div key={i} className="w-72 flex-shrink-0">
-            <Skeleton className="h-10 w-full mb-3" />
+            <Skeleton className="h-10 w-full mb-3 animate-shimmer" />
             <div className="space-y-2">
               {[1, 2, 3].map((j) => (
-                <Skeleton key={j} className="h-32 w-full" />
+                <Skeleton key={j} className="h-32 w-full animate-shimmer" />
               ))}
             </div>
           </div>
@@ -446,25 +446,25 @@ function ProjectsSkeleton({ viewMode }: { viewMode: 'grid' | 'list' | 'kanban' }
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {[1, 2, 3, 4, 5, 6].map((i) => (
           <Card key={i} className="overflow-hidden">
-            <Skeleton className="h-32 rounded-none" />
+            <Skeleton className="h-32 rounded-none animate-shimmer" />
             <CardContent className="p-4 space-y-4">
               <div className="space-y-2">
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-5 w-3/4 animate-shimmer" />
+                <Skeleton className="h-4 w-1/2 animate-shimmer" />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-20 animate-shimmer" />
+                <Skeleton className="h-4 w-20 animate-shimmer" />
+                <Skeleton className="h-4 w-24 animate-shimmer" />
+                <Skeleton className="h-4 w-16 animate-shimmer" />
               </div>
-              <Skeleton className="h-2 w-full" />
+              <Skeleton className="h-2 w-full animate-shimmer" />
               <div className="flex justify-center gap-2">
                 {[1, 2, 3, 4, 5, 6, 7].map((j) => (
-                  <Skeleton key={j} className="h-6 w-6 rounded-full" />
+                  <Skeleton key={j} className="h-6 w-6 rounded-full animate-shimmer" />
                 ))}
               </div>
-              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full animate-shimmer" />
             </CardContent>
           </Card>
         ))}
@@ -477,17 +477,17 @@ function ProjectsSkeleton({ viewMode }: { viewMode: 'grid' | 'list' | 'kanban' }
       {[1, 2, 3, 4, 5].map((i) => (
         <Card key={i}>
           <CardContent className="flex items-center gap-4 p-4">
-            <Skeleton className="hidden sm:block h-16 w-16 rounded-lg" />
+            <Skeleton className="hidden sm:block h-16 w-16 rounded-lg animate-shimmer" />
             <div className="flex-1 space-y-2">
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-4 w-64" />
+              <Skeleton className="h-5 w-48 animate-shimmer" />
+              <Skeleton className="h-4 w-64 animate-shimmer" />
             </div>
             <div className="hidden md:flex gap-1.5">
               {[1, 2, 3, 4, 5, 6, 7].map((j) => (
-                <Skeleton key={j} className="h-5 w-5 rounded-full" />
+                <Skeleton key={j} className="h-5 w-5 rounded-full animate-shimmer" />
               ))}
             </div>
-            <Skeleton className="h-9 w-20" />
+            <Skeleton className="h-9 w-20 animate-shimmer" />
           </CardContent>
         </Card>
       ))}
