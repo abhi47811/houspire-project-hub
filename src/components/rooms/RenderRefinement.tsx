@@ -6,9 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Book, Edit3, Eye, RefreshCw, ChevronDown, ChevronUp, History, Star, Lightbulb } from 'lucide-react';
+import { Sparkles, Book, Edit3, Eye, RefreshCw, ChevronDown, ChevronUp, History, Star, Lightbulb, AlertTriangle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
+import { DETAIL_PRESERVATION_INSTRUCTIONS, buildRefinementPrompt } from '@/lib/promptTemplates';
 
 interface RenderRefinementProps {
   roomId: string;
@@ -254,10 +255,13 @@ export function RenderRefinement({
   }, [showPromptPreview, activeTab, manualPrompt, customRequirements, smartDefault, libraryImage]);
 
   const handleQuickRefinement = (suggestion: string) => {
+    // Build refinement with detail preservation
+    const refinementWithPreservation = buildRefinementPrompt(suggestion, true);
+    
     const options: RegenerateOptions = {
       useSmartDefaults: activeTab === 'smart',
       useLibraryReference: activeTab === 'library',
-      refinementPrompt: suggestion,
+      refinementPrompt: refinementWithPreservation,
       customRequirements: customRequirements || undefined,
     };
 
