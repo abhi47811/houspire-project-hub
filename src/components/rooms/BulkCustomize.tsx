@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useApplyStyleToAllRooms } from '@/hooks/useBulkOperations';
+import { useProjectStyle } from '@/hooks/useProjectStyle';
+import { StyleConflictDialog } from '@/components/dialogs/StyleConflictDialog';
 import {
   Dialog,
   DialogContent,
@@ -52,6 +54,14 @@ export function BulkCustomize({
   const [selectedRoomIds, setSelectedRoomIds] = useState<Set<string>>(new Set());
   const [selectedStyle, setSelectedStyle] = useState<string>('');
   const [isApplying, setIsApplying] = useState(false);
+  
+  // Project style conflict detection
+  const { 
+    checkAndConfirmStyle, 
+    conflictDialog, 
+    closeConflictDialog,
+    refetch: refetchProjectStyles 
+  } = useProjectStyle(projectId);
 
   // Fetch available styles
   const { data: availableStyles = [] } = useQuery({
@@ -317,6 +327,16 @@ export function BulkCustomize({
             </div>
           </div>
         </div>
+
+        {/* Style Conflict Dialog */}
+        <StyleConflictDialog
+          open={conflictDialog.isOpen}
+          onOpenChange={(open) => !open && closeConflictDialog()}
+          newStyle={conflictDialog.newStyle}
+          existingStyles={conflictDialog.existingStyles}
+          dominantStyle={conflictDialog.dominantStyle}
+          onResolve={conflictDialog.onResolve || (() => {})}
+        />
       </DialogContent>
     </Dialog>
   );

@@ -27,9 +27,11 @@ import { GenerationPathsSelector, GenerationPath } from './GenerationPathsSelect
 import { SmartDefaultsDisplay } from './SmartDefaultsDisplay';
 import { ManualPromptEditor } from './ManualPromptEditor';
 import { PromptPreview } from './PromptPreview';
-import { CopySettingsDialog, SaveTemplateDialog, UseTemplateDialog } from '@/components/dialogs';
+import { CopySettingsDialog, SaveTemplateDialog, UseTemplateDialog, StyleConflictDialog } from '@/components/dialogs';
 import { useHistory } from '@/hooks/useHistory';
 import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hooks/useEnhancedKeyboardShortcuts';
+import { useProjectStyle } from '@/hooks/useProjectStyle';
+import { useApplyStyleToAllRooms } from '@/hooks/useBulkOperations';
 import { handleApiError } from '@/lib/api-error';
 
 interface Room {
@@ -148,6 +150,15 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   const [uploadAnalysis, setUploadAnalysis] = useState<{ room_type: string; design_style: string; confidence: number } | null>(null);
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
   
+  // Project style conflict detection
+  const { 
+    checkAndConfirmStyle, 
+    conflictDialog, 
+    closeConflictDialog,
+    refetch: refetchProjectStyles 
+  } = useProjectStyle(projectId, room.id);
+  const applyStyleToAll = useApplyStyleToAllRooms();
+  
   // Customization state with undo/redo support
   interface CustomizationState {
     selectedStyle: string;
@@ -179,10 +190,46 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
     historyLength,
   } = useHistory<CustomizationState>(initialCustomizationState);
   
-  // Helper functions to update individual fields
-  const setSelectedStyle = useCallback((value: string) => {
+  // Helper functions to update individual fields - with conflict check for style
+  const setSelectedStyleDirect = useCallback((value: string) => {
     setCustomization(prev => ({ ...prev, selectedStyle: value }));
   }, [setCustomization]);
+  
+  // Wrapped style setter that checks for conflicts
+  const handleStyleChange = useCallback(async (newStyle: string) => {
+    const action = await checkAndConfirmStyle(newStyle);
+    
+    if (action === 'cancel') {
+      return; // User cancelled, don't change style
+    }
+    
+    if (action === 'apply_all') {
+      // Apply to all rooms in project
+      try {
+        await applyStyleToAll.mutateAsync({
+          projectId,
+          designStyle: newStyle,
+          userId: user?.id || '',
+        });
+        setSelectedStyleDirect(newStyle);
+        refetchProjectStyles();
+        toast({
+          title: 'Style applied to all rooms',
+          description: `"${newStyle}" has been applied to all rooms in this project.`,
+        });
+      } catch (error) {
+        toast({
+          title: 'Failed to apply style',
+          description: error instanceof Error ? error.message : 'Unknown error',
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
+    
+    // Override: apply to this room only
+    setSelectedStyleDirect(newStyle);
+  }, [checkAndConfirmStyle, applyStyleToAll, projectId, user?.id, setSelectedStyleDirect, refetchProjectStyles]);
   
   const setFalseCeilingDrop = useCallback((value: number[]) => {
     setCustomization(prev => ({ ...prev, falseCeilingDrop: value[0] }));
@@ -363,7 +410,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   // Handle library image selection
   const handleLibrarySelect = async (image: LibraryImage) => {
     setSelectedLibraryImage(image);
-    setSelectedStyle(image.design_style);
+    setSelectedStyleDirect(image.design_style);
     
     // Track selection and persist style immediately
     if (user?.id) {
@@ -426,7 +473,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   const handleUploadAnalysis = (analysis: { room_type: string; design_style: string; confidence: number }, imageUrl: string) => {
     setUploadAnalysis(analysis);
     setUploadedImageUrl(imageUrl);
-    setSelectedStyle(analysis.design_style);
+    setSelectedStyleDirect(analysis.design_style);
     setShowPermissionPrompt(true);
   };
 
@@ -888,7 +935,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
             variant="outline"
             onClick={() => {
               setMode('customize');
-              setSelectedStyle(selectedLibraryImage.design_style);
+              setSelectedStyleDirect(selectedLibraryImage.design_style);
             }}
           >
             Customize Anyway
@@ -1008,7 +1055,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
           {/* Design Style Selection */}
           <div className="space-y-3">
             <h4 className="font-medium text-sm">Design Style</h4>
-            <RadioGroup value={selectedStyle} onValueChange={setSelectedStyle}>
+            <RadioGroup value={selectedStyle} onValueChange={handleStyleChange}>
               <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-2">
                 {designStyles.map((style) => (
                   <label
@@ -1408,6 +1455,16 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
             generationPath: (settings.generationPath as GenerationPath) || prev.generationPath,
           }));
         }}
+      />
+
+      {/* Style Conflict Dialog */}
+      <StyleConflictDialog
+        open={conflictDialog.isOpen}
+        onOpenChange={(open) => !open && closeConflictDialog()}
+        newStyle={conflictDialog.newStyle}
+        existingStyles={conflictDialog.existingStyles}
+        dominantStyle={conflictDialog.dominantStyle}
+        onResolve={conflictDialog.onResolve || (() => {})}
       />
     </div>
   );

@@ -7,3 +7,4 @@ export { LibraryContributionNotification } from './LibraryContributionNotificati
 export { SaveTemplateDialog } from './SaveTemplateDialog';
 export { UseTemplateDialog } from './UseTemplateDialog';
 export { KeyboardShortcutsDialog } from './KeyboardShortcutsDialog';
+export { StyleConflictDialog } from './StyleConflictDialog';
