@@ -1,3 +1,5 @@
+import { trackGenerationError } from '@/lib/error-tracking';
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 interface GenerateResponse<T> {
@@ -22,7 +24,7 @@ interface QuickAnalysisResult {
 
 async function callGenerateAI<T>(
   action: string,
-  params: Record<string, any>
+  params: Record<string, unknown>
 ): Promise<GenerateResponse<T>> {
   const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-ai`, {
     method: 'POST',
@@ -34,8 +36,16 @@ async function callGenerateAI<T>(
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Generate AI request failed');
+    const errorData = await response.json();
+    const error = new Error(errorData.error || 'Generate AI request failed');
+
+    trackGenerationError(error, {
+      projectId: params.projectId as string,
+      roomId: params.roomId as string,
+      phase: action,
+    });
+
+    throw error;
   }
 
   return response.json();
