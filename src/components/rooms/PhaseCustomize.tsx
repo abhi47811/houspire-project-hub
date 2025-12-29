@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Palette, Copy, Save, Sparkles, Check, ChevronDown, Compass, Library, Upload, ArrowLeft, MapPin, Star, Clock, CheckCircle2, AlertTriangle, Zap, Edit3 } from 'lucide-react';
+import { Palette, Copy, Save, Sparkles, Check, ChevronDown, Compass, Library, Upload, ArrowLeft, MapPin, Star, Clock, CheckCircle2, AlertTriangle, Zap, Edit3, FileBox, Undo2, Redo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
@@ -26,6 +26,8 @@ import { GenerationPathsSelector, GenerationPath } from './GenerationPathsSelect
 import { SmartDefaultsDisplay } from './SmartDefaultsDisplay';
 import { ManualPromptEditor } from './ManualPromptEditor';
 import { PromptPreview } from './PromptPreview';
+import { CopySettingsDialog, SaveTemplateDialog, UseTemplateDialog } from '@/components/dialogs';
+import { useHistory } from '@/hooks/useHistory';
 
 interface Room {
   id: string;
@@ -157,6 +159,24 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   const [manualPrompt, setManualPrompt] = useState(room.custom_prompt || '');
   const [bypassPrompt, setBypassPrompt] = useState('');
   const [showStyleDialog, setShowStyleDialog] = useState(false);
+  
+  // Dialog states
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
+  const [showUseTemplateDialog, setShowUseTemplateDialog] = useState(false);
+
+  // Fetch rooms for copy dialog
+  const { data: projectRooms } = useQuery({
+    queryKey: ['rooms', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('id, room_name, room_number, room_type')
+        .eq('project_id', projectId);
+      if (error) throw error;
+      return data;
+    },
+  });
 
   // Fetch project for city
   const { data: project } = useQuery({
@@ -1163,7 +1183,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
             variant="outline"
             size="sm"
             className="flex-1"
-            onClick={() => toast({ title: 'Copy Settings', description: 'Select a room to copy settings from.' })}
+            onClick={() => setShowCopyDialog(true)}
           >
             <Copy className="mr-1 h-3 w-3" />
             Copy from Room
@@ -1172,13 +1192,52 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
             variant="outline"
             size="sm"
             className="flex-1"
-            onClick={() => toast({ title: 'Template Saved', description: 'Current settings saved as a reusable template.' })}
+            onClick={() => setShowSaveTemplateDialog(true)}
           >
             <Save className="mr-1 h-3 w-3" />
             Save Template
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowUseTemplateDialog(true)}
+          >
+            <FileBox className="h-3 w-3" />
+          </Button>
         </div>
       </div>
+
+      {/* Dialogs */}
+      <CopySettingsDialog
+        open={showCopyDialog}
+        onOpenChange={setShowCopyDialog}
+        sourceRoom={{ id: room.id, room_name: null, room_number: 1, room_type: room.room_type }}
+        availableRooms={projectRooms || []}
+      />
+      <SaveTemplateDialog
+        open={showSaveTemplateDialog}
+        onOpenChange={setShowSaveTemplateDialog}
+        settings={{
+          selectedStyle,
+          falseCeilingDrop: falseCeilingDrop[0],
+          selectedVastu,
+          customRequirements,
+          generationPath,
+        }}
+        roomType={room.room_type}
+      />
+      <UseTemplateDialog
+        open={showUseTemplateDialog}
+        onOpenChange={setShowUseTemplateDialog}
+        roomType={room.room_type}
+        onApply={(settings) => {
+          if (settings.selectedStyle) setSelectedStyle(settings.selectedStyle);
+          if (settings.falseCeilingDrop) setFalseCeilingDrop([settings.falseCeilingDrop]);
+          if (settings.selectedVastu) setSelectedVastu(settings.selectedVastu);
+          if (settings.customRequirements) setCustomRequirements(settings.customRequirements);
+          if (settings.generationPath) setGenerationPath(settings.generationPath as GenerationPath);
+        }}
+      />
     </div>
   );
 }
