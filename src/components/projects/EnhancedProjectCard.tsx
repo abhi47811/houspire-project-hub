@@ -106,7 +106,7 @@ export function EnhancedProjectCard({
       : 100);
 
   return (
-    <Card className="overflow-hidden transition-all hover:shadow-lg border-border group">
+    <Card className="card-interactive overflow-hidden border-border group animate-fade-in">
       {/* Header with gradient and thumbnails */}
       <div className="relative h-36 bg-gradient-to-br from-primary/20 via-primary/10 to-accent/5">
         {/* Thumbnails or placeholder */}
@@ -153,8 +153,13 @@ export function EnhancedProjectCard({
           />
         </div>
 
-        {/* Status badge */}
-        <Badge className={`absolute top-3 right-12 ${status.bgColor} ${status.color}`}>
+        {/* Status badge with pulse for active */}
+        <Badge className={`absolute top-3 right-12 ${status.bgColor} ${status.color} ${project.status === 'in_progress' ? 'animate-status-pulse' : ''}`}>
+          <span className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${
+            project.status === 'completed' || project.status === 'approved' ? 'bg-success' :
+            project.status === 'in_progress' || project.status === 'review' ? 'bg-primary animate-pulse' :
+            project.status === 'cancelled' ? 'bg-destructive' : 'bg-muted-foreground'
+          }`} />
           {status.label}
         </Badge>
 
@@ -318,9 +323,9 @@ export function EnhancedProjectCard({
 
         {/* View Details Button */}
         <Link to={`/projects/${project.id}`} className="block">
-          <Button variant="outline" className="w-full">
+          <Button variant="outline" className="w-full group/btn hover-lift">
             View Details
-            <ArrowRight className="ml-2 h-4 w-4" />
+            <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
           </Button>
         </Link>
       </CardContent>
