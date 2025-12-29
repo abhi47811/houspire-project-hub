@@ -19,7 +19,7 @@ export function TeamPerformanceCard() {
   if (isLoading) return <TeamPerformanceSkeleton />;
 
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card className="card-interactive">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5 text-primary" />
@@ -29,10 +29,14 @@ export function TeamPerformanceCard() {
       <CardContent>
         {(team || []).length > 0 ? (
           <div className="space-y-3">
-            {team?.map((member) => (
-              <div key={member.id} className="flex items-center gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+            {team?.map((member, index) => (
+              <div 
+                key={member.id} 
+                className="flex items-center gap-3 animate-fade-in"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <Avatar className="h-8 w-8 ring-2 ring-transparent hover:ring-primary/20 transition-all duration-200">
+                  <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary text-xs">
                     {member.name.split(' ').map(n => n[0]).join('')}
                   </AvatarFallback>
                 </Avatar>
@@ -50,7 +54,10 @@ export function TeamPerformanceCard() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">No team data available</p>
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <Users className="h-10 w-10 text-muted-foreground/50 mb-2" />
+            <p className="text-sm text-muted-foreground">No team data available</p>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -60,12 +67,15 @@ export function TeamPerformanceCard() {
 function TeamPerformanceSkeleton() {
   return (
     <Card>
-      <CardHeader className="pb-2"><Skeleton className="h-5 w-32" /></CardHeader>
+      <CardHeader className="pb-2"><Skeleton className="h-5 w-32 animate-shimmer" /></CardHeader>
       <CardContent className="space-y-3">
         {[1, 2, 3].map(i => (
           <div key={i} className="flex items-center gap-3">
-            <Skeleton className="h-8 w-8 rounded-full" />
-            <div className="flex-1"><Skeleton className="h-4 w-24" /><Skeleton className="mt-1 h-3 w-32" /></div>
+            <Skeleton className="h-8 w-8 rounded-full animate-shimmer" />
+            <div className="flex-1">
+              <Skeleton className="h-4 w-24 animate-shimmer" />
+              <Skeleton className="mt-1 h-3 w-32 animate-shimmer" />
+            </div>
           </div>
         ))}
       </CardContent>

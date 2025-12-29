@@ -21,7 +21,7 @@ export function CityBreakdownCard() {
   }));
 
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card className="card-interactive">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <MapPin className="h-5 w-5 text-primary" />
@@ -73,8 +73,14 @@ export function CityBreakdownCard() {
             <p className="mt-2 text-xs text-muted-foreground">Top 5 cities this month</p>
           </>
         ) : (
-          <div className="flex h-[180px] items-center justify-center">
-            <p className="text-sm text-muted-foreground">No city data available</p>
+          <div className="flex h-[180px] flex-col items-center justify-center gap-3 text-center">
+            <MapPin className="h-10 w-10 text-muted-foreground/50" />
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">No city data yet</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                Project locations will appear here
+              </p>
+            </div>
           </div>
         )}
       </CardContent>
@@ -86,14 +92,14 @@ function CityBreakdownSkeleton() {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <Skeleton className="h-5 w-28" />
+        <Skeleton className="h-5 w-28 animate-shimmer" />
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map(i => (
             <div key={i} className="flex items-center gap-3">
-              <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-4 flex-1" />
+              <Skeleton className="h-4 w-16 animate-shimmer" />
+              <Skeleton className="h-4 flex-1 animate-shimmer" />
             </div>
           ))}
         </div>

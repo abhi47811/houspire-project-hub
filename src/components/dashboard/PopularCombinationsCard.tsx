@@ -27,7 +27,7 @@ export function PopularCombinationsCard() {
   }));
 
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card className="card-interactive">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <Palette className="h-5 w-5 text-primary" />
@@ -101,12 +101,12 @@ function PopularCombinationsSkeleton() {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-5 w-40 animate-shimmer" />
       </CardHeader>
       <CardContent>
         <div className="flex h-[180px] items-end justify-around gap-2">
           {[80, 60, 100, 40, 70].map((height, i) => (
-            <Skeleton key={i} className="w-12" style={{ height: `${height}%` }} />
+            <Skeleton key={i} className="w-12 animate-shimmer" style={{ height: `${height}%` }} />
           ))}
         </div>
       </CardContent>
