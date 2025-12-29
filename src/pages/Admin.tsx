@@ -1,8 +1,11 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LayoutDashboard, Users, Building2, IndianRupee, BarChart3, Activity, Image, Database, Upload, Shield, CheckCircle } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, IndianRupee, BarChart3, Activity, Image, Database, Shield, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { SystemDashboard } from '@/components/admin/SystemDashboard';
 import { UserManagement } from '@/components/admin/UserManagement';
 import { VendorManagement } from '@/components/admin/VendorManagement';
@@ -15,6 +18,18 @@ import { LibraryCuratorUpload } from '@/components/admin/LibraryCuratorUpload';
 import { QualityViolationsPanel } from '@/components/admin/QualityViolationsPanel';
 
 export default function Admin() {
+  // Fetch pending approvals count
+  const { data: pendingCount } = useQuery({
+    queryKey: ['pending-approvals-count'],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('renders')
+        .select('id', { count: 'exact', head: true })
+        .eq('approval_status', 'pending');
+      return count || 0;
+    }
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -55,6 +70,11 @@ export default function Admin() {
           <TabsTrigger value="approvals" className="gap-2">
             <CheckCircle className="h-4 w-4" />
             Approvals
+            {pendingCount && pendingCount > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1.5">
+                {pendingCount}
+              </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="analytics" className="gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -88,6 +108,24 @@ export default function Admin() {
 
         <TabsContent value="library">
           <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Image className="h-5 w-5" />
+                  Library Tools
+                </CardTitle>
+                <CardDescription>
+                  Manage and analyze the style library
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex gap-3">
+                <Button asChild variant="outline">
+                  <Link to="/admin/library-analyzer">
+                    Open Library Analyzer
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
             <LibraryCuratorUpload />
             <LibraryAnalytics />
           </div>

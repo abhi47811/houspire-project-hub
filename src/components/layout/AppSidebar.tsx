@@ -9,14 +9,12 @@ import {
   LogOut,
   ChevronDown,
   Menu,
-  X,
   Library,
 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -117,11 +115,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <ChevronDown className="h-4 w-4 text-sidebar-foreground/60" aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem className="flex items-center gap-2">
-              <Settings className="h-4 w-4" aria-hidden="true" />
-              <span>Settings</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem
               className="flex items-center gap-2 text-destructive focus:text-destructive"
               onClick={signOut}
