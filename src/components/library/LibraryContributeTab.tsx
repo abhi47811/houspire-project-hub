@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import { Upload, FileSpreadsheet, FolderOpen, CheckCircle, AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -575,7 +575,7 @@ interface ContributionStats {
   total_times_selected: number;
 }
 
-export function LibraryContributeTab() {
+export const LibraryContributeTab = forwardRef<HTMLDivElement, object>(function LibraryContributeTab(_props, ref) {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [uploadMode, setUploadMode] = useState<'single' | 'bulk' | 'csv' | null>(null);
@@ -745,7 +745,7 @@ export function LibraryContributeTab() {
   const showSeedGenerator = isAdmin || (libraryCount !== undefined && libraryCount < 5);
 
   return (
-    <div className="space-y-6">
+    <div ref={ref} className="space-y-6">
       {/* Seed Collection Generator - Show for admins or when library is empty */}
       {showSeedGenerator && (
         <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
@@ -1165,6 +1165,6 @@ export function LibraryContributeTab() {
       </Card>
     </div>
   );
-}
+});
 
 export default LibraryContributeTab;
