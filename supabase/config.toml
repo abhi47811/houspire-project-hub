@@ -47,3 +47,9 @@ verify_jwt = false
 
 [functions.analyze-library-metadata]
 verify_jwt = false
+
+[functions.seed-smart-defaults]
+verify_jwt = false
+
+[functions.score-render]
+verify_jwt = false
