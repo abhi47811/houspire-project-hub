@@ -647,6 +647,20 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         console.error('Failed to track outcome to library:', trackError);
       }
 
+      // Log activity for render approval
+      try {
+        await supabase.rpc('log_project_activity', {
+          p_project_id: projectId,
+          p_user_id: user?.id,
+          p_activity_type: 'render_approved',
+          p_description: `Render approved with quality score: ${qualityScore}%`,
+          p_room_id: room.id,
+          p_render_id: currentRender?.id,
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
+
       // Auto-catalog this render to the style library
       try {
         const catalogResult = await catalogRenderToLibrary();

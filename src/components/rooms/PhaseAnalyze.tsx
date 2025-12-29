@@ -442,9 +442,23 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
       // Auto-submit cleaning job
       await submitCleaningJob();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['room-analysis', room.id] });
       queryClient.invalidateQueries({ queryKey: ['room', room.id] });
+      
+      // Log activity for analysis verification
+      try {
+        await supabase.rpc('log_project_activity', {
+          p_project_id: projectId,
+          p_user_id: user?.id,
+          p_activity_type: 'analysis_verified',
+          p_description: `Room analysis verified with style: ${selectedStyle || 'None'}`,
+          p_room_id: room.id,
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
+      
       toast({ title: 'Analysis verified', description: 'Moving to Phase 3: Clean' });
     },
     onError: (error: Error) => {

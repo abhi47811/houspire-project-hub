@@ -99,9 +99,11 @@ export function EnhancedProjectCard({
     no_deadline: null,
   };
 
-  const budgetMax = project.budget_tier === 'premium' ? 500 
-    : project.budget_tier === 'mid_range' ? 300 
-    : 100;
+  // Use estimated_budget from database if available, otherwise fall back to tier-based calculation
+  const budgetMax = project.estimated_budget 
+    ?? (project.budget_tier === 'premium' ? 500 
+      : project.budget_tier === 'mid_range' ? 300 
+      : 100);
 
   return (
     <Card className="overflow-hidden transition-all hover:shadow-lg border-border group">

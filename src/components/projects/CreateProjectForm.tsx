@@ -70,6 +70,16 @@ export function CreateProjectForm({ onSuccess }: CreateProjectFormProps) {
     },
   });
 
+  // Calculate estimated budget based on tier if not manually set
+  const getEstimatedBudgetFromTier = (tier: string): number => {
+    switch (tier) {
+      case 'premium': return 500;
+      case 'mid_range': return 300;
+      case 'budget': return 100;
+      default: return 300;
+    }
+  };
+
   const onSubmit = async (values: FormValues) => {
     if (!user) {
       toast({
@@ -82,8 +92,11 @@ export function CreateProjectForm({ onSuccess }: CreateProjectFormProps) {
 
     setIsSubmitting(true);
 
+    // Use provided estimated_budget or calculate from tier
+    const estimatedBudget = values.estimated_budget || getEstimatedBudgetFromTier(values.budget_tier);
+
     try {
-      const { error } = await supabase.from('projects').insert({
+      const { data: project, error } = await supabase.from('projects').insert({
         name: values.name,
         description: values.description || null,
         client_name: values.client_name,
@@ -92,14 +105,24 @@ export function CreateProjectForm({ onSuccess }: CreateProjectFormProps) {
         budget_tier: values.budget_tier,
         max_rooms: values.max_rooms,
         deadline: values.deadline || null,
-        estimated_budget: values.estimated_budget || null,
+        estimated_budget: estimatedBudget,
         created_by: user.id,
         status: 'draft',
         current_phase: 1,
         total_rooms: 0,
-      });
+      }).select('id').single();
 
       if (error) throw error;
+
+      // Log activity for project creation
+      if (project?.id) {
+        await supabase.rpc('log_project_activity', {
+          p_project_id: project.id,
+          p_user_id: user.id,
+          p_activity_type: 'project_created',
+          p_description: `Project "${values.name}" created for ${values.client_name} in ${values.city}`,
+        });
+      }
 
       toast({
         title: 'Project Created',
