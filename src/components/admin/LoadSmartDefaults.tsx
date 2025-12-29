@@ -209,7 +209,7 @@ export function LoadSmartDefaults() {
               ) : (
                 <RefreshCw className="h-4 w-4 mr-2" />
               )}
-              Refresh All (168)
+              Refresh All (169)
             </Button>
             <Button
               variant="ghost"
