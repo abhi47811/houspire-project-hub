@@ -402,7 +402,7 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    const { action, cleanedImageUrl, roomId, projectId, manualPrompt, customRequirements } = await req.json();
+    const { action, cleanedImageUrl, roomId, projectId, manualPrompt, customRequirements, refinementPrompt } = await req.json();
 
     if (!LOVABLE_API_KEY && !OPENROUTER_API_KEY) {
       throw new Error("No AI API keys configured");
@@ -437,8 +437,14 @@ serve(async (req) => {
         let smartDefaultData: any = null;
         let libraryImageData: any = null;
         
+        // Check if refinement prompt is provided (for making specific changes while preserving the rest)
+        if (refinementPrompt && refinementPrompt.trim().length > 0) {
+          console.log("\n[3/6] Using REFINEMENT PROMPT mode...");
+          comprehensivePrompt = `${refinementPrompt}\n\n## CRITICAL - PRESERVE EXISTING DESIGN:\nOnly make the specific changes requested above. Keep all other elements (furniture, decor, lighting, colors, styling) exactly as they are. Maintain the magazine-quality, richly detailed appearance.` + qcPromptAdditions;
+          console.log(`✓ Refinement prompt: ${refinementPrompt.length} characters + preservation instructions + QC rules`);
+        }
         // Check if manual prompt is provided
-        if (manualPrompt && manualPrompt.trim().length > 0) {
+        else if (manualPrompt && manualPrompt.trim().length > 0) {
           console.log("\n[3/6] Using MANUAL PROMPT mode...");
           comprehensivePrompt = manualPrompt + qcPromptAdditions;
           console.log(`✓ Manual prompt: ${manualPrompt.length} characters + QC rules`);
