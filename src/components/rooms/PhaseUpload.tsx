@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { ImageUpload } from './ImageUpload';
 import { ImageViewer } from './ImageViewer';
+import { PhaseUploadSkeleton } from './PhaseSkeletons';
 import { useToast } from '@/hooks/use-toast';
 import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hooks/useEnhancedKeyboardShortcuts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -28,7 +29,7 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: existingImage } = useQuery({
+  const { data: existingImage, isLoading: isLoadingImage } = useQuery({
     queryKey: ['room-images', room.id, 1, 'original'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -45,6 +46,11 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
   });
 
   const hasImage = !!existingImage || uploadComplete;
+
+  // Show skeleton while loading initial data
+  if (isLoadingImage) {
+    return <PhaseUploadSkeleton />;
+  }
 
   // Keyboard shortcut: trigger file picker
   const triggerUpload = useCallback(() => {

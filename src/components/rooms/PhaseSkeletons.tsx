@@ -173,3 +173,49 @@ export function PhaseAnalyzeSkeleton() {
     </div>
   );
 }
+
+// Skeleton for PhaseUpload
+export function PhaseUploadSkeleton() {
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-6 w-36" />
+          <Skeleton className="h-5 w-5 rounded-full" />
+        </div>
+        <Skeleton className="h-4 w-52 mt-1" />
+      </div>
+
+      {/* Upload/Preview Grid */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <div>
+          <Skeleton className="h-4 w-24 mb-2" />
+          <Skeleton className="aspect-video w-full rounded-lg border-2 border-dashed border-muted" />
+        </div>
+        <div>
+          <Skeleton className="h-4 w-16 mb-2" />
+          <Skeleton className="aspect-video w-full rounded-lg" />
+        </div>
+      </div>
+
+      {/* Guidelines Box */}
+      <div className="space-y-2 bg-muted/50 rounded-lg p-4">
+        <Skeleton className="h-4 w-32" />
+        <div className="space-y-1">
+          <Skeleton className="h-3 w-48" />
+          <Skeleton className="h-3 w-40" />
+          <Skeleton className="h-3 w-44" />
+          <Skeleton className="h-3 w-52" />
+          <Skeleton className="h-3 w-64" />
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="pt-4 border-t flex justify-end gap-2">
+        <Skeleton className="h-10 w-28 rounded" />
+        <Skeleton className="h-10 w-44 rounded" />
+      </div>
+    </div>
+  );
+}
