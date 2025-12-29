@@ -66,6 +66,7 @@ import {
   Play,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { Library } from 'lucide-react';
 import { AddRoomForm } from '@/components/projects/AddRoomForm';
 import { BulkUpload } from '@/components/rooms/BulkUpload';
 import { BatchCleanup } from '@/components/rooms/BatchCleanup';
@@ -799,11 +800,28 @@ function RoomCard({
 }) {
   const [renderStatus, setRenderStatus] = useState<'idle' | 'pending' | 'generating' | 'completed' | 'failed'>('idle');
   const [latestRender, setLatestRender] = useState<{ image_url: string; approval_status: string } | null>(null);
+  const [isInLibrary, setIsInLibrary] = useState(false);
   
   const roomType = room.room_type ? roomTypeLabels[room.room_type] : 'Unknown';
   const dimensions = room.length_feet && room.width_feet
     ? `${room.length_feet} × ${room.width_feet} ft`
     : 'No dimensions';
+
+  // Check if room is in library
+  useEffect(() => {
+    const checkLibraryStatus = async () => {
+      const { data } = await supabase
+        .from('style_library')
+        .select('id')
+        .eq('source_room_id', room.id)
+        .limit(1)
+        .maybeSingle();
+      
+      setIsInLibrary(!!data);
+    };
+    
+    checkLibraryStatus();
+  }, [room.id]);
 
   // Subscribe to render status changes
   useEffect(() => {
@@ -897,7 +915,21 @@ function RoomCard({
         )}
         
         {renderStatus === 'completed' && (
-          <div className="absolute top-3 right-3">
+          <div className="absolute top-3 right-3 flex gap-1">
+            {isInLibrary && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <div className="bg-green-600 text-white p-1 rounded-full">
+                      <Library className="h-3 w-3" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>In Library</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             <CheckCircle className="h-5 w-5 text-success" />
           </div>
         )}

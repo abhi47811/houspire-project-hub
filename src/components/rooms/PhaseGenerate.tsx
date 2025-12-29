@@ -137,6 +137,23 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   // Editable prompt for generation
   const [editablePrompt, setEditablePrompt] = useState('');
 
+  // Query to check if room is already in library
+  const { data: libraryStatus } = useQuery({
+    queryKey: ['room-library-status', room.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('style_library')
+        .select('id, tier, curator_verified, status')
+        .eq('source_room_id', room.id)
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!room.id,
+  });
+
   // Batch progress tracking
   const { activeBatch, recentBatches } = useBatches(projectId);
   const generateBatch = activeBatch?.batch_type === 'generate' ? activeBatch : null;
@@ -1199,8 +1216,27 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
           </Button>
         </div>
 
-        {/* Add to Library button - shows after approval */}
-        {room.phase_5_completed && hasRender && (
+        {/* Library Status Indicator */}
+        {libraryStatus && (
+          <div className="flex items-center gap-2 p-3 rounded-lg border bg-green-500/10 border-green-500/20">
+            <Library className="h-4 w-4 text-green-600" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-green-700">In Library</p>
+              <p className="text-xs text-muted-foreground">
+                {libraryStatus.curator_verified 
+                  ? `Verified • ${libraryStatus.tier || 'unverified'} tier`
+                  : 'Pending curation'
+                }
+              </p>
+            </div>
+            <Badge variant="outline" className="text-green-600 border-green-500/30">
+              {libraryStatus.tier || 'unverified'}
+            </Badge>
+          </div>
+        )}
+
+        {/* Add to Library button - shows after approval and not yet in library */}
+        {room.phase_5_completed && hasRender && !libraryStatus && (
           <Button 
             variant="outline" 
             className="w-full"
