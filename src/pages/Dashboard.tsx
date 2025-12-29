@@ -17,25 +17,27 @@ export default function Dashboard() {
   const userName = profile?.full_name || user?.email?.split('@')[0] || 'there';
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          Welcome back, {userName}!
-        </h1>
-        <p className="text-muted-foreground">
-          {profile?.role === 'admin' 
-            ? "Here's an overview of all projects and team activity."
-            : "Here's what's happening with your projects today."}
-        </p>
-      </div>
+    <div className="dashboard-container">
+      <div className="space-y-8">
+        {/* Welcome Section */}
+        <div className="animate-fade-in-up">
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">
+            Welcome back, {userName}!
+          </h1>
+          <p className="text-muted-foreground mt-1 text-base">
+            {profile?.role === 'admin' 
+              ? "Here's an overview of all projects and team activity."
+              : "Here's what's happening with your projects today."}
+          </p>
+        </div>
 
-      {/* Role-based Dashboard */}
-      {profile?.role === 'admin' ? (
-        <AdminDashboard />
-      ) : (
-        <RendererDashboard />
-      )}
+        {/* Role-based Dashboard */}
+        {profile?.role === 'admin' ? (
+          <AdminDashboard />
+        ) : (
+          <RendererDashboard />
+        )}
+      </div>
     </div>
   );
 }
