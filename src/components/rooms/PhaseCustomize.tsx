@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Palette, Copy, Save, Sparkles, Check, ChevronDown, Compass, Library, Upload, ArrowLeft, MapPin, Star, Clock, CheckCircle2, AlertTriangle, Zap, Edit3, FileBox, Undo2, Redo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
@@ -28,6 +29,7 @@ import { ManualPromptEditor } from './ManualPromptEditor';
 import { PromptPreview } from './PromptPreview';
 import { CopySettingsDialog, SaveTemplateDialog, UseTemplateDialog } from '@/components/dialogs';
 import { useHistory } from '@/hooks/useHistory';
+import { useEnhancedKeyboardShortcuts, getShortcutHint } from '@/hooks/useEnhancedKeyboardShortcuts';
 
 interface Room {
   id: string;
@@ -145,25 +147,112 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   const [uploadAnalysis, setUploadAnalysis] = useState<{ room_type: string; design_style: string; confidence: number } | null>(null);
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
   
-  // Customize mode states (for upload path)
-  const [selectedStyle, setSelectedStyle] = useState<string>(room.selected_style || '');
-  const [falseCeilingDrop, setFalseCeilingDrop] = useState([8]);
-  const [selectedVastu, setSelectedVastu] = useState<string[]>([]);
-  const [customRequirements, setCustomRequirements] = useState('');
+  // Customization state with undo/redo support
+  interface CustomizationState {
+    selectedStyle: string;
+    falseCeilingDrop: number;
+    selectedVastu: string[];
+    customRequirements: string;
+    generationPath: GenerationPath;
+    manualPrompt: string;
+    bypassPrompt: string;
+  }
+  
+  const initialCustomizationState: CustomizationState = {
+    selectedStyle: room.selected_style || '',
+    falseCeilingDrop: 8,
+    selectedVastu: [],
+    customRequirements: '',
+    generationPath: (room.generation_path as GenerationPath) || 'smart_defaults',
+    manualPrompt: room.custom_prompt || '',
+    bypassPrompt: '',
+  };
+  
+  const {
+    state: customization,
+    setState: setCustomization,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    historyLength,
+  } = useHistory<CustomizationState>(initialCustomizationState);
+  
+  // Helper functions to update individual fields
+  const setSelectedStyle = useCallback((value: string) => {
+    setCustomization(prev => ({ ...prev, selectedStyle: value }));
+  }, [setCustomization]);
+  
+  const setFalseCeilingDrop = useCallback((value: number[]) => {
+    setCustomization(prev => ({ ...prev, falseCeilingDrop: value[0] }));
+  }, [setCustomization]);
+  
+  const setSelectedVastu = useCallback((value: string[]) => {
+    setCustomization(prev => ({ ...prev, selectedVastu: value }));
+  }, [setCustomization]);
+  
+  const setCustomRequirements = useCallback((value: string) => {
+    setCustomization(prev => ({ ...prev, customRequirements: value }));
+  }, [setCustomization]);
+  
+  const setGenerationPath = useCallback((value: GenerationPath) => {
+    setCustomization(prev => ({ ...prev, generationPath: value }));
+  }, [setCustomization]);
+  
+  const setManualPrompt = useCallback((value: string) => {
+    setCustomization(prev => ({ ...prev, manualPrompt: value }));
+  }, [setCustomization]);
+  
+  const setBypassPrompt = useCallback((value: string) => {
+    setCustomization(prev => ({ ...prev, bypassPrompt: value }));
+  }, [setCustomization]);
+  
+  // Extract values for easier access
+  const { 
+    selectedStyle, 
+    falseCeilingDrop, 
+    selectedVastu, 
+    customRequirements, 
+    generationPath, 
+    manualPrompt, 
+    bypassPrompt 
+  } = customization;
+  
   const [isApplying, setIsApplying] = useState(false);
   const [isGeneratingMoodboard, setIsGeneratingMoodboard] = useState(false);
   const [moodboardImages, setMoodboardImages] = useState<string[]>([]);
-  const [generationPath, setGenerationPath] = useState<GenerationPath>(
-    (room.generation_path as GenerationPath) || 'smart_defaults'
-  );
-  const [manualPrompt, setManualPrompt] = useState(room.custom_prompt || '');
-  const [bypassPrompt, setBypassPrompt] = useState('');
   const [showStyleDialog, setShowStyleDialog] = useState(false);
   
   // Dialog states
   const [showCopyDialog, setShowCopyDialog] = useState(false);
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
   const [showUseTemplateDialog, setShowUseTemplateDialog] = useState(false);
+  
+  // Keyboard shortcuts for customize phase
+  useEnhancedKeyboardShortcuts({
+    onUndo: () => {
+      if (canUndo && mode === 'customize') {
+        undo();
+        toast({ title: 'Undo', description: 'Reverted to previous state' });
+      }
+    },
+    onRedo: () => {
+      if (canRedo && mode === 'customize') {
+        redo();
+        toast({ title: 'Redo', description: 'Restored next state' });
+      }
+    },
+    onSave: () => {
+      if (mode === 'customize') {
+        setShowSaveTemplateDialog(true);
+      }
+    },
+    onCopySettings: () => {
+      if (mode === 'customize') {
+        setShowCopyDialog(true);
+      }
+    },
+  });
 
   // Fetch rooms for copy dialog
   const { data: projectRooms } = useQuery({
@@ -1042,14 +1131,14 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
               <Label className="text-sm">False Ceiling Drop Height</Label>
               <div className="flex items-center gap-4">
                 <Slider
-                  value={falseCeilingDrop}
+                  value={[falseCeilingDrop]}
                   onValueChange={setFalseCeilingDrop}
                   min={6}
                   max={10}
                   step={0.5}
                   className="flex-1"
                 />
-                <span className="text-sm font-medium w-16 text-right">{falseCeilingDrop[0]}" drop</span>
+                <span className="text-sm font-medium w-16 text-right">{falseCeilingDrop}" drop</span>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>6" (Minimal)</span>
@@ -1073,11 +1162,11 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
                       id={pref.id}
                       checked={selectedVastu.includes(pref.id)}
                       onCheckedChange={(checked) => {
-                        setSelectedVastu(prev =>
-                          checked
-                            ? [...prev, pref.id]
-                            : prev.filter(id => id !== pref.id)
-                        );
+                        if (checked) {
+                          setSelectedVastu([...selectedVastu, pref.id]);
+                        } else {
+                          setSelectedVastu(selectedVastu.filter(id => id !== pref.id));
+                        }
                       }}
                     />
                     <div className="flex-1">
@@ -1178,32 +1267,94 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
           )}
         </Button>
 
+        {/* Undo/Redo and Quick Actions */}
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onClick={() => setShowCopyDialog(true)}
-          >
-            <Copy className="mr-1 h-3 w-3" />
-            Copy from Room
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onClick={() => setShowSaveTemplateDialog(true)}
-          >
-            <Save className="mr-1 h-3 w-3" />
-            Save Template
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowUseTemplateDialog(true)}
-          >
-            <FileBox className="h-3 w-3" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={undo}
+                disabled={!canUndo}
+              >
+                <Undo2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Undo ({getShortcutHint('Cmd+Z')})</p>
+            </TooltipContent>
+          </Tooltip>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={redo}
+                disabled={!canRedo}
+              >
+                <Redo2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Redo ({getShortcutHint('Cmd+Shift+Z')})</p>
+            </TooltipContent>
+          </Tooltip>
+          
+          {historyLength > 0 && (
+            <span className="text-xs text-muted-foreground self-center ml-1">
+              {historyLength} change{historyLength !== 1 ? 's' : ''}
+            </span>
+          )}
+          
+          <div className="flex-1" />
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCopyDialog(true)}
+              >
+                <Copy className="mr-1 h-3 w-3" />
+                Copy
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Copy from Room ({getShortcutHint('Cmd+C')})</p>
+            </TooltipContent>
+          </Tooltip>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSaveTemplateDialog(true)}
+              >
+                <Save className="mr-1 h-3 w-3" />
+                Save
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Save Template ({getShortcutHint('Cmd+S')})</p>
+            </TooltipContent>
+          </Tooltip>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowUseTemplateDialog(true)}
+              >
+                <FileBox className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Use Template</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
@@ -1219,7 +1370,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         onOpenChange={setShowSaveTemplateDialog}
         settings={{
           selectedStyle,
-          falseCeilingDrop: falseCeilingDrop[0],
+          falseCeilingDrop,
           selectedVastu,
           customRequirements,
           generationPath,
@@ -1231,11 +1382,15 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         onOpenChange={setShowUseTemplateDialog}
         roomType={room.room_type}
         onApply={(settings) => {
-          if (settings.selectedStyle) setSelectedStyle(settings.selectedStyle);
-          if (settings.falseCeilingDrop) setFalseCeilingDrop([settings.falseCeilingDrop]);
-          if (settings.selectedVastu) setSelectedVastu(settings.selectedVastu);
-          if (settings.customRequirements) setCustomRequirements(settings.customRequirements);
-          if (settings.generationPath) setGenerationPath(settings.generationPath as GenerationPath);
+          // Update all settings at once to create a single history entry
+          setCustomization(prev => ({
+            ...prev,
+            selectedStyle: settings.selectedStyle || prev.selectedStyle,
+            falseCeilingDrop: settings.falseCeilingDrop || prev.falseCeilingDrop,
+            selectedVastu: settings.selectedVastu || prev.selectedVastu,
+            customRequirements: settings.customRequirements || prev.customRequirements,
+            generationPath: (settings.generationPath as GenerationPath) || prev.generationPath,
+          }));
         }}
       />
     </div>
