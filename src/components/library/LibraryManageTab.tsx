@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Trash2, Archive, RefreshCw, Download, MoreHorizontal, Check, X, Eye } from 'lucide-react';
+import { useState, forwardRef } from 'react';
+import { Trash2, Archive, RefreshCw, Download, MoreHorizontal, Check, X, Eye, Loader2, BookmarkPlus, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,14 +28,128 @@ interface LibraryImage {
   created_at: string;
 }
 
-export function LibraryManageTab() {
+export const LibraryManageTab = forwardRef<HTMLDivElement>(function LibraryManageTab(props, ref) {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<string[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [filters, setFilters] = useState({
     source: 'all',
     tier: 'all',
     status: 'active',
   });
+
+  // Query to check for missing library entries
+  const { data: syncStats, refetch: refetchSyncStats } = useQuery({
+    queryKey: ['library-sync-stats'],
+    queryFn: async () => {
+      // Get count of approved renders not in library
+      const { data: approvedRenders } = await supabase
+        .from('renders')
+        .select('room_id')
+        .eq('approval_status', 'approved');
+      
+      if (!approvedRenders) return { missing: 0, total: 0 };
+
+      const roomIds = approvedRenders.map(r => r.room_id);
+      
+      // Get library entries that already exist for these rooms
+      const { data: existingEntries } = await supabase
+        .from('style_library')
+        .select('source_room_id')
+        .in('source_room_id', roomIds);
+      
+      const existingRoomIds = new Set(existingEntries?.map(e => e.source_room_id) || []);
+      const missingCount = roomIds.filter(id => !existingRoomIds.has(id)).length;
+      
+      return { missing: missingCount, total: approvedRenders.length };
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Sync approved renders to library
+  const handleSyncToLibrary = async () => {
+    setIsSyncing(true);
+    try {
+      // Get approved renders not in library
+      const { data: approvedRenders, error: renderError } = await supabase
+        .from('renders')
+        .select(`
+          id, room_id, image_url, storage_path, quality_score,
+          rooms!inner(room_type, selected_style, final_quality_score, project_id),
+          rooms!inner(projects!inner(city))
+        `)
+        .eq('approval_status', 'approved');
+
+      if (renderError) throw renderError;
+      if (!approvedRenders || approvedRenders.length === 0) {
+        toast({ title: 'No Renders to Sync', description: 'All approved renders are already in the library.' });
+        return;
+      }
+
+      // Get existing library entries
+      const roomIds = approvedRenders.map((r: any) => r.room_id);
+      const { data: existingEntries } = await supabase
+        .from('style_library')
+        .select('source_room_id')
+        .in('source_room_id', roomIds);
+      
+      const existingRoomIds = new Set(existingEntries?.map(e => e.source_room_id) || []);
+      
+      // Filter to only renders that need syncing
+      const rendersToSync = approvedRenders.filter((r: any) => !existingRoomIds.has(r.room_id));
+      
+      if (rendersToSync.length === 0) {
+        toast({ title: 'All Synced', description: 'All approved renders are already in the library.' });
+        return;
+      }
+
+      // Insert into library
+      let successCount = 0;
+      for (const render of rendersToSync) {
+        const roomData = (render as any).rooms;
+        const projectData = roomData?.projects;
+        
+        const { error: insertError } = await supabase
+          .from('style_library')
+          .insert({
+            image_url: render.image_url,
+            thumbnail_url: render.image_url,
+            storage_path: render.storage_path,
+            source_type: 'houspire_generated',
+            source_room_id: render.room_id,
+            room_type: roomData?.room_type || 'living_room',
+            design_style: roomData?.selected_style || 'contemporary',
+            city: projectData?.city || null,
+            quality_score: roomData?.final_quality_score || render.quality_score || 80,
+            tier: 'unverified',
+            status: 'active',
+            curator_verified: false,
+            tags: [roomData?.room_type || 'living_room', roomData?.selected_style || 'contemporary', 'approved', 'auto-synced']
+          });
+        
+        if (!insertError) successCount++;
+      }
+
+      toast({ 
+        title: 'Sync Complete', 
+        description: `Added ${successCount} renders to the library for curation.` 
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['library-manage'] });
+      queryClient.invalidateQueries({ queryKey: ['library-curate'] });
+      refetchSyncStats();
+      
+    } catch (error: any) {
+      console.error('Sync error:', error);
+      toast({ 
+        title: 'Sync Failed', 
+        description: error.message || 'Failed to sync renders to library.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const { data: images, isLoading } = useQuery({
     queryKey: ['library-manage', filters],
@@ -142,7 +256,43 @@ export function LibraryManageTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div ref={ref} className="space-y-6">
+      {/* Sync Stats Alert */}
+      {syncStats && syncStats.missing > 0 && (
+        <Card className="border-amber-500/50 bg-amber-500/10">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+                <div>
+                  <p className="font-medium text-sm">Missing Library Entries</p>
+                  <p className="text-xs text-muted-foreground">
+                    {syncStats.missing} approved render(s) not yet in the library
+                  </p>
+                </div>
+              </div>
+              <Button 
+                size="sm" 
+                onClick={handleSyncToLibrary}
+                disabled={isSyncing}
+              >
+                {isSyncing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <BookmarkPlus className="h-4 w-4 mr-2" />
+                    Sync to Library
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <p className="text-muted-foreground">
@@ -151,6 +301,19 @@ export function LibraryManageTab() {
         </div>
         
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleSyncToLibrary}
+            disabled={isSyncing}
+          >
+            {isSyncing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <BookmarkPlus className="h-4 w-4 mr-2" />
+            )}
+            Sync Renders
+          </Button>
           <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['library-manage'] })}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -354,6 +517,6 @@ export function LibraryManageTab() {
       </Card>
     </div>
   );
-}
+});
 
 export default LibraryManageTab;
