@@ -218,6 +218,9 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
     };
   }, []);
 
+  // Ref for tracking if auto-analysis was triggered
+  const hasTriggeredAutoAnalysis = useRef(false);
+
   // Re-analyze room using AI
   const reAnalyze = useMutation({
     mutationFn: async () => {
@@ -341,6 +344,27 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
       }
     },
   });
+
+  // Auto-trigger analysis when entering phase 2 without existing analysis
+  useEffect(() => {
+    // Only auto-trigger if:
+    // 1. Loading is complete
+    // 2. No analysis exists
+    // 3. Not already analyzing
+    // 4. Haven't already triggered in this session
+    // 5. Room is at phase 2
+    if (
+      !isLoading && 
+      !analysis && 
+      !reAnalyze.isPending && 
+      !hasTriggeredAutoAnalysis.current &&
+      room.current_phase >= 2
+    ) {
+      hasTriggeredAutoAnalysis.current = true;
+      console.log('Auto-triggering analysis for room:', room.id);
+      reAnalyze.mutate();
+    }
+  }, [isLoading, analysis, reAnalyze.isPending, room.id, room.current_phase, reAnalyze]);
 
   // Verify analysis mutation
   const verifyAnalysis = useMutation({

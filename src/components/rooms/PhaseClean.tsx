@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2, ImageOff, RefreshCw, Wand2, Eraser } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -176,6 +176,33 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
       refetchCleaned();
     }
   }, [hasCompleted, cleanedImage, refetchCleaned]);
+
+  // Ref to track if we've already auto-triggered cleaning in this session
+  const hasTriggeredAutoCleaning = useRef(false);
+  
+  // Auto-trigger cleaning when entering phase 3 without cleaned image and no active job
+  useEffect(() => {
+    // Only auto-trigger if:
+    // 1. Original image exists (required for cleaning)
+    // 2. No cleaned image yet
+    // 3. No active job running
+    // 4. Not already completed phase 3
+    // 5. Haven't already triggered in this session
+    // 6. Room is at phase 3
+    if (
+      originalImage?.signedUrl &&
+      !cleanedImage?.signedUrl &&
+      cleaningStatus === 'pending' &&
+      !room.phase_3_completed &&
+      !hasTriggeredAutoCleaning.current &&
+      room.current_phase >= 3 &&
+      !submitJob.isPending
+    ) {
+      hasTriggeredAutoCleaning.current = true;
+      console.log('Auto-triggering cleaning for room:', room.id);
+      handleStartCleaning();
+    }
+  }, [originalImage, cleanedImage, cleaningStatus, room.phase_3_completed, room.current_phase, room.id, submitJob.isPending]);
 
   // Refresh all data
   const handleRefresh = async () => {
