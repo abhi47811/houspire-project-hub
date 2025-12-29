@@ -289,8 +289,8 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
         try {
           // Call vision-ai to validate preservation
           const { data: validationData, error: validationError } = await supabase.functions.invoke('vision-ai', {
-            body: {
-              operation: 'validatePreservation',
+      body: {
+        action: 'validatePreservation',
               imageUrl: cleanedImage.signedUrl,
               expectedDoors: roomAnalysis.door_count || 0,
               expectedWindows: roomAnalysis.window_count || 0,

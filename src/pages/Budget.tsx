@@ -47,6 +47,7 @@ import {
   ChevronDown,
   Loader2,
 } from 'lucide-react';
+import { ExportBudgetPDFButton } from '@/components/budget/ExportBudgetPDFButton';
 
 interface BudgetItem {
   id: string;
@@ -245,12 +246,7 @@ export default function Budget() {
     });
   };
 
-  const handleExportPDF = () => {
-    toast({
-      title: 'Exporting PDF',
-      description: 'Quote document is being generated.',
-    });
-  };
+  // PDF export is now handled by ExportBudgetPDFButton component
 
   const handleExportVendorTemplates = () => {
     toast({
@@ -357,9 +353,13 @@ export default function Budget() {
                 <FileSpreadsheet className="mr-2 h-4 w-4" />
                 Download Excel BOQ
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPDF}>
-                <FileText className="mr-2 h-4 w-4" />
-                Download PDF Quote
+              <DropdownMenuItem asChild>
+                <ExportBudgetPDFButton 
+                  projectId={projectId!} 
+                  variant="ghost" 
+                  size="sm"
+                  className="w-full justify-start font-normal px-2 py-1.5 h-auto cursor-pointer"
+                />
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleExportVendorTemplates}>
                 <Package className="mr-2 h-4 w-4" />
