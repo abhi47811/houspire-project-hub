@@ -968,6 +968,13 @@ function RoomCard({
           </div>
         )}
         
+        {/* Needs Analysis Badge - show when phase 1 done but phase 2 not done */}
+        {room.phase_1_completed && !room.phase_2_completed && (
+          <Badge className="absolute top-3 right-3 bg-warning/90 text-warning-foreground">
+            Needs Analysis
+          </Badge>
+        )}
+        
         {room.selected_style && (
           <Badge className="absolute bottom-3 right-3 bg-card/90">
             {room.selected_style}

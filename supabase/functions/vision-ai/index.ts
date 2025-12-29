@@ -70,7 +70,7 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    const { action, imageUrl, imageUrls, originalUrl, cleanedUrl, renderUrl, requirements, roomData, smartDefaults, analysis, projectId, roomId } = await req.json();
+    const { action, imageUrl, imageUrls, originalUrl, cleanedUrl, renderUrl, requirements, roomData, smartDefaults, analysis, projectId, roomId, expectedDoors, expectedWindows } = await req.json();
 
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
@@ -206,6 +206,38 @@ Return JSON with: { prompt: string, negativePrompt: string, styleKeywords: strin
 Return as JSON.`;
         userContent = [
           { type: "text", text: "Quick room analysis." },
+          { type: "image_url", image_url: { url: imageUrl } },
+        ];
+        break;
+
+      case "validatePreservation":
+        model = "google/gemini-2.5-flash";
+        systemPrompt = `You are an architectural preservation validator. Analyze this interior image and count architectural elements precisely.
+
+IMPORTANT DISTINCTIONS:
+- DOORS: Entry/exit points with handles, including closet doors, room doors, balcony doors
+- WINDOWS: Openings that show outdoor views or natural light coming in
+- Do NOT count mirrors as windows (mirrors reflect room interiors)
+
+Count and verify:
+1. Number of doors visible
+2. Number of windows visible
+
+Expected elements:
+- Expected doors: ${expectedDoors || 0}
+- Expected windows: ${expectedWindows || 0}
+
+Return JSON with:
+{
+  "doors": number,
+  "windows": number,
+  "doorsPreserved": boolean (doors count matches expected),
+  "windowsPreserved": boolean (windows count matches expected),
+  "confidence": number (0-100),
+  "notes": string (any observations about preservation)
+}`;
+        userContent = [
+          { type: "text", text: `Validate architectural preservation in this cleaned/rendered room image. Expected: ${expectedDoors || 0} doors, ${expectedWindows || 0} windows.` },
           { type: "image_url", image_url: { url: imageUrl } },
         ];
         break;

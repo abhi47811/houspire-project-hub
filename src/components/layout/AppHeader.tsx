@@ -1,6 +1,7 @@
 import { useLocation, Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { NotificationCenter } from '@/components/dialogs';
+import { ThemeToggle } from './ThemeToggle';
 
 const routeNames: Record<string, string> = {
   '/': 'Dashboard',
@@ -53,6 +54,7 @@ export function AppHeader() {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
+        <ThemeToggle />
         <NotificationCenter />
       </div>
     </header>

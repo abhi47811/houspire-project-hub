@@ -41,7 +41,9 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  AlertCircle,
 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PhaseUpload } from '@/components/rooms/PhaseUpload';
 import { PhaseAnalyze } from '@/components/rooms/PhaseAnalyze';
 import { PhaseClean } from '@/components/rooms/PhaseClean';
@@ -165,6 +167,24 @@ export default function RoomDetail() {
     },
     enabled: !!projectId,
   });
+
+  // Fetch room_analysis to check if analysis exists
+  const { data: roomAnalysis } = useQuery({
+    queryKey: ['room-analysis', roomId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('room_analysis')
+        .select('id')
+        .eq('room_id', roomId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!roomId,
+  });
+
+  // Show analysis warning if phase 1 done, phase 2 not done, and no analysis record
+  const showAnalysisWarning = room?.phase_1_completed && !room?.phase_2_completed && !roomAnalysis;
 
   // Get the image type based on active phase
   const getImageTypeForPhase = (phase: number) => {
@@ -368,6 +388,18 @@ export default function RoomDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Analysis Required Warning */}
+      {showAnalysisWarning && (
+        <Alert variant="destructive" className="border-warning bg-warning/10">
+          <AlertCircle className="h-4 w-4 text-warning" />
+          <AlertTitle className="text-warning">Analysis Required</AlertTitle>
+          <AlertDescription className="text-warning/90">
+            This room has an image uploaded but hasn't been analyzed yet. 
+            Go to Phase 2 (Analyze) to run AI analysis before proceeding.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Main Content Area */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">

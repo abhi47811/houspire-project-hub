@@ -59,6 +59,22 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   const [isRetrying, setIsRetrying] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [batchCleanupOpen, setBatchCleanupOpen] = useState(false);
+  const [isValidatingPreservation, setIsValidatingPreservation] = useState(false);
+
+  // Fetch room analysis for architectural preservation data
+  const { data: roomAnalysis } = useQuery({
+    queryKey: ['room-analysis-preservation', room.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('room_analysis')
+        .select('door_count, window_count')
+        .eq('room_id', room.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!room.id,
+  });
 
   // Fetch all rooms for batch cleanup
   const { data: allRooms = [] } = useQuery({
@@ -261,6 +277,68 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
     setIsApproving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      
+      // Validate architectural preservation before approving
+      if (cleanedImage?.signedUrl && roomAnalysis) {
+        setIsValidatingPreservation(true);
+        toast({
+          title: 'Validating Preservation',
+          description: 'Checking doors and windows are preserved...',
+        });
+        
+        try {
+          // Call vision-ai to validate preservation
+          const { data: validationData, error: validationError } = await supabase.functions.invoke('vision-ai', {
+            body: {
+              operation: 'validatePreservation',
+              imageUrl: cleanedImage.signedUrl,
+              expectedDoors: roomAnalysis.door_count || 0,
+              expectedWindows: roomAnalysis.window_count || 0,
+            }
+          });
+          
+          if (!validationError && validationData) {
+            const doorsPreserved = validationData.doors === (roomAnalysis.door_count || 0);
+            const windowsPreserved = validationData.windows === (roomAnalysis.window_count || 0);
+            const allPreserved = doorsPreserved && windowsPreserved;
+            
+            // Record preservation in database
+            await supabase
+              .from('architectural_preservation')
+              .upsert({
+                room_id: room.id,
+                original_doors: roomAnalysis.door_count || 0,
+                original_windows: roomAnalysis.window_count || 0,
+                rendered_doors: validationData.doors || 0,
+                rendered_windows: validationData.windows || 0,
+                preservation_validated: allPreserved,
+                validation_score: validationData.confidence || 95,
+              }, { onConflict: 'room_id' });
+            
+            if (allPreserved) {
+              toast({
+                title: '✅ Preservation Verified',
+                description: `${roomAnalysis.door_count || 0} doors, ${roomAnalysis.window_count || 0} windows preserved.`,
+              });
+            } else {
+              const issues = [];
+              if (!doorsPreserved) issues.push(`doors: ${roomAnalysis.door_count || 0} → ${validationData.doors}`);
+              if (!windowsPreserved) issues.push(`windows: ${roomAnalysis.window_count || 0} → ${validationData.windows}`);
+              
+              toast({
+                title: '⚠️ Architectural Changes Detected',
+                description: issues.join(', ') + '. Review recommended.',
+                variant: 'destructive',
+              });
+            }
+          }
+        } catch (preservationError) {
+          console.error('Preservation validation failed:', preservationError);
+          // Don't block approval if validation fails
+        } finally {
+          setIsValidatingPreservation(false);
+        }
+      }
       
       const { error } = await supabase
         .from('rooms')

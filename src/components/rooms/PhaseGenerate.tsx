@@ -319,14 +319,62 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     }
   });
 
-  // Refetch renders when job completes
+  // Refetch renders when job completes and auto-score new renders
   useEffect(() => {
-    if (currentJob?.status === 'completed') {
-      refetchRender();
-      refetchRenderImage();
-      queryClient.invalidateQueries({ queryKey: ['room', room.id] });
-    }
-  }, [currentJob?.status, refetchRender, refetchRenderImage, queryClient, room.id]);
+    const handleJobCompletion = async () => {
+      if (currentJob?.status === 'completed') {
+        await refetchRender();
+        await refetchRenderImage();
+        queryClient.invalidateQueries({ queryKey: ['room', room.id] });
+        
+        // Auto-score the new render if it doesn't have a score yet
+        // Delay slightly to ensure render data is loaded
+        setTimeout(async () => {
+          const renderToScore = currentRender || renderImage;
+          const imageUrl = currentRender?.image_url || renderImage?.signedUrl;
+          
+          if (imageUrl && currentRender && currentRender.quality_score === null) {
+            toast({
+              title: 'Evaluating Quality',
+              description: 'AI is scoring your render...',
+            });
+            
+            try {
+              const score = await scoreRender(imageUrl);
+              
+              // Update render with quality score
+              if (currentRender?.id) {
+                await supabase
+                  .from('renders')
+                  .update({ quality_score: score })
+                  .eq('id', currentRender.id);
+                
+                // Refetch to show updated score
+                await refetchRender();
+              }
+              
+              // Show score result
+              if (score >= 85) {
+                toast({
+                  title: `✅ Excellent Quality: ${score}%`,
+                  description: 'Render meets quality standards!',
+                });
+              } else {
+                toast({
+                  title: `⚠️ Quality: ${score}%`,
+                  description: 'Consider regenerating for better results.',
+                });
+              }
+            } catch (err) {
+              console.error('Auto-scoring failed:', err);
+            }
+          }
+        }, 1000);
+      }
+    };
+    
+    handleJobCompletion();
+  }, [currentJob?.status]);
 
   // Ref to track if we've already auto-triggered generation in this session
   const hasTriggeredAutoGeneration = useRef(false);
@@ -526,7 +574,8 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         return 85; // Default score if scoring fails
       }
       
-      const score = data?.overallScore || 85;
+      // Edge function returns { success: true, score: { overall: number, breakdown: {...}, ... } }
+      const score = data?.score?.overall || 85;
       console.log('✅ Render scored:', score);
       return score;
     } catch (err) {
