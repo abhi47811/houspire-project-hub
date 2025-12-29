@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   CheckCircle,
   RefreshCw,
@@ -22,6 +23,8 @@ import {
   Pencil,
   X,
   Clock,
+  AlertCircle,
+  SkipForward,
 } from 'lucide-react';
 import { visionService } from '@/services/api';
 
@@ -69,37 +72,7 @@ interface PhaseAnalyzeProps {
   projectId: string;
 }
 
-// Mock analysis data for demo
-const mockAnalysis: Omit<RoomAnalysis, 'id' | 'room_id'> = {
-  window_count: 2,
-  window_positions: [
-    { position: 'North Wall', size: '4x5 ft' },
-    { position: 'East Wall', size: '3x4 ft' }
-  ],
-  mirror_count: 0,
-  mirror_positions: [],
-  door_count: 1,
-  door_positions: [
-    { position: 'South Wall', height: '7 ft', type: 'Entry' }
-  ],
-  ceiling_fan_count: 1,
-  ac_unit_count: 1,
-  outlet_count: 4,
-  other_features: [
-    { type: 'AC Unit', position: 'West Wall' }
-  ],
-  detected_length_feet: 15,
-  detected_width_feet: 12,
-  detected_height_feet: 10,
-  measurement_confidence: 87.5,
-  suggested_styles: [
-    { name: 'Modern Minimalist', confidence: 92, description: 'Clean lines and neutral tones' },
-    { name: 'Contemporary Indian', confidence: 85, description: 'Blend of modern and traditional' },
-    { name: 'Scandinavian', confidence: 78, description: 'Light, airy with natural materials' }
-  ],
-  selected_style: null,
-  is_verified: false,
-};
+// Removed mock data - now showing proper error states when analysis is missing
 
 export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
   const { user } = useAuth();
@@ -129,8 +102,8 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch analysis
-  const { data: analysis, isLoading } = useQuery({
+  // Fetch analysis - returns null if none exists (no mock data)
+  const { data: analysis, isLoading, error: queryError } = useQuery({
     queryKey: ['room-analysis', room.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -141,9 +114,13 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
       
       if (error) throw error;
       
-      // If no analysis exists, return mock data for demo
+      // Return null if no analysis exists - don't use mock data
       if (!data) {
-        return { ...mockAnalysis, id: 'mock', room_id: room.id };
+        // Log in development for debugging
+        if (import.meta.env.DEV) {
+          console.warn('⚠️ Room analysis missing for room:', room.id);
+        }
+        return null;
       }
       
       // Parse suggested_styles if it's a JSON string
@@ -397,7 +374,7 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
           .eq('room_id', room.id);
         if (error) throw error;
       } else {
-        // Create new
+        // Create new - use current state values (no mock data)
         const { error } = await supabase
           .from('room_analysis')
           .insert([{
@@ -415,8 +392,8 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
             ceiling_fan_count: features.ceilingFanCount,
             ac_unit_count: features.acUnitCount,
             outlet_count: features.outletCount,
-            measurement_confidence: mockAnalysis.measurement_confidence,
-            suggested_styles: mockAnalysis.suggested_styles as unknown as any,
+            measurement_confidence: null,
+            suggested_styles: [],
           }]);
         if (error) throw error;
       }
@@ -448,8 +425,113 @@ export function PhaseAnalyze({ room, projectId }: PhaseAnalyzeProps) {
     },
   });
 
+  // Skip analysis and proceed to next phase
+  const skipAnalysis = async () => {
+    try {
+      await supabase
+        .from('rooms')
+        .update({
+          phase_2_completed: true,
+          current_phase: 3,
+        })
+        .eq('id', room.id);
+      
+      queryClient.invalidateQueries({ queryKey: ['room', room.id] });
+      toast({
+        title: 'Analysis Skipped',
+        description: 'Proceeding to Phase 3. Results may vary without analysis data.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to skip analysis',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (isLoading) {
     return <PhaseAnalyzeSkeleton />;
+  }
+
+  // Show error/missing state when no analysis exists
+  if (queryError || !analysis) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-semibold">Phase 2: Analyze</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            AI-powered room analysis
+          </p>
+        </div>
+        
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Analysis Not Available</AlertTitle>
+          <AlertDescription>
+            {queryError 
+              ? `Error loading analysis: ${queryError.message}`
+              : 'Room analysis data is missing. This could mean the analysis wasn\'t run yet or failed to complete.'
+            }
+          </AlertDescription>
+        </Alert>
+        
+        <div className="text-sm space-y-2 text-muted-foreground">
+          <p className="font-medium">Possible reasons:</p>
+          <ul className="list-disc list-inside space-y-1 ml-2">
+            <li>Analysis was never started</li>
+            <li>Image quality too low for detection</li>
+            <li>Room not clearly visible in image</li>
+            <li>Network connection issue during analysis</li>
+          </ul>
+        </div>
+        
+        <div className="flex gap-2 pt-4 border-t">
+          {reAnalyze.isPending ? (
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Analyzing...
+                </span>
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {elapsedTime}s
+                </span>
+              </div>
+              <Progress value={(elapsedTime / (ANALYSIS_TIMEOUT_MS / 1000)) * 100} className="h-2" />
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="w-full"
+                onClick={cancelAnalysis}
+              >
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <>
+              <Button 
+                className="flex-1"
+                onClick={() => reAnalyze.mutate()}
+                disabled={reAnalyze.isPending}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Run Analysis
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={skipAnalysis}
+              >
+                <SkipForward className="mr-2 h-4 w-4" />
+                Skip & Continue
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    );
   }
 
   const area = measurements.length * measurements.width;
