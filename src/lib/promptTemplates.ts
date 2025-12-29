@@ -412,6 +412,219 @@ export const ROOM_TEMPLATES: Record<string, RoomTemplate> = {
       'Thoughtful amenities',
       'Clean and fresh'
     ]
+  },
+
+  balcony: {
+    roomType: 'Balcony',
+    essentialFurniture: [
+      'Outdoor seating (chairs, loveseat, or swing)',
+      'Small coffee table or side table',
+      'Planters with greenery',
+      'Floor mat or outdoor rug'
+    ],
+    essentialDecor: [
+      'Hanging plants or vertical garden',
+      'Outdoor cushions and throws',
+      'Lanterns or string lights',
+      'Decorative planters in varying sizes',
+      'Wall-mounted shelves or hooks'
+    ],
+    essentialTextiles: [
+      'Weather-resistant cushions',
+      'Outdoor rug or mat',
+      'Throw blankets for seating'
+    ],
+    lightingWithFan: [
+      'Ceiling fan (if covered balcony)',
+      'String lights or fairy lights',
+      'Floor lanterns',
+      'NO hanging pendants'
+    ],
+    lightingWithoutFan: [
+      'String lights or fairy lights',
+      'Wall-mounted outdoor lights',
+      'Lanterns or candle holders',
+      'Solar-powered accent lights'
+    ],
+    qualityNotes: [
+      'Cozy outdoor living space',
+      'Abundant greenery and plants',
+      'Weather-appropriate materials',
+      'Warm, inviting ambiance',
+      'Privacy elements if needed'
+    ]
+  },
+
+  foyer: {
+    roomType: 'Foyer',
+    essentialFurniture: [
+      'Console table against wall',
+      'Mirror above console',
+      'Seating bench or chair',
+      'Shoe storage or cabinet',
+      'Coat hooks or stand'
+    ],
+    essentialDecor: [
+      'Large decorative mirror',
+      'Artwork or wall decor',
+      'Table lamp on console',
+      'Fresh flowers or plants',
+      'Decorative bowl for keys',
+      'Umbrella stand'
+    ],
+    essentialTextiles: [
+      'Runner rug or area rug',
+      'Welcome mat',
+      'Cushion on bench if applicable'
+    ],
+    lightingWithFan: [
+      'Ceiling fan (if large foyer)',
+      'Table lamp on console',
+      'Wall sconces',
+      'NO low-hanging fixtures'
+    ],
+    lightingWithoutFan: [
+      'Statement pendant or chandelier',
+      'Table lamp on console',
+      'Wall sconces',
+      'Recessed lighting'
+    ],
+    qualityNotes: [
+      'First impression matters',
+      'Welcoming and inviting',
+      'Functional yet decorative',
+      'Reflects home\'s overall style'
+    ]
+  },
+
+  pooja_room: {
+    roomType: 'Pooja Room',
+    essentialFurniture: [
+      'Mandir or altar (wooden or marble)',
+      'Storage for pooja items',
+      'Seating (small stool, cushion, or asana)',
+      'Shelf for religious books'
+    ],
+    essentialDecor: [
+      'Deity idols or photos',
+      'Brass or silver pooja items',
+      'Incense holder (agarbatti stand)',
+      'Bell (ghanti)',
+      'Diya or oil lamps',
+      'Fresh flowers or garlands',
+      'Religious symbols (Om, Swastik)',
+      'Decorative wall hangings'
+    ],
+    essentialTextiles: [
+      'Silk or cotton cloth for altar',
+      'Small prayer mat or cushion',
+      'Decorative curtain for mandir'
+    ],
+    lightingWithFan: [
+      'Soft overhead lighting',
+      'NO ceiling fan (sacred space)',
+      'Diya or oil lamps',
+      'LED lights in mandir'
+    ],
+    lightingWithoutFan: [
+      'Warm, soft overhead lighting',
+      'Diya or oil lamps',
+      'LED strip lights in mandir',
+      'NO harsh bright lights'
+    ],
+    qualityNotes: [
+      'Sacred, peaceful atmosphere',
+      'Traditional Indian elements',
+      'Clean, organized, clutter-free',
+      'Warm, golden lighting',
+      'Respectful, authentic design'
+    ]
+  },
+
+  wardrobe: {
+    roomType: 'Wardrobe',
+    essentialFurniture: [
+      'Built-in or freestanding wardrobe units',
+      'Drawers and shelving',
+      'Full-length mirror',
+      'Dressing table or vanity',
+      'Ottoman or seating',
+      'Shoe racks or storage'
+    ],
+    essentialDecor: [
+      'Decorative boxes for accessories',
+      'Jewelry organizers',
+      'Perfume display',
+      'Decorative hangers',
+      'Plants or flowers',
+      'Framed artwork or mirror'
+    ],
+    essentialTextiles: [
+      'Area rug',
+      'Cushion on seating',
+      'Drawer liners'
+    ],
+    lightingWithFan: [
+      'Ceiling fan (if large walk-in)',
+      'LED strip lights inside wardrobes',
+      'Vanity lights around mirror',
+      'Overhead lighting'
+    ],
+    lightingWithoutFan: [
+      'Chandelier or statement fixture',
+      'LED strip lights inside wardrobes',
+      'Vanity lights around mirror',
+      'Recessed spotlights'
+    ],
+    qualityNotes: [
+      'Highly organized and functional',
+      'Luxury boutique feel',
+      'Everything visible and accessible',
+      'Premium materials and finishes'
+    ]
+  },
+
+  nursery: {
+    roomType: 'Nursery',
+    essentialFurniture: [
+      'Crib with safe bedding',
+      'Changing table or dresser with changing pad',
+      'Nursing chair or glider',
+      'Storage for baby items',
+      'Bookshelf for books and toys'
+    ],
+    essentialDecor: [
+      'Soft wall art or murals',
+      'Mobile above crib',
+      'Stuffed animals and soft toys',
+      'Growth chart',
+      'Name letters or personalization',
+      'Soft nightlight'
+    ],
+    essentialTextiles: [
+      'Soft area rug',
+      'Curtains (blackout recommended)',
+      'Cozy blankets and throws',
+      'Cushions for nursing chair'
+    ],
+    lightingWithFan: [
+      'Ceiling fan (quiet model)',
+      'Dim-able overhead light',
+      'Soft nightlight',
+      'NO hanging fixtures near crib'
+    ],
+    lightingWithoutFan: [
+      'Flush mount ceiling light',
+      'Table lamp for soft lighting',
+      'Nightlight',
+      'Dim-able options throughout'
+    ],
+    qualityNotes: [
+      'Safe and soothing environment',
+      'Soft, calming color palette',
+      'All items baby-safe',
+      'Peaceful, restful atmosphere'
+    ]
   }
 };
 
