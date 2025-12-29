@@ -332,8 +332,8 @@ export function BulkUpload({
 
           {/* File List */}
           {files.length > 0 && (
-            <ScrollArea className="h-[300px] border rounded-lg p-4">
-              <div className="space-y-3">
+            <ScrollArea className="h-[300px] border rounded-lg p-4 overflow-x-hidden">
+              <div className="space-y-3 overflow-x-hidden">
                 {files.map((file, index) => (
                   <div
                     key={`${file.file?.name || 'file'}-${index}`}
@@ -354,13 +354,13 @@ export function BulkUpload({
                       )}
                     </div>
 
-                    {/* Details */}
+                    {/* Details - Grid layout to prevent overflow */}
                     <div className="flex-1 min-w-0 space-y-2">
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-[1fr_140px] gap-2">
                         <Input
                           value={file.roomName}
                           onChange={(e) => updateFile(index, { roomName: e.target.value })}
-                          className="h-8"
+                          className="h-8 min-w-0"
                           disabled={isUploading}
                         />
                         <Select
@@ -368,10 +368,10 @@ export function BulkUpload({
                           onValueChange={(value) => updateFile(index, { roomType: value })}
                           disabled={isUploading}
                         >
-                          <SelectTrigger className="w-[140px] h-8">
+                          <SelectTrigger className="h-8">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="z-[1000]">
                             {roomTypes.map((type) => (
                               <SelectItem key={type.value} value={type.value}>
                                 {type.label}
