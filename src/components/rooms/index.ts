@@ -1,3 +1,6 @@
+// Phase components
+export { PhaseStatusBar } from './PhaseStatusBar';
+
 // Bulk operations
 export { BulkUpload } from './BulkUpload';
 export { BatchAnalysis } from './BatchAnalysis';

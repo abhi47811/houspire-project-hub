@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Image, 
   Download, 
@@ -323,6 +323,9 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       queryClient.invalidateQueries({ queryKey: ['room', room.id] });
     }
   }, [currentJob?.status, refetchRender, refetchRenderImage, queryClient, room.id]);
+
+  // Ref to track if we've already auto-triggered generation in this session
+  const hasTriggeredAutoGeneration = useRef(false);
 
   // Get the render URL (prefer renders table, fallback to room_images)
   const renderUrl = currentRender?.image_url || renderImage?.signedUrl;
@@ -773,6 +776,38 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       setIsSubmittingJob(false);
     }
   };
+
+  // Auto-trigger generation when entering phase 5 without render and no active job
+  useEffect(() => {
+    // Get the render URL (prefer renders table, fallback to room_images)
+    const currentRenderUrl = currentRender?.image_url || renderImage?.signedUrl;
+    
+    // Only auto-trigger if:
+    // 1. Cleaned image exists (required for generation)
+    // 2. No render exists yet
+    // 3. No active job running
+    // 4. Not already completed phase 5
+    // 5. Haven't already triggered in this session
+    // 6. Room is at phase 5
+    // 7. Has a style selected (required for generation)
+    if (
+      cleanedImage?.signedUrl &&
+      !currentRenderUrl &&
+      !currentJob &&
+      !room.phase_5_completed &&
+      !hasTriggeredAutoGeneration.current &&
+      room.current_phase >= 5 &&
+      !isSubmittingJob &&
+      (room.selected_style || room.custom_prompt || room.generation_path === 'bypass')
+    ) {
+      hasTriggeredAutoGeneration.current = true;
+      console.log('Auto-triggering generation for room:', room.id);
+      // Slight delay to ensure UI is ready
+      setTimeout(() => {
+        handleRegenerate();
+      }, 500);
+    }
+  }, [cleanedImage, currentRender, renderImage, currentJob, room.phase_5_completed, room.current_phase, room.id, room.selected_style, room.custom_prompt, room.generation_path, isSubmittingJob]);
 
   const handleSubmitChangeRequest = () => {
     toast({
