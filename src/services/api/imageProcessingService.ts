@@ -1,3 +1,5 @@
+import { trackAPIError } from '@/lib/error-tracking';
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 interface ImageProcessingResponse {
@@ -14,8 +16,10 @@ interface ImageProcessingResponse {
 
 async function callImageProcessing(
   action: string,
-  params: Record<string, any>
+  params: Record<string, unknown>
 ): Promise<ImageProcessingResponse> {
+  const startTime = Date.now();
+
   const response = await fetch(`${SUPABASE_URL}/functions/v1/image-processing`, {
     method: 'POST',
     headers: {
@@ -26,8 +30,17 @@ async function callImageProcessing(
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Image processing request failed');
+    const errorData = await response.json();
+    const error = new Error(errorData.error || 'Image processing request failed');
+
+    trackAPIError(error, {
+      endpoint: '/functions/v1/image-processing',
+      method: 'POST',
+      statusCode: response.status,
+      responseTime: Date.now() - startTime,
+    });
+
+    throw error;
   }
 
   return response.json();

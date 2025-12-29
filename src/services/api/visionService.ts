@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { trackAPIError } from '@/lib/error-tracking';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -60,8 +60,10 @@ interface PromptGeneration {
 
 async function callVisionAI<T>(
   action: string,
-  params: Record<string, any>
+  params: Record<string, unknown>
 ): Promise<VisionResponse<T>> {
+  const startTime = Date.now();
+
   const response = await fetch(`${SUPABASE_URL}/functions/v1/vision-ai`, {
     method: 'POST',
     headers: {
@@ -72,8 +74,17 @@ async function callVisionAI<T>(
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Vision AI request failed');
+    const errorData = await response.json();
+    const error = new Error(errorData.error || 'Vision AI request failed');
+
+    trackAPIError(error, {
+      endpoint: '/functions/v1/vision-ai',
+      method: 'POST',
+      statusCode: response.status,
+      responseTime: Date.now() - startTime,
+    });
+
+    throw error;
   }
 
   return response.json();
