@@ -581,6 +581,50 @@ async function processJob(supabase: any, job: any): Promise<void> {
           resolution: "high",
         });
 
+        // Get signed URL for the render
+        const { data: signedUrlData } = await supabase.storage
+          .from("room-images")
+          .createSignedUrl(renderImagePath, 86400 * 30); // 30 day expiry
+        
+        const renderImageUrl = signedUrlData?.signedUrl || renderImagePath;
+
+        // Get version number for this room
+        const { data: existingRenders } = await supabase
+          .from("renders")
+          .select("version_number")
+          .eq("room_id", job.room_id)
+          .order("version_number", { ascending: false })
+          .limit(1);
+        
+        const newVersionNumber = (existingRenders?.[0]?.version_number || 0) + 1;
+        const parentRenderId = existingRenders?.[0]?.id || null;
+
+        // INSERT INTO RENDERS TABLE - Critical for approval workflow
+        const { data: renderRecord, error: renderInsertError } = await supabase
+          .from("renders")
+          .insert({
+            room_id: job.room_id,
+            image_url: renderImageUrl,
+            storage_path: renderImagePath,
+            prompt_used: prompt,
+            model_used: "gemini-3-pro-image-preview",
+            provider: "lovable-ai",
+            generation_time_ms: genResult.latency,
+            approval_status: "pending",
+            quality_score: null, // Will be updated after scoring
+            version_number: newVersionNumber,
+            parent_render_id: parentRenderId,
+          })
+          .select()
+          .single();
+
+        if (renderInsertError) {
+          console.error("Failed to insert render record:", renderInsertError);
+          // Don't throw - room_images already has the image
+        } else {
+          console.log(`Render record created: ${renderRecord?.id}, version ${newVersionNumber}`);
+        }
+
         // Update room phase
         await supabase
           .from("rooms")
