@@ -23,6 +23,7 @@ const Team = lazy(() => import("./pages/Team"));
 const Admin = lazy(() => import("./pages/Admin"));
 const Library = lazy(() => import("./pages/Library"));
 const LibraryAnalyzer = lazy(() => import("./pages/LibraryAnalyzer"));
+const ApprovalDashboard = lazy(() => import("./pages/admin/ApprovalDashboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -70,6 +71,14 @@ const App = () => (
                     element={
                       <ProtectedRoute allowedRoles={['admin']}>
                         <Admin />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin/approval"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <ApprovalDashboard />
                       </ProtectedRoute>
                     }
                   />
