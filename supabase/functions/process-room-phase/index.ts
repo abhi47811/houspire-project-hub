@@ -23,6 +23,120 @@ function getAdminClient() {
   });
 }
 
+// ============= ERROR HANDLING & RETRY HELPERS =============
+
+// Classify errors and provide actionable suggestions
+function classifyError(error: Error): {
+  errorType: string;
+  suggestedAction: string;
+  isRetryable: boolean;
+} {
+  const msg = (error.message || '').toLowerCase();
+  
+  if (msg.includes('401') || msg.includes('403') || msg.includes('unauthorized') || msg.includes('forbidden')) {
+    return {
+      errorType: 'authentication',
+      suggestedAction: 'API key may be invalid. Please contact support.',
+      isRetryable: false
+    };
+  }
+  if (msg.includes('400') || msg.includes('bad request') || msg.includes('invalid')) {
+    return {
+      errorType: 'validation',
+      suggestedAction: 'Request parameters are invalid. Please check input and try again.',
+      isRetryable: false
+    };
+  }
+  if (msg.includes('429') || msg.includes('rate limit') || msg.includes('too many requests')) {
+    return {
+      errorType: 'rate_limit',
+      suggestedAction: 'Rate limit exceeded. Please wait a moment and try again.',
+      isRetryable: true
+    };
+  }
+  if (msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('504') || msg.includes('internal server error')) {
+    return {
+      errorType: 'server_error',
+      suggestedAction: 'AI service temporarily unavailable. Please try again in a few minutes.',
+      isRetryable: true
+    };
+  }
+  if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('deadline')) {
+    return {
+      errorType: 'timeout',
+      suggestedAction: 'Generation took too long. Please try again.',
+      isRetryable: true
+    };
+  }
+  if (msg.includes('network') || msg.includes('fetch failed') || msg.includes('econnrefused') || msg.includes('enotfound') || msg.includes('socket')) {
+    return {
+      errorType: 'network',
+      suggestedAction: 'Network connection issue. Please try again.',
+      isRetryable: true
+    };
+  }
+  
+  return {
+    errorType: 'unknown',
+    suggestedAction: 'An unexpected error occurred. Please try again.',
+    isRetryable: true
+  };
+}
+
+// Retry wrapper with exponential backoff
+async function generateWithRetry<T>(
+  apiCall: () => Promise<T>,
+  context: { operation: string; roomId?: string; projectId?: string },
+  maxRetries: number = 2,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = baseDelay * Math.pow(2, attempt - 1);
+        console.log(`⏳ [${context.operation}] Retry attempt ${attempt}/${maxRetries} after ${delay}ms delay`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      
+      const result = await apiCall();
+      
+      if (attempt > 0) {
+        console.log(`✅ [${context.operation}] Retry succeeded on attempt ${attempt}`);
+      }
+      
+      return result;
+      
+    } catch (error) {
+      lastError = error as Error;
+      const { errorType, isRetryable } = classifyError(lastError);
+      
+      console.error(`❌ [${context.operation}] Attempt ${attempt + 1} failed:`, {
+        error: lastError.message,
+        errorType,
+        isRetryable,
+        roomId: context.roomId,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Don't retry on non-retryable errors
+      if (!isRetryable) {
+        console.error(`❌ [${context.operation}] Error is not retryable, failing immediately`);
+        throw lastError;
+      }
+      
+      if (attempt < maxRetries) {
+        console.warn(`⚠️ [${context.operation}] Will retry (${attempt + 1}/${maxRetries})...`);
+      } else {
+        console.error(`❌ [${context.operation}] All ${maxRetries + 1} attempts failed`);
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
 // Log API call to database
 async function logApiCall(supabase: any, data: {
   projectId?: string;
@@ -36,6 +150,7 @@ async function logApiCall(supabase: any, data: {
   latencyMs?: number;
   status: string;
   errorMessage?: string;
+  metadata?: Record<string, any>;
 }) {
   try {
     await supabase.from("api_logs").insert({
@@ -50,6 +165,7 @@ async function logApiCall(supabase: any, data: {
       latency_ms: data.latencyMs,
       status: data.status,
       error_message: data.errorMessage,
+      metadata: data.metadata || null,
     });
   } catch (e) {
     console.error("Failed to log API call:", e);
@@ -499,10 +615,16 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
         const imageUrl = await resolveRoomImageUrl(supabase, originalImage.storage_path);
 
-        const analysisResult = await analyzeRoom(
-          imageUrl,
-          job.project_id,
-          job.room_id
+        console.log('🚀 Starting room analysis:', {
+          roomId: job.room_id,
+          projectId: job.project_id,
+          imageUrlPreview: imageUrl?.slice(0, 100),
+          timestamp: new Date().toISOString()
+        });
+
+        const analysisResult = await generateWithRetry(
+          () => analyzeRoom(imageUrl, job.project_id, job.room_id),
+          { operation: 'analyzeRoom', roomId: job.room_id, projectId: job.project_id }
         );
 
         // Save to room_analysis
@@ -580,7 +702,17 @@ async function processJob(supabase: any, job: any): Promise<void> {
           imageUrl = await resolveRoomImageUrl(supabase, originalImage.storage_path);
         }
 
-        const cleanResult = await cleanRoom(imageUrl, mask, refinementPrompt);
+        console.log('🚀 Starting room cleaning:', {
+          roomId: job.room_id,
+          projectId: job.project_id,
+          isRefinement: !!refinementPrompt,
+          timestamp: new Date().toISOString()
+        });
+
+        const cleanResult = await generateWithRetry(
+          () => cleanRoom(imageUrl, mask, refinementPrompt),
+          { operation: 'cleanRoom', roomId: job.room_id, projectId: job.project_id }
+        );
 
         // Save cleaned image
         const cleanedImagePath = `${job.project_id}/${job.room_id}/cleaned_${Date.now()}.png`;
@@ -677,7 +809,20 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
         const cleanedUrl = await resolveRoomImageUrl(supabase, cleanedImage.storage_path);
 
-        const genResult = await generateRender(cleanedUrl, finalPrompt);
+        console.log('🚀 Starting render generation:', {
+          roomId: job.room_id,
+          projectId: job.project_id,
+          style: room?.selected_style || smartDefaultData?.style || 'none',
+          roomType: room?.room_type || smartDefaultData?.room_type,
+          smartDefaultUsed: !!smartDefaultData,
+          promptLength: finalPrompt.length,
+          timestamp: new Date().toISOString()
+        });
+
+        const genResult = await generateWithRetry(
+          () => generateRender(cleanedUrl, finalPrompt),
+          { operation: 'generateRender', roomId: job.room_id, projectId: job.project_id }
+        );
 
         if (!genResult.result.imageUrl) {
           throw new Error("No image generated");
@@ -803,22 +948,43 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
   } catch (error) {
     const processDuration = Date.now() - processStartTime;
-    console.error(`[JOB ${job.id}] Failed after ${processDuration}ms:`, error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    const errorMessage = errorObj.message || "Unknown error";
+    const { errorType, suggestedAction, isRetryable } = classifyError(errorObj);
 
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[JOB ${job.id}] Failed after ${processDuration}ms:`, {
+      error: errorMessage,
+      errorType,
+      suggestedAction,
+      isRetryable,
+      jobType: job.job_type,
+      roomId: job.room_id,
+      projectId: job.project_id,
+      retryCount: job.retry_count || 0,
+      stack: errorObj.stack?.slice(0, 500),
+      timestamp: new Date().toISOString()
+    });
 
-    // Fail the job with fallback
-    await failJobWithFallback(supabase, job.id, errorMessage);
+    // Fail the job with enhanced error message
+    await failJobWithFallback(supabase, job.id, `[${errorType}] ${errorMessage}`);
 
-    // Log error
+    // Log error with detailed metadata
     await logApiCall(supabase, {
       projectId: job.project_id,
       roomId: job.room_id,
       service: "job-processor",
       endpoint: job.job_type,
       costUsd: 0,
+      latencyMs: processDuration,
       status: "error",
       errorMessage,
+      metadata: {
+        errorType,
+        suggestedAction,
+        isRetryable,
+        retryCount: job.retry_count || 0,
+        processDuration
+      }
     });
   }
 }
