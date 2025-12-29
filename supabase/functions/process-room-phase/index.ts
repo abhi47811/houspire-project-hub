@@ -451,6 +451,136 @@ function buildSmartDefaultPromptDetails(smartDefaultData: any): string {
   return promptDetails;
 }
 
+// ============= QUALITY CHECKING =============
+
+type ViolationType = 
+  | 'FAN_LIGHT_CONFLICT'
+  | 'MISSING_CURTAINS'
+  | 'MISSING_DECOR'
+  | 'MISSING_PLANTS'
+  | 'BARE_WALLS';
+
+type ViolationSeverity = 'critical' | 'high' | 'medium' | 'low';
+
+interface QualityViolation {
+  type: ViolationType;
+  severity: ViolationSeverity;
+  description: string;
+  auto_fixable: boolean;
+  fix_suggestion?: string;
+}
+
+// Check for fan + light conflict
+function checkFanLightConflict(prompt: string): QualityViolation | null {
+  const hasFan = /ceiling fan|fan/i.test(prompt);
+  const hasHangingLight = /chandelier|pendant light|hanging light/i.test(prompt);
+  
+  if (hasFan && hasHangingLight) {
+    return {
+      type: 'FAN_LIGHT_CONFLICT',
+      severity: 'critical',
+      description: 'Both ceiling fan and hanging light detected. Physical impossibility.',
+      auto_fixable: true,
+      fix_suggestion: 'Remove hanging light, add wall sconces or table lamps instead.'
+    };
+  }
+  return null;
+}
+
+// Check for missing curtains
+function checkMissingCurtains(prompt: string): QualityViolation | null {
+  const hasCurtains = /curtain|drape|blind|window treatment/i.test(prompt);
+  const hasWindows = /window|balcony/i.test(prompt);
+  
+  if (hasWindows && !hasCurtains) {
+    return {
+      type: 'MISSING_CURTAINS',
+      severity: 'high',
+      description: 'Windows present but no window treatments specified.',
+      auto_fixable: true,
+      fix_suggestion: 'Add curtains, drapes, or blinds appropriate to the style.'
+    };
+  }
+  return null;
+}
+
+// Check for missing decor
+function checkMissingDecor(prompt: string): QualityViolation | null {
+  const hasDecor = /wall art|artwork|mirror|decorative|accessories|decor/i.test(prompt);
+  
+  if (!hasDecor) {
+    return {
+      type: 'MISSING_DECOR',
+      severity: 'high',
+      description: 'No decorative elements or wall art specified.',
+      auto_fixable: true,
+      fix_suggestion: 'Add wall art, mirrors, and decorative accessories.'
+    };
+  }
+  return null;
+}
+
+// Check for missing plants
+function checkMissingPlants(prompt: string): QualityViolation | null {
+  const hasPlants = /plant|greenery|potted|indoor plant/i.test(prompt);
+  
+  if (!hasPlants) {
+    return {
+      type: 'MISSING_PLANTS',
+      severity: 'medium',
+      description: 'No plants or greenery specified.',
+      auto_fixable: true,
+      fix_suggestion: 'Add potted plants in appropriate planters.'
+    };
+  }
+  return null;
+}
+
+// Run all quality checks and log violations
+async function runQualityChecks(
+  supabase: any, 
+  prompt: string, 
+  roomId: string, 
+  renderId?: string,
+  stage: string = 'generation'
+): Promise<QualityViolation[]> {
+  const violations: QualityViolation[] = [];
+  
+  const checks = [
+    checkFanLightConflict(prompt),
+    checkMissingCurtains(prompt),
+    checkMissingDecor(prompt),
+    checkMissingPlants(prompt),
+  ];
+  
+  checks.forEach(v => {
+    if (v) violations.push(v);
+  });
+  
+  // Log violations to database
+  if (violations.length > 0) {
+    try {
+      await supabase.from('quality_violations').insert(
+        violations.map(v => ({
+          room_id: roomId,
+          render_id: renderId || null,
+          rule_code: v.type,
+          severity: v.severity,
+          violation_description: v.description,
+          detected_at_stage: stage,
+          auto_fixed: false,
+          fix_description: v.fix_suggestion
+        }))
+      );
+      console.log(`⚠️ Logged ${violations.length} quality violations:`, violations.map(v => v.type).join(', '));
+    } catch (e) {
+      console.error('Failed to log quality violations:', e);
+    }
+  }
+  
+  return violations;
+}
+
 // Call AI for render generation
 async function generateRender(cleanedImageUrl: string, prompt: string): Promise<any> {
   const startTime = Date.now();
@@ -900,6 +1030,19 @@ async function processJob(supabase: any, job: any): Promise<void> {
             // Don't throw - room_images already has the image, approval workflow will be incomplete
           } else {
             console.log(`✅ Render saved to renders table: id=${renderRecord?.id}, version=${newVersionNumber}, room=${job.room_id}`);
+            
+            // Run quality checks on the prompt used
+            const violations = await runQualityChecks(
+              supabase,
+              finalPrompt,
+              job.room_id,
+              renderRecord?.id,
+              'generation'
+            );
+            
+            if (violations.length > 0) {
+              console.warn(`⚠️ Quality violations detected: ${violations.map(v => v.type).join(', ')}`);
+            }
           }
         } catch (renderTableError) {
           console.error("❌ Error saving to renders table (non-fatal):", renderTableError);
