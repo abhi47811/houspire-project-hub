@@ -29,6 +29,7 @@ const Admin = lazy(() => import("./pages/Admin"));
 const Library = lazy(() => import("./pages/Library"));
 const LibraryAnalyzer = lazy(() => import("./pages/LibraryAnalyzer"));
 const ApprovalDashboard = lazy(() => import("./pages/admin/ApprovalDashboard"));
+const ApiTestPage = lazy(() => import("./pages/ApiTestPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -137,6 +138,16 @@ const App = () => (
                       <ProtectedRoute allowedRoles={['admin']}>
                         <RouteErrorBoundary routeName="LibraryAnalyzer">
                           <LibraryAnalyzer />
+                        </RouteErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin/api-test"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <RouteErrorBoundary routeName="ApiTest">
+                          <ApiTestPage />
                         </RouteErrorBoundary>
                       </ProtectedRoute>
                     }
