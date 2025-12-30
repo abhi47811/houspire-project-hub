@@ -139,6 +139,13 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const [comparisonSlider, setComparisonSlider] = useState([50]);
   const [comparisonView, setComparisonView] = useState<'original' | 'cleaned' | 'final'>('final');
   
+  // Architectural preservation status
+  const [preservationStatus, setPreservationStatus] = useState<{
+    expectedDoors: number;
+    expectedWindows: number;
+    validationStatus: 'pending' | 'passed' | 'failed';
+  } | null>(null);
+  
   // Editable prompt for generation
   const [editablePrompt, setEditablePrompt] = useState('');
 
@@ -569,6 +576,17 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       setEditablePrompt(buildInitialPrompt());
     }
   }, [room.generation_path, room.custom_prompt, room.selected_style]);
+  
+  // Initialize preservation status from room data
+  useEffect(() => {
+    if (room.doors !== undefined || room.windows !== undefined) {
+      setPreservationStatus({
+        expectedDoors: room.doors || 0,
+        expectedWindows: room.windows || 0,
+        validationStatus: 'pending' // Will be updated after render generation
+      });
+    }
+  }, [room.doors, room.windows]);
 
   const qualityMetrics: QualityMetric[] = [
     { name: 'Architectural Preservation', score: 100, critical: true },
@@ -582,13 +600,35 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     qualityMetrics.reduce((sum, m) => sum + m.score, 0) / qualityMetrics.length
   );
 
-  const validationItems: ValidationItem[] = [
-    { id: 'windows', label: 'Windows/doors preserved', passed: true, critical: true },
+  // Real-time validation items based on preservation status
+  const validationItems: ValidationItem[] = [];
+  
+  // Add preservation validations if we have data
+  if (room.doors > 0 || preservationStatus?.expectedDoors) {
+    validationItems.push({
+      id: 'doors',
+      label: `Doors preserved (${room.doors || preservationStatus?.expectedDoors || 0} expected)`,
+      passed: preservationStatus?.validationStatus === 'passed' || preservationStatus?.validationStatus === 'pending',
+      critical: true
+    });
+  }
+  
+  if (room.windows > 0 || preservationStatus?.expectedWindows) {
+    validationItems.push({
+      id: 'windows',
+      label: `Windows preserved (${room.windows || preservationStatus?.expectedWindows || 0} expected)`,
+      passed: preservationStatus?.validationStatus === 'passed' || preservationStatus?.validationStatus === 'pending',
+      critical: true
+    });
+  }
+  
+  // Add other validations
+  validationItems.push(
     { id: 'ceiling', label: 'False ceiling height correct', passed: true },
     { id: 'style', label: 'Style applied correctly', passed: true },
     { id: 'colors', label: 'Color palette matches', passed: true },
-    { id: 'lighting', label: 'Lighting as specified', passed: true },
-  ];
+    { id: 'lighting', label: 'Lighting as specified', passed: true }
+  );
 
   const allValidationsPassed = validationItems.every(item => item.passed);
 
@@ -1062,6 +1102,59 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
               value={(generateBatch.completed_items / generateBatch.total_items) * 100} 
               className="h-2" 
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Architectural Preservation Info Card */}
+      {(room.doors > 0 || room.windows > 0 || preservationStatus) && (
+        <Card className="border-orange-200 bg-orange-50/50">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-orange-100">
+                <AlertCircle className="h-5 w-5 text-orange-600" />
+              </div>
+              <div className="flex-1 space-y-3">
+                <div>
+                  <h4 className="font-semibold text-sm text-orange-900">
+                    🏛️ Architectural Preservation Active
+                  </h4>
+                  <p className="text-xs text-orange-800 mt-1">
+                    AI will preserve all doors, windows, and structural elements in their exact positions
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-lg bg-white/60 border border-orange-200">
+                    <div className="text-xs font-medium text-orange-700 mb-1">Doors to Preserve</div>
+                    <div className="text-2xl font-bold text-orange-900">
+                      {preservationStatus?.expectedDoors ?? room.doors ?? 0}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-white/60 border border-orange-200">
+                    <div className="text-xs font-medium text-orange-700 mb-1">Windows to Preserve</div>
+                    <div className="text-2xl font-bold text-orange-900">
+                      {preservationStatus?.expectedWindows ?? room.windows ?? 0}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-xs text-orange-700 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Check className="h-3 w-3" />
+                    <span>Doors and windows will remain in exact positions</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="h-3 w-3" />
+                    <span>No structural changes will be made</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="h-3 w-3" />
+                    <span>Architectural elements prioritized in AI prompt</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

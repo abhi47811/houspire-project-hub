@@ -36,6 +36,7 @@ interface PromptBuilderInput {
   customRequirements?: string;
   city?: string;
   budgetTier?: string;
+  roomData?: any;  // NEW: Room data for architectural preservation
 }
 
 /**
@@ -45,6 +46,109 @@ interface PromptBuilderInput {
 function buildComprehensivePrompt(input: PromptBuilderInput): string {
   // Use the enhanced prompt builder with full knowledge base
   return buildEnhancedPrompt(input);
+}
+
+// ============================================================================
+// ARCHITECTURAL PRESERVATION PROMPT BUILDER
+// ============================================================================
+
+/**
+ * Build architectural preservation prompt section
+ * CRITICAL: This MUST come FIRST in every AI prompt to ensure doors/windows are preserved
+ */
+function buildArchitecturalPreservationPrompt(room: any): string {
+  // Extract door/window counts from room data (multiple sources for fallback)
+  const doors = room.doors || room.room_analysis?.door_count || 0;
+  const windows = room.windows || room.room_analysis?.window_count || 0;
+  const doorPositions = room.door_positions || [];
+  const windowPositions = room.window_positions || [];
+  const dimensions = room.dimensions || 
+    (room.length_feet && room.width_feet && room.height_feet 
+      ? `${room.length_feet}ft x ${room.width_feet}ft x ${room.height_feet}ft`
+      : "as shown in cleaned image");
+  
+  // Build detailed door descriptions if positions available
+  let doorDetails = "";
+  if (doorPositions.length > 0) {
+    doorDetails = doorPositions.map((d: any, i: number) => 
+      `   - Door ${i+1}: ${d.wall || 'unknown'} wall, ${d.position || 'center'} position, ${d.width || 'standard'} width`
+    ).join('\n');
+  } else if (doors > 0) {
+    doorDetails = `   - Keep ALL ${doors} door(s) in their EXACT original positions`;
+  }
+  
+  // Build detailed window descriptions if positions available
+  let windowDetails = "";
+  if (windowPositions.length > 0) {
+    windowDetails = windowPositions.map((w: any, i: number) => 
+      `   - Window ${i+1}: ${w.wall || 'unknown'} wall, ${w.position || 'center'} position, ${w.size || 'standard'} size`
+    ).join('\n');
+  } else if (windows > 0) {
+    windowDetails = `   - Keep ALL ${windows} window(s) in their EXACT original positions`;
+  }
+  
+  return `
+## ⚠️ CRITICAL - ARCHITECTURAL PRESERVATION (HIGHEST PRIORITY) ⚠️
+
+**YOU MUST PRESERVE THE EXACT ARCHITECTURE FROM THE CLEANED IMAGE:**
+
+### MANDATORY PRESERVATION:
+
+1. **DOORS: ${doors} door(s) REQUIRED**
+${doorDetails || '   - Maintain all door positions from original image'}
+   - DO NOT add, remove, or move ANY doors
+   - DO NOT block doors with furniture or decor
+   - DO NOT change door sizes, styles, or orientations
+   - Keep door frames and handles clearly visible
+   - Maintain door swing clearance areas
+
+2. **WINDOWS: ${windows} window(s) REQUIRED**
+${windowDetails || '   - Maintain all window positions from original image'}
+   - DO NOT add, remove, or move ANY windows
+   - DO NOT block windows with heavy curtains or furniture
+   - DO NOT change window sizes, styles, or orientations
+   - Keep window frames visible
+   - Maintain natural light flow through windows
+
+3. **ROOM DIMENSIONS: ${dimensions}**
+   - Maintain exact room proportions
+   - Keep ceiling height consistent
+   - Preserve wall lengths and angles
+   - Keep floor area unchanged
+
+4. **STRUCTURAL ELEMENTS:**
+   - Preserve ALL architectural features (columns, beams, alcoves, niches)
+   - Keep floor-to-ceiling height consistent
+   - Maintain wall textures and finishes
+   - Preserve any built-in features (shelves, cabinets)
+   - Keep room shape and layout identical
+
+### ❌ ABSOLUTELY FORBIDDEN:
+- Removing doors or windows from the image
+- Moving doors/windows to different walls or positions
+- Blocking doors/windows with any objects
+- Adding extra doors/windows not in original image
+- Changing the number of doors/windows
+- Altering room dimensions or proportions
+- Removing or relocating structural elements
+
+### ✅ VALIDATION CHECKLIST:
+Before finalizing the render, AI must verify:
+- [ ] ${doors} door(s) are clearly visible in correct positions
+- [ ] ${windows} window(s) are clearly visible in correct positions
+- [ ] All doors/windows match cleaned image positions exactly
+- [ ] No furniture or decor blocking architectural elements
+- [ ] Room dimensions feel consistent with original
+- [ ] All structural elements preserved
+
+**PRIORITY ORDER (STRICT):**
+1. Architecture Preservation (HIGHEST - Never compromise)
+2. Style Application (Apply within architectural constraints)
+3. Furniture Placement (Must not block doors/windows)
+4. Decorative Elements (Lowest priority)
+
+**IF IN DOUBT:** Always err on the side of preserving MORE architectural elements rather than fewer.
+`;
 }
 
 // ============================================================================
@@ -480,9 +584,17 @@ serve(async (req) => {
             console.log("  No library reference available");
           }
           
-          // Step 5: Build comprehensive prompt with QC rules appended
-          console.log("\n[5/6] Building comprehensive prompt with QC rules...");
-          comprehensivePrompt = buildComprehensivePrompt({
+          // Step 5: Build comprehensive prompt with architectural preservation FIRST
+          console.log("\n[5/6] Building comprehensive prompt with architectural preservation...");
+          
+          // 🚨 STEP 5A: Build architectural preservation prompt (MUST BE FIRST!)
+          const preservationPrompt = buildArchitecturalPreservationPrompt(room);
+          console.log(`✓ Architectural preservation prompt: ${preservationPrompt.length} characters`);
+          console.log(`  Doors to preserve: ${room.doors || 0}`);
+          console.log(`  Windows to preserve: ${room.windows || 0}`);
+          
+          // 🎨 STEP 5B: Build style and design prompt
+          const stylePrompt = buildComprehensivePrompt({
             roomType: room.room_type,
             selectedStyle: room.selected_style,
             smartDefaultData,
@@ -490,12 +602,24 @@ serve(async (req) => {
             customRequirements: customRequirements || room.custom_requirements,
             city: room.projects?.city,
             budgetTier: room.projects?.budget_tier,
-          }) + qcPromptAdditions;
+            roomData: room  // Pass full room data for any additional preservation needs
+          });
+          
+          // 🔧 STEP 5C: Assemble final prompt (ORDER IS CRITICAL!)
+          // Preservation MUST come first so AI prioritizes it
+          comprehensivePrompt = `${preservationPrompt}\n\n${stylePrompt}\n\n${qcPromptAdditions}`;
+          
+          console.log(`✓ Total prompt length: ${comprehensivePrompt.length} characters`);
+          console.log(`  - Preservation section: ${preservationPrompt.length} chars`);
+          console.log(`  - Style section: ${stylePrompt.length} chars`);
+          console.log(`  - QC additions: ${qcPromptAdditions.length} chars`);
         }
         
-        console.log(`✓ Prompt built: ${comprehensivePrompt.length} characters`);
-        console.log("\n--- PROMPT PREVIEW ---");
-        console.log(comprehensivePrompt.slice(0, 500) + "...");
+        console.log("\n--- FINAL PROMPT PREVIEW ---");
+        console.log("SECTION 1 - ARCHITECTURAL PRESERVATION (First 300 chars):");
+        console.log(preservationPrompt.slice(0, 300) + "...\n");
+        console.log("SECTION 2 - STYLE & DESIGN (First 300 chars):");
+        console.log(stylePrompt.slice(0, 300) + "...");
         console.log("--- END PREVIEW ---\n");
         
         // Step 6: Generate render
@@ -548,6 +672,13 @@ serve(async (req) => {
             provider: result.provider,
             latency: result.latency,
             promptLength: comprehensivePrompt.length,
+            preservationData: {
+              expectedDoors: room.doors || 0,
+              expectedWindows: room.windows || 0,
+              doorPositions: room.door_positions || [],
+              windowPositions: room.window_positions || [],
+              preservationPromptLength: preservationPrompt?.length || 0,
+            },
             dataUsed: {
               smartDefaults: !!smartDefaultData,
               libraryReference: !!libraryImageData,
@@ -559,6 +690,7 @@ serve(async (req) => {
                 }
                 return false;
               }).length,
+              architecturalPreservation: true,  // NEW: Flag that preservation was applied
             },
           }),
           {
