@@ -30,6 +30,18 @@ export default function Admin() {
     }
   });
 
+  // Fetch unresolved quality violations count
+  const { data: violationsCount } = useQuery({
+    queryKey: ['unresolved-violations-count'],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('quality_violations')
+        .select('id', { count: 'exact', head: true })
+        .is('resolved_at', null);
+      return count || 0;
+    }
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -66,6 +78,11 @@ export default function Admin() {
           <TabsTrigger value="quality" className="gap-2">
             <Shield className="h-4 w-4" />
             Quality
+            {violationsCount && violationsCount > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1.5">
+                {violationsCount > 9 ? '9+' : violationsCount}
+              </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="approvals" className="gap-2">
             <CheckCircle className="h-4 w-4" />
