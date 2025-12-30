@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -72,9 +73,55 @@ serve(async (req) => {
   try {
     const { action, imageUrl, imageUrls, originalUrl, cleanedUrl, renderUrl, requirements, roomData, smartDefaults, analysis, projectId, roomId, expectedDoors, expectedWindows } = await req.json();
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    // Check if API keys are configured
+    if (!LOVABLE_API_KEY && !OPENROUTER_API_KEY) {
+      return new Response(JSON.stringify({
+        error: "API keys not configured",
+        message: "Please configure LOVABLE_API_KEY or OPENROUTER_API_KEY in Supabase Edge Functions settings",
+        demo: true,
+        result: {
+          // Return demo data based on action
+          ...(action === "analyzeRoom" && {
+            dimensions: { length_feet: 12, width_feet: 14, height_feet: 9 },
+            window_count: 2,
+            mirror_count: 0,
+            door_count: 1,
+            ceiling_fan_count: 1,
+            ac_unit_count: 0,
+            outlet_count: 4,
+            window_positions: [
+              { position: "north wall", size: "4x5 feet" },
+              { position: "east wall", size: "4x5 feet" }
+            ],
+            mirror_positions: [],
+            door_positions: [{ position: "south wall", type: "entry door" }],
+            other_features: [],
+            measurement_confidence: 80,
+            suggested_styles: [
+              { name: "Modern Minimalist", confidence: 90, description: "Clean lines and neutral colors" },
+              { name: "Contemporary Fusion", confidence: 75, description: "Mix of modern and traditional" }
+            ]
+          }),
+          ...(action === "validatePreservation" && {
+            doors: expectedDoors || 1,
+            windows: expectedWindows || 2,
+            doorsPreserved: true,
+            windowsPreserved: true,
+            confidence: 95,
+            notes: "Demo mode: All architectural elements preserved"
+          })
+        }
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
+    // Use OpenRouter as primary, Lovable as fallback
+    const apiKey = OPENROUTER_API_KEY || LOVABLE_API_KEY;
+    const apiUrl = OPENROUTER_API_KEY 
+      ? "https://openrouter.ai/api/v1/chat/completions"
+      : "https://ai.gateway.lovable.dev/v1/chat/completions";
 
     let systemPrompt = "";
     let userContent: any[] = [];
@@ -246,11 +293,15 @@ Return JSON with:
         throw new Error(`Unknown action: ${action}`);
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        ...(OPENROUTER_API_KEY && {
+          "HTTP-Referer": "https://houspire.app",
+          "X-Title": "Houspire Interior Design"
+        })
       },
       body: JSON.stringify({
         model,
@@ -264,13 +315,18 @@ Return JSON with:
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`AI API error: ${response.status} - ${errorText}`);
+      
       if (response.status === 429) {
-        throw new Error("Rate limit exceeded. Please try again later.");
+        throw new Error("Rate limit exceeded. Please try again in a few moments.");
       }
-      if (response.status === 402) {
-        throw new Error("API credits exhausted. Please add credits.");
+      if (response.status === 402 || response.status === 401) {
+        throw new Error("API authentication failed. Please check your API key and credits.");
       }
-      throw new Error(`AI API error: ${response.status} - ${errorText}`);
+      if (response.status === 400) {
+        throw new Error(`Bad request: ${errorText}. Please check the image URL and parameters.`);
+      }
+      throw new Error(`AI API error (${response.status}): ${errorText}`);
     }
 
     const data = await response.json();

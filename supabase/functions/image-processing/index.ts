@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const REPLICATE_API_KEY = Deno.env.get("REPLICATE_API_KEY");
+const FAL_KEY = Deno.env.get("FAL_KEY"); // Alternative image processing API
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -67,14 +68,15 @@ serve(async (req) => {
   try {
     const { action, imageUrl, mask, projectId, roomId } = await req.json();
 
-    if (!REPLICATE_API_KEY) {
-      // Return mock response if API key not configured
-      console.log("REPLICATE_API_KEY not configured, returning mock response");
+    if (!REPLICATE_API_KEY && !FAL_KEY) {
+      // Return more informative mock response
+      console.log("No image processing API key configured (REPLICATE_API_KEY or FAL_KEY)");
       return new Response(JSON.stringify({
         result: {
           output: imageUrl, // Return original image
           mock: true,
-          message: "Replicate API key not configured. Add REPLICATE_API_KEY to use image processing.",
+          message: "Image processing API key not configured. Please add REPLICATE_API_KEY or FAL_KEY to Supabase Edge Functions settings to enable background removal and image cleaning.",
+          instructions: "Visit: Supabase Dashboard → Edge Functions → Settings → Secrets"
         },
         usage: { costUsd: 0 },
       }), {
