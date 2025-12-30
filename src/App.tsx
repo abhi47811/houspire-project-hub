@@ -14,6 +14,7 @@ import { PageLoader } from "@/components/ui/loading-spinner";
 import { FlowTracker } from "@/components/debug/FlowTracker";
 import { MutationMonitorProvider } from "@/components/debug/MutationMonitorProvider";
 import { RouteErrorBoundary } from "@/components/debug/RouteErrorBoundary";
+import { ApiSetupBanner } from "@/components/setup/ApiSetupBanner";
 
 // Lazy load pages for code splitting
 const Login = lazy(() => import("./pages/Login"));
@@ -49,6 +50,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <FlowTracker />
+          <ApiSetupBanner />
           <BrowserRouter>
           <AuthProvider>
             <GlobalSearch />
