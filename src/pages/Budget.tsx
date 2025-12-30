@@ -46,8 +46,10 @@ import {
   IndianRupee,
   ChevronDown,
   Loader2,
+  Zap,
 } from 'lucide-react';
 import { ExportBudgetPDFButton } from '@/components/budget/ExportBudgetPDFButton';
+import { useRecommendations } from '@/hooks/useRecommendations';
 
 interface BudgetItem {
   id: string;
@@ -95,6 +97,9 @@ export default function Budget() {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
+
+  // AI Budget Optimization hook
+  const { generateBudgetAlternatives, isLoading: isOptimizing } = useRecommendations(undefined);
 
   // Fetch project
   const { data: project, isLoading: projectLoading } = useQuery({
@@ -275,6 +280,19 @@ export default function Budget() {
     }
   };
 
+  const handleOptimizeBudget = () => {
+    // TODO: Implement budget optimization with room context and budget items
+    // For now, show a coming soon message
+    toast({
+      title: 'AI Budget Optimization',
+      description: 'Analyzing your budget for cost-saving alternatives...',
+    });
+    
+    // Example of what the full implementation would look like:
+    // const roomContext = buildRoomContext();
+    // generateBudgetAlternatives.mutate({ roomContext, currentBudgetItems: budgetItems });
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -330,14 +348,30 @@ export default function Budget() {
               Generate Budget
             </Button>
           ) : (
-            <Button variant="outline" onClick={handleGenerateBudget} disabled={isGenerating}>
-              {isGenerating ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Regenerate
-            </Button>
+            <>
+              <Button variant="outline" onClick={handleGenerateBudget} disabled={isGenerating}>
+                {isGenerating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                Regenerate
+              </Button>
+
+              <Button 
+                variant="outline" 
+                onClick={handleOptimizeBudget} 
+                disabled={isOptimizing || isGenerating}
+                className="border-primary/30 hover:border-primary hover:bg-primary/5"
+              >
+                {isOptimizing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Zap className="mr-2 h-4 w-4 text-primary" />
+                )}
+                Optimize Budget
+              </Button>
+            </>
           )}
 
           <DropdownMenu>

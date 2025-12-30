@@ -70,84 +70,76 @@ function buildArchitecturalPreservationPrompt(room: any): string {
   // Build detailed door descriptions if positions available
   let doorDetails = "";
   if (doorPositions.length > 0) {
-    doorDetails = doorPositions.map((d: any, i: number) => 
-      `   - Door ${i+1}: ${d.wall || 'unknown'} wall, ${d.position || 'center'} position, ${d.width || 'standard'} width`
-    ).join('\n');
+    doorDetails = doorPositions.map((d: any, i: number) => {
+      const position = typeof d === 'string' ? d : d.position;
+      return `   - Door ${i+1}: EXACT LOCATION: ${position}`;
+    }).join('\n');
   } else if (doors > 0) {
-    doorDetails = `   - Keep ALL ${doors} door(s) in their EXACT original positions`;
+    doorDetails = `   - EXACTLY ${doors} door(s) - DO NOT MOVE from their positions in the cleaned image`;
   }
   
   // Build detailed window descriptions if positions available
   let windowDetails = "";
   if (windowPositions.length > 0) {
-    windowDetails = windowPositions.map((w: any, i: number) => 
-      `   - Window ${i+1}: ${w.wall || 'unknown'} wall, ${w.position || 'center'} position, ${w.size || 'standard'} size`
-    ).join('\n');
+    windowDetails = windowPositions.map((w: any, i: number) => {
+      const position = typeof w === 'string' ? w : w.position;
+      return `   - Window ${i+1}: EXACT LOCATION: ${position} - MUST REMAIN ON THIS EXACT WALL`;
+    }).join('\n');
   } else if (windows > 0) {
-    windowDetails = `   - Keep ALL ${windows} window(s) in their EXACT original positions`;
+    windowDetails = `   - EXACTLY ${windows} window(s) - DO NOT MOVE from their positions in the cleaned image`;
   }
   
   return `
-## ⚠️ CRITICAL - ARCHITECTURAL PRESERVATION (HIGHEST PRIORITY) ⚠️
+## 🚨 CRITICAL - ARCHITECTURAL PRESERVATION (ABSOLUTE PRIORITY #1) 🚨
 
-**YOU MUST PRESERVE THE EXACT ARCHITECTURE FROM THE CLEANED IMAGE:**
+**BEFORE ANYTHING ELSE - READ THIS CAREFULLY:**
 
-### MANDATORY PRESERVATION:
+The cleaned image shows the EXACT room layout. Your render MUST match this layout PERFECTLY.
+Think of this as renovating a REAL room - you CANNOT move walls, doors, or windows.
 
-1. **DOORS: ${doors} door(s) REQUIRED**
-${doorDetails || '   - Maintain all door positions from original image'}
-   - DO NOT add, remove, or move ANY doors
-   - DO NOT block doors with furniture or decor
-   - DO NOT change door sizes, styles, or orientations
-   - Keep door frames and handles clearly visible
-   - Maintain door swing clearance areas
+### 🔒 MANDATORY PRESERVATION (NON-NEGOTIABLE):
 
-2. **WINDOWS: ${windows} window(s) REQUIRED**
-${windowDetails || '   - Maintain all window positions from original image'}
-   - DO NOT add, remove, or move ANY windows
-   - DO NOT block windows with heavy curtains or furniture
-   - DO NOT change window sizes, styles, or orientations
-   - Keep window frames visible
-   - Maintain natural light flow through windows
+1. **DOORS: EXACTLY ${doors} door(s) REQUIRED - POSITIONS ARE FIXED**
+${doorDetails || '   - Study the cleaned image carefully and keep ALL doors in EXACT same locations'}
+   ❌ FORBIDDEN: Adding doors, removing doors, moving doors to different walls
+   ❌ FORBIDDEN: Blocking doors with furniture, cabinets, or any objects
+   ❌ FORBIDDEN: Changing which wall a door is on
+   ✅ REQUIRED: Doors remain on the SAME walls as in cleaned image
+   ✅ REQUIRED: Door openings are clearly visible and functional
+   ✅ REQUIRED: 3-foot clearance in front of each door
 
-3. **ROOM DIMENSIONS: ${dimensions}**
-   - Maintain exact room proportions
-   - Keep ceiling height consistent
-   - Preserve wall lengths and angles
-   - Keep floor area unchanged
+2. **WINDOWS: EXACTLY ${windows} window(s) REQUIRED - POSITIONS ARE FIXED**
+${windowDetails || '   - Study the cleaned image carefully and keep ALL windows in EXACT same locations'}
+   ❌ FORBIDDEN: Adding windows, removing windows, moving windows to different walls
+   ❌ FORBIDDEN: Blocking windows with furniture or heavy curtains
+   ❌ FORBIDDEN: Changing which wall a window is on
+   ❌ FORBIDDEN: Making windows smaller or larger
+   ✅ REQUIRED: Windows remain on the SAME walls as in cleaned image
+   ✅ REQUIRED: Natural light patterns match the cleaned image
+   ✅ REQUIRED: Window frames and sills visible
 
-4. **STRUCTURAL ELEMENTS:**
-   - Preserve ALL architectural features (columns, beams, alcoves, niches)
-   - Keep floor-to-ceiling height consistent
-   - Maintain wall textures and finishes
-   - Preserve any built-in features (shelves, cabinets)
-   - Keep room shape and layout identical
+3. **ROOM LAYOUT: ${dimensions}**
+   - The cleaned image shows the EXACT room shape - DO NOT ALTER IT
+   - If cleaned image shows window on right wall → render MUST show window on right wall
+   - If cleaned image shows door on left wall → render MUST show door on left wall
+   - Wall positions are FIXED - you're decorating, not remodeling
 
-### ❌ ABSOLUTELY FORBIDDEN:
-- Removing doors or windows from the image
-- Moving doors/windows to different walls or positions
-- Blocking doors/windows with any objects
-- Adding extra doors/windows not in original image
-- Changing the number of doors/windows
-- Altering room dimensions or proportions
-- Removing or relocating structural elements
+4. **ABSOLUTE RULES:**
+   - Treat the cleaned image as ARCHITECTURAL DRAWINGS - they are FIXED
+   - You are an INTERIOR DESIGNER, not an ARCHITECT
+   - You CAN: Change paint colors, add furniture, update flooring, add decor
+   - You CANNOT: Move/add/remove doors, move/add/remove windows, change room shape
 
-### ✅ VALIDATION CHECKLIST:
-Before finalizing the render, AI must verify:
-- [ ] ${doors} door(s) are clearly visible in correct positions
-- [ ] ${windows} window(s) are clearly visible in correct positions
-- [ ] All doors/windows match cleaned image positions exactly
-- [ ] No furniture or decor blocking architectural elements
-- [ ] Room dimensions feel consistent with original
-- [ ] All structural elements preserved
+### ⚠️ COMPARISON CHECK:
+Before generating, mentally compare:
+- Cleaned image shows window on RIGHT wall → Your render MUST show window on RIGHT wall
+- Cleaned image shows door on LEFT wall → Your render MUST show door on LEFT wall
+- Cleaned image shows 2 windows → Your render MUST show EXACTLY 2 windows
+- If you move ANY architectural element, the render is WRONG and must be regenerated
 
-**PRIORITY ORDER (STRICT):**
-1. Architecture Preservation (HIGHEST - Never compromise)
-2. Style Application (Apply within architectural constraints)
-3. Furniture Placement (Must not block doors/windows)
-4. Decorative Elements (Lowest priority)
+**THINK OF IT THIS WAY:** You're showing a client how their EXISTING room will look after renovation.
+You CANNOT move their windows or doors - that would require major construction!`;
 
-**IF IN DOUBT:** Always err on the side of preserving MORE architectural elements rather than fewer.
 `;
 }
 
