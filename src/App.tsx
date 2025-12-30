@@ -30,6 +30,7 @@ const Library = lazy(() => import("./pages/Library"));
 const LibraryAnalyzer = lazy(() => import("./pages/LibraryAnalyzer"));
 const ApprovalDashboard = lazy(() => import("./pages/admin/ApprovalDashboard"));
 const ApiTestPage = lazy(() => import("./pages/ApiTestPage"));
+const DiagnosticPage = lazy(() => import("./pages/DiagnosticPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -150,6 +151,14 @@ const App = () => (
                           <ApiTestPage />
                         </RouteErrorBoundary>
                       </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/diagnostic"
+                    element={
+                      <RouteErrorBoundary routeName="Diagnostic">
+                        <DiagnosticPage />
+                      </RouteErrorBoundary>
                     }
                   />
                 </Route>
