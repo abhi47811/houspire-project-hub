@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAttentionCounts } from '@/hooks/useAttentionCounts';
+import { BadgeIndicator } from '@/components/ui/badge-indicator';
 import {
   Home,
   FolderOpen,
@@ -35,6 +37,7 @@ const navigation = [
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const { profile, signOut, user } = useAuth();
+  const { adminTotal } = useAttentionCounts();
 
   const getInitials = (name: string | null) => {
     if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
@@ -78,7 +81,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               aria-current={isActive ? 'page' : undefined}
             >
               <item.icon className="h-5 w-5" aria-hidden="true" />
-              <span>{item.name}</span>
+              <span className="flex-1">{item.name}</span>
+              {/* Show badge for Admin nav item */}
+              {item.name === 'Admin' && adminTotal > 0 && (
+                <BadgeIndicator count={adminTotal} />
+              )}
             </NavLink>
           );
         })}

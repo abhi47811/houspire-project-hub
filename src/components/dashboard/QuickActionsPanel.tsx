@@ -3,10 +3,13 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Zap, Plus, Upload, BarChart3, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAttentionCounts } from '@/hooks/useAttentionCounts';
+import { AttentionDot } from '@/components/ui/badge-indicator';
 
 export function QuickActionsPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
+  const { hasAnyAttention } = useAttentionCounts();
 
   const actions = [
     { icon: Plus, label: 'New Project', path: '/projects?action=new' },
@@ -37,18 +40,24 @@ export function QuickActionsPanel() {
       </div>
 
       {/* Main FAB */}
-      <Button
-        size="lg"
-        className={cn(
-          'h-14 w-14 rounded-full shadow-premium-lg transition-all duration-300',
-          'bg-gradient-to-br from-primary to-primary/80 hover:shadow-premium-xl hover:scale-105',
-          isOpen && 'rotate-45'
+      <div className="relative">
+        <Button
+          size="lg"
+          className={cn(
+            'h-14 w-14 rounded-full shadow-premium-lg transition-all duration-300',
+            'bg-gradient-to-br from-primary to-primary/80 hover:shadow-premium-xl hover:scale-105',
+            isOpen && 'rotate-45'
+          )}
+          onClick={() => setIsOpen(!isOpen)}
+          aria-label={isOpen ? "Close quick actions" : "Open quick actions"}
+        >
+          {isOpen ? <X className="h-6 w-6" /> : <Zap className="h-6 w-6" />}
+        </Button>
+        {/* Attention indicator */}
+        {hasAnyAttention && !isOpen && (
+          <AttentionDot className="absolute -top-0.5 -right-0.5" />
         )}
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label={isOpen ? "Close quick actions" : "Open quick actions"}
-      >
-        {isOpen ? <X className="h-6 w-6" /> : <Zap className="h-6 w-6" />}
-      </Button>
+      </div>
     </div>
   );
 }
