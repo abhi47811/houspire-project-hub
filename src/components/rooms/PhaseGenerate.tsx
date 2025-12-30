@@ -320,10 +320,19 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     }
   });
 
+  // Track which render IDs we've already created versions for
+  const versionCreatedForRenderRef = useRef<Set<string>>(new Set());
+  
+  // Track the last completed job ID to avoid re-running on tab switches
+  const lastCompletedJobIdRef = useRef<string | null>(null);
+
   // Refetch renders when job completes and auto-score new renders
   useEffect(() => {
     const handleJobCompletion = async () => {
-      if (currentJob?.status === 'completed') {
+      // Only proceed if this is a newly completed job we haven't handled
+      if (currentJob?.status === 'completed' && currentJob?.id !== lastCompletedJobIdRef.current) {
+        lastCompletedJobIdRef.current = currentJob.id;
+        
         await refetchRender();
         await refetchRenderImage();
         queryClient.invalidateQueries({ queryKey: ['room', room.id] });
@@ -333,7 +342,18 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         setTimeout(async () => {
           const imageUrl = currentRender?.image_url || renderImage?.signedUrl;
           
+          // Only score and create version if:
+          // 1. We have an image URL
+          // 2. We have a render record
+          // 3. The render doesn't have a quality score yet (meaning it's truly new)
+          // 4. We haven't already created a version for this render
           if (imageUrl && currentRender && currentRender.quality_score === null) {
+            // Check if we already created a version for this render
+            if (versionCreatedForRenderRef.current.has(currentRender.id)) {
+              console.log('Version already created for render:', currentRender.id);
+              return;
+            }
+            
             toast({
               title: 'Evaluating Quality',
               description: 'AI is scoring your render...',
@@ -370,7 +390,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
               console.error('Auto-scoring failed:', err);
             }
             
-            // Auto-create version entry for this render
+            // Auto-create version entry for this render (only once)
             try {
               await versionControlService.createVersion({
                 room_id: room.id,
@@ -385,7 +405,10 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
                 prompt_used: editablePrompt || currentRender?.prompt_used || undefined,
                 quality_score: score || currentRender?.quality_score || undefined,
               });
-              console.log('Version auto-created for render');
+              
+              // Mark this render as processed
+              versionCreatedForRenderRef.current.add(currentRender.id);
+              console.log('Version auto-created for render:', currentRender.id);
               queryClient.invalidateQueries({ queryKey: ['render-versions', room.id] });
             } catch (versionError) {
               console.error('Failed to auto-create version:', versionError);
@@ -396,7 +419,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     };
     
     handleJobCompletion();
-  }, [currentJob?.status]);
+  }, [currentJob?.status, currentJob?.id]);
 
   // Ref to track if we've already auto-triggered generation in this session
   const hasTriggeredAutoGeneration = useRef(false);
