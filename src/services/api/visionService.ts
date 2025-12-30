@@ -64,6 +64,11 @@ async function callVisionAI<T>(
 ): Promise<VisionResponse<T>> {
   const startTime = Date.now();
 
+  console.log(`[Vision AI] Calling ${action}...`, {
+    url: `${SUPABASE_URL}/functions/v1/vision-ai`,
+    params: { ...params, imageUrl: params.imageUrl ? '***' : undefined }
+  });
+
   const response = await fetch(`${SUPABASE_URL}/functions/v1/vision-ai`, {
     method: 'POST',
     headers: {
@@ -73,21 +78,43 @@ async function callVisionAI<T>(
     body: JSON.stringify({ action, ...params }),
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    const error = new Error(errorData.error || 'Vision AI request failed');
+  const data = await response.json();
+
+  console.log(`[Vision AI] Response for ${action}:`, {
+    status: response.status,
+    ok: response.ok,
+    hasError: !!data.error,
+    demo: data.demo,
+    responseTime: Date.now() - startTime
+  });
+
+  // Check if response contains an error even with 200 status
+  if (!response.ok || data.error) {
+    const errorMessage = data.error || data.message || 'Vision AI request failed';
+    const error = new Error(errorMessage);
+
+    console.error(`[Vision AI] Error for ${action}:`, errorMessage, data);
 
     trackAPIError(error, {
       endpoint: '/functions/v1/vision-ai',
       method: 'POST',
       statusCode: response.status,
       responseTime: Date.now() - startTime,
+      errorDetails: data,
     });
 
     throw error;
   }
 
-  return response.json();
+  // If in demo mode, show a toast
+  if (data.demo) {
+    console.warn('[Vision AI] Demo mode active:', data.message);
+    // Return demo data
+    return data;
+  }
+
+  console.log(`[Vision AI] Success for ${action} (${Date.now() - startTime}ms)`);
+  return data;
 }
 
 export const visionService = {
