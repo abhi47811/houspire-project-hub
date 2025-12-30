@@ -266,6 +266,25 @@ async function catalogSingleRender(
       const imageUrl = render.image_url;
       const storagePath = render.storage_path || render.image_url;
       
+      // Check for duplicate by perceptual hash BEFORE inserting
+      const perceptualHashCheck = await generateHash(storagePath);
+      const { data: existingByHash } = await supabaseClient
+        .from("style_library")
+        .select("id")
+        .eq("perceptual_hash", perceptualHashCheck)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (existingByHash) {
+        console.log(`⚠️ Room ${room.id}: Duplicate found by perceptual hash, skipping`);
+        return {
+          room_id: room.id,
+          cataloged: false,
+          reason: "duplicate",
+          message: "Image already exists in library (duplicate detected)."
+        };
+      }
+
       // Skip to tier calculation and insert with this data
       const tierCalc = calculateTier(qualityScore, refinements);
       
@@ -400,6 +419,24 @@ async function catalogSingleRender(
   const projectHash = await generateHash(projectId);
   const rendererHash = await generateHash(userId);
   const perceptualHash = await generateHash(renderImage.storage_path);
+
+  // Step 6b: Check for duplicate by perceptual hash BEFORE inserting
+  const { data: existingByHash } = await supabaseClient
+    .from("style_library")
+    .select("id")
+    .eq("perceptual_hash", perceptualHash)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (existingByHash) {
+    console.log(`⚠️ Room ${room.id}: Duplicate found by perceptual hash, skipping`);
+    return {
+      room_id: room.id,
+      cataloged: false,
+      reason: "duplicate",
+      message: "Image already exists in library (duplicate detected)."
+    };
+  }
 
   // Step 7: Generate tags
   const tags = generateTags(room, tierCalc.tier, qualityScore, refinements);
