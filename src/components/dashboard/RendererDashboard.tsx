@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FolderOpen, ListTodo, CheckCircle, ArrowRight } from 'lucide-react';
+import { FolderOpen, ListTodo, CheckCircle, ArrowRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useTrendAnalysis } from '@/hooks/useRecommendations';
 
 interface Project {
   id: string;
@@ -48,6 +49,12 @@ export const RendererDashboard = forwardRef<HTMLDivElement>(
     const [stats, setStats] = useState<Stats | null>(null);
     const [myProjects, setMyProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    // Get user's city from first project or default to Mumbai
+    const userCity = myProjects[0]?.city || 'Mumbai';
+    
+    // AI Trend Analysis hook
+    const { trendData, isLoading: trendsLoading } = useTrendAnalysis(userCity, 'all');
 
     // Mock tasks for now - would come from a tasks table
     const [tasks, setTasks] = useState<Task[]>([
@@ -154,7 +161,7 @@ export const RendererDashboard = forwardRef<HTMLDivElement>(
           ))}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
           {/* Pending Tasks */}
           <Card className="card-interactive">
             <CardHeader>
@@ -239,6 +246,59 @@ export const RendererDashboard = forwardRef<HTMLDivElement>(
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <FolderOpen className="h-10 w-10 text-muted-foreground/50" />
                   <p className="mt-2 text-sm text-muted-foreground">No projects assigned yet</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Trending Styles */}
+          <Card className="card-interactive border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Trending in {userCity}
+              </CardTitle>
+              <CardDescription>Popular design styles this month</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {trendsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : trendData && trendData.popular_styles && trendData.popular_styles.length > 0 ? (
+                <div className="space-y-3">
+                  {trendData.popular_styles.slice(0, 3).map((style, index) => {
+                    const TrendIcon = style.trend === 'rising' ? TrendingUp : style.trend === 'declining' ? TrendingDown : Minus;
+                    const trendColor = style.trend === 'rising' ? 'text-success' : style.trend === 'declining' ? 'text-destructive' : 'text-muted-foreground';
+                    
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between rounded-lg border p-3 transition-all duration-200 hover:bg-muted/50 animate-fade-in"
+                        style={{ animationDelay: `${index * 50}ms` }}
+                      >
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{style.style_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {style.adoption_rate.toFixed(1)}% adoption rate
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <TrendIcon className={cn("h-4 w-4", trendColor)} />
+                          <Badge variant="secondary" className="text-xs">
+                            {style.trend}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <TrendingUp className="h-10 w-10 text-muted-foreground/50" />
+                  <p className="mt-2 text-sm text-muted-foreground">No trend data available</p>
                 </div>
               )}
             </CardContent>
