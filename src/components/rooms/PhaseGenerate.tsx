@@ -320,102 +320,139 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     }
   });
 
-  // Track which render IDs we've already created versions for
-  const versionCreatedForRenderRef = useRef<Set<string>>(new Set());
+  // Session storage key for tracking handled job IDs (persists across tab switches)
+  const getHandledJobKey = () => `phaseGenerate:lastHandledJob:${room.id}`;
   
-  // Track the last completed job ID to avoid re-running on tab switches
-  const lastCompletedJobIdRef = useRef<string | null>(null);
+  // Check if we already handled this job (persisted)
+  const wasJobAlreadyHandled = (jobId: string): boolean => {
+    try {
+      return sessionStorage.getItem(getHandledJobKey()) === jobId;
+    } catch {
+      return false;
+    }
+  };
+  
+  // Mark job as handled (persisted)
+  const markJobAsHandled = (jobId: string) => {
+    try {
+      sessionStorage.setItem(getHandledJobKey(), jobId);
+    } catch {
+      // Ignore storage errors
+    }
+  };
 
   // Refetch renders when job completes and auto-score new renders
   useEffect(() => {
     const handleJobCompletion = async () => {
-      // Only proceed if this is a newly completed job we haven't handled
-      if (currentJob?.status === 'completed' && currentJob?.id !== lastCompletedJobIdRef.current) {
-        lastCompletedJobIdRef.current = currentJob.id;
-        
-        await refetchRender();
-        await refetchRenderImage();
-        queryClient.invalidateQueries({ queryKey: ['room', room.id] });
-        
-        // Auto-score the new render if it doesn't have a score yet
-        // Delay slightly to ensure render data is loaded
-        setTimeout(async () => {
-          const imageUrl = currentRender?.image_url || renderImage?.signedUrl;
-          
-          // Only score and create version if:
-          // 1. We have an image URL
-          // 2. We have a render record
-          // 3. The render doesn't have a quality score yet (meaning it's truly new)
-          // 4. We haven't already created a version for this render
-          if (imageUrl && currentRender && currentRender.quality_score === null) {
-            // Check if we already created a version for this render
-            if (versionCreatedForRenderRef.current.has(currentRender.id)) {
-              console.log('Version already created for render:', currentRender.id);
-              return;
-            }
-            
-            toast({
-              title: 'Evaluating Quality',
-              description: 'AI is scoring your render...',
-            });
-            
-            let score: number | null = null;
-            try {
-              score = await scoreRender(imageUrl);
-              
-              // Update render with quality score
-              if (currentRender?.id) {
-                await supabase
-                  .from('renders')
-                  .update({ quality_score: score })
-                  .eq('id', currentRender.id);
-                
-                // Refetch to show updated score
-                await refetchRender();
-              }
-              
-              // Show score result
-              if (score >= 85) {
-                toast({
-                  title: `✅ Excellent Quality: ${score}%`,
-                  description: 'Render meets quality standards!',
-                });
-              } else {
-                toast({
-                  title: `⚠️ Quality: ${score}%`,
-                  description: 'Consider regenerating for better results.',
-                });
-              }
-            } catch (err) {
-              console.error('Auto-scoring failed:', err);
-            }
-            
-            // Auto-create version entry for this render (only once)
-            try {
-              await versionControlService.createVersion({
-                room_id: room.id,
-                render_url: imageUrl,
-                storage_path: currentRender?.storage_path || '',
-                style_config: { style: room.selected_style },
-                generation_params: { 
-                  model: generationParams.model,
-                  resolution: generationParams.resolution,
-                  path: room.generation_path 
-                },
-                prompt_used: editablePrompt || currentRender?.prompt_used || undefined,
-                quality_score: score || currentRender?.quality_score || undefined,
-              });
-              
-              // Mark this render as processed
-              versionCreatedForRenderRef.current.add(currentRender.id);
-              console.log('Version auto-created for render:', currentRender.id);
-              queryClient.invalidateQueries({ queryKey: ['render-versions', room.id] });
-            } catch (versionError) {
-              console.error('Failed to auto-create version:', versionError);
-            }
-          }
-        }, 1000);
+      // Only proceed for completed jobs
+      if (currentJob?.status !== 'completed') return;
+      
+      // Check if we already handled this job (persisted across tab switches)
+      if (wasJobAlreadyHandled(currentJob.id)) {
+        console.log('Job already handled (from session):', currentJob.id);
+        return;
       }
+      
+      // Refetch render data
+      await refetchRender();
+      await refetchRenderImage();
+      queryClient.invalidateQueries({ queryKey: ['room', room.id] });
+      
+      // Wait for render data to load
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get the latest render data
+      const { data: latestRender } = await supabase
+        .from('renders')
+        .select('*')
+        .eq('room_id', room.id)
+        .order('version_number', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (!latestRender?.storage_path) {
+        console.log('No render with storage_path found');
+        return;
+      }
+      
+      // CRITICAL CHECK: Does a version already exist for this storage_path?
+      const { data: existingVersion } = await supabase
+        .from('render_versions')
+        .select('id')
+        .eq('room_id', room.id)
+        .eq('storage_path', latestRender.storage_path)
+        .limit(1)
+        .maybeSingle();
+      
+      if (existingVersion) {
+        console.log('Version already exists for storage_path:', latestRender.storage_path);
+        markJobAsHandled(currentJob.id);
+        return;
+      }
+      
+      // Only score if render doesn't have a quality score yet
+      const imageUrl = latestRender.image_url;
+      let score: number | null = null;
+      
+      if (latestRender.quality_score === null && imageUrl) {
+        toast({
+          title: 'Evaluating Quality',
+          description: 'AI is scoring your render...',
+        });
+        
+        try {
+          score = await scoreRender(imageUrl);
+          
+          // Update render with quality score
+          await supabase
+            .from('renders')
+            .update({ quality_score: score })
+            .eq('id', latestRender.id);
+          
+          // Refetch to show updated score
+          await refetchRender();
+          
+          // Show score result
+          if (score >= 85) {
+            toast({
+              title: `✅ Excellent Quality: ${score}%`,
+              description: 'Render meets quality standards!',
+            });
+          } else {
+            toast({
+              title: `⚠️ Quality: ${score}%`,
+              description: 'Consider regenerating for better results.',
+            });
+          }
+        } catch (err) {
+          console.error('Auto-scoring failed:', err);
+        }
+      }
+      
+      // Auto-create version entry for this render
+      try {
+        await versionControlService.createVersion({
+          room_id: room.id,
+          render_url: imageUrl,
+          storage_path: latestRender.storage_path,
+          style_config: { style: room.selected_style },
+          generation_params: { 
+            model: generationParams.model,
+            resolution: generationParams.resolution,
+            path: room.generation_path 
+          },
+          prompt_used: editablePrompt || latestRender.prompt_used || undefined,
+          quality_score: score || latestRender.quality_score || undefined,
+        });
+        
+        console.log('Version auto-created for storage_path:', latestRender.storage_path);
+        queryClient.invalidateQueries({ queryKey: ['render-versions', room.id] });
+      } catch (versionError) {
+        console.error('Failed to auto-create version:', versionError);
+      }
+      
+      // Mark this job as handled
+      markJobAsHandled(currentJob.id);
     };
     
     handleJobCompletion();

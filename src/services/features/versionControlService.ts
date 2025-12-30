@@ -98,16 +98,41 @@ class VersionControlService {
     return data as RenderVersion;
   }
 
-  // 3. Create a new version with change tracking
+  // 3. Create a new version with change tracking (with duplicate prevention)
   async createVersion(input: CreateVersionInput): Promise<RenderVersion> {
     const { data: { user } } = await supabase.auth.getUser();
+    
+    // DUPLICATE PREVENTION: Check if a version with this storage_path already exists for this room
+    if (input.storage_path) {
+      const { data: existingVersion } = await supabase
+        .from('render_versions')
+        .select('*')
+        .eq('room_id', input.room_id)
+        .eq('storage_path', input.storage_path)
+        .limit(1)
+        .maybeSingle();
+      
+      if (existingVersion) {
+        console.log('Version already exists for storage_path:', input.storage_path);
+        return existingVersion as RenderVersion;
+      }
+    }
+    
+    // Get the latest version to set as parent if not provided
+    let parentVersionId = input.parent_version_id;
+    if (!parentVersionId) {
+      const versions = await this.getRenderVersions(input.room_id);
+      if (versions.length > 0) {
+        parentVersionId = versions[0].id;
+      }
+    }
     
     // Calculate changes from parent if exists
     let changes_from_parent: any[] = [];
     let change_summary: string | null = null;
     
-    if (input.parent_version_id) {
-      const parent = await this.getVersionById(input.parent_version_id);
+    if (parentVersionId) {
+      const parent = await this.getVersionById(parentVersionId);
       if (parent) {
         changes_from_parent = this.calculateChanges(parent, input);
         change_summary = this.generateChangeSummary(changes_from_parent);
@@ -118,7 +143,7 @@ class VersionControlService {
       .from('render_versions')
       .insert({
         room_id: input.room_id,
-        parent_version_id: input.parent_version_id || null,
+        parent_version_id: parentVersionId || null,
         render_url: input.render_url,
         thumbnail_url: input.thumbnail_url || null,
         storage_path: input.storage_path,
