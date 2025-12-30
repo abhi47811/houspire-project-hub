@@ -2,171 +2,191 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface RenderVersion {
   id: string;
+  room_id: string;
   version_number: number;
-  image_url: string;
-  storage_path: string | null;
+  parent_version_id: string | null;
+  render_url: string;
+  thumbnail_url: string | null;
+  storage_path: string;
+  style_config: Record<string, any>;
+  generation_params: Record<string, any>;
   prompt_used: string | null;
   quality_score: number | null;
-  created_at: string;
+  ai_validation_score: number | null;
+  user_rating: number | null;
+  changes_from_parent: any[];
+  change_summary: string | null;
+  is_approved: boolean;
   is_final: boolean;
-  style_config?: Record<string, unknown>;
-  generation_params?: Record<string, unknown>;
+  approved_by: string | null;
+  approved_at: string | null;
+  notes: string | null;
+  tags: string[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-interface CreateVersionParams {
+export interface CreateVersionInput {
   room_id: string;
-  render_id: string;
+  parent_version_id?: string | null;
   render_url: string;
-  storage_path?: string;
+  thumbnail_url?: string | null;
+  storage_path: string;
+  style_config?: Record<string, any>;
+  generation_params?: Record<string, any>;
   prompt_used?: string;
-  quality_score?: number;
-  style_config?: Record<string, unknown>;
-  generation_params?: Record<string, unknown>;
+  quality_score?: number | null;
+  notes?: string;
+  tags?: string[];
 }
 
-export const versionControlService = {
-  /**
-   * Get all versions for a room from the renders table
-   */
-  async getVersions(roomId: string): Promise<RenderVersion[]> {
+export interface VersionComparison {
+  version1: RenderVersion;
+  version2: RenderVersion;
+  styleChanges: string[];
+  paramChanges: string[];
+  qualityDelta: number;
+}
+
+class VersionControlService {
+  async getRenderVersions(roomId: string): Promise<RenderVersion[]> {
     const { data, error } = await supabase
-      .from('renders')
-      .select('id, image_url, storage_path, prompt_used, quality_score, created_at, version_number, approval_status, render_versions')
+      .from('render_versions')
+      .select('*')
       .eq('room_id', roomId)
-      .order('created_at', { ascending: false });
+      .order('version_number', { ascending: false });
 
     if (error) throw error;
+    return (data || []) as RenderVersion[];
+  }
 
-    // Map renders to version format
-    return (data || []).map((render, index) => ({
-      id: render.id,
-      version_number: render.version_number || data.length - index,
-      image_url: render.image_url,
-      storage_path: render.storage_path,
-      prompt_used: render.prompt_used,
-      quality_score: render.quality_score ? Number(render.quality_score) : null,
-      created_at: render.created_at,
-      is_final: render.approval_status === 'approved',
-    }));
-  },
-
-  /**
-   * Get a single version by ID
-   */
-  async getVersion(versionId: string): Promise<RenderVersion | null> {
+  async getVersionById(versionId: string): Promise<RenderVersion | null> {
     const { data, error } = await supabase
-      .from('renders')
-      .select('id, image_url, storage_path, prompt_used, quality_score, created_at, version_number, approval_status')
+      .from('render_versions')
+      .select('*')
       .eq('id', versionId)
-      .maybeSingle();
+      .single();
 
-    if (error) throw error;
-    if (!data) return null;
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw error;
+    }
+    return data as RenderVersion;
+  }
 
-    return {
-      id: data.id,
-      version_number: data.version_number || 1,
-      image_url: data.image_url,
-      storage_path: data.storage_path,
-      prompt_used: data.prompt_used,
-      quality_score: data.quality_score ? Number(data.quality_score) : null,
-      created_at: data.created_at,
-      is_final: data.approval_status === 'approved',
-    };
-  },
-
-  /**
-   * Create a new version (new render record)
-   */
-  async createVersion(params: CreateVersionParams): Promise<RenderVersion> {
-    // Get the current max version number for this room
-    const { data: existing } = await supabase
-      .from('renders')
-      .select('version_number')
-      .eq('room_id', params.room_id)
-      .order('version_number', { ascending: false })
-      .limit(1);
-
-    const nextVersionNumber = (existing?.[0]?.version_number || 0) + 1;
-
+  async createVersion(input: CreateVersionInput): Promise<RenderVersion> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
-      .from('renders')
+      .from('render_versions')
       .insert({
-        room_id: params.room_id,
-        image_url: params.render_url,
-        storage_path: params.storage_path,
-        prompt_used: params.prompt_used,
-        quality_score: params.quality_score,
-        version_number: nextVersionNumber,
-        approval_status: 'pending',
+        room_id: input.room_id,
+        parent_version_id: input.parent_version_id || null,
+        render_url: input.render_url,
+        thumbnail_url: input.thumbnail_url || null,
+        storage_path: input.storage_path,
+        style_config: input.style_config || {},
+        generation_params: input.generation_params || {},
+        prompt_used: input.prompt_used || null,
+        quality_score: input.quality_score || null,
+        notes: input.notes || null,
+        tags: input.tags || [],
+        created_by: user?.id || null,
       })
       .select()
       .single();
 
     if (error) throw error;
+    return data as RenderVersion;
+  }
 
-    return {
-      id: data.id,
-      version_number: data.version_number || nextVersionNumber,
-      image_url: data.image_url,
-      storage_path: data.storage_path,
-      prompt_used: data.prompt_used,
-      quality_score: data.quality_score ? Number(data.quality_score) : null,
-      created_at: data.created_at,
-      is_final: false,
-    };
-  },
+  async compareVersions(v1Id: string, v2Id: string): Promise<VersionComparison> {
+    const [version1, version2] = await Promise.all([
+      this.getVersionById(v1Id),
+      this.getVersionById(v2Id),
+    ]);
 
-  /**
-   * Set a version as the final/approved version
-   */
-  async setAsFinal(versionId: string, roomId: string): Promise<void> {
-    // First, unapprove all other versions for this room
-    await supabase
-      .from('renders')
-      .update({ approval_status: 'pending', approved_at: null })
-      .eq('room_id', roomId);
+    if (!version1 || !version2) throw new Error('Version not found');
 
-    // Then approve this version
+    const styleChanges = this.getObjectDiff(version1.style_config, version2.style_config);
+    const paramChanges = this.getObjectDiff(version1.generation_params, version2.generation_params);
+    const qualityDelta = (version2.quality_score || 0) - (version1.quality_score || 0);
+
+    return { version1, version2, styleChanges, paramChanges, qualityDelta };
+  }
+
+  async approveVersion(versionId: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase
-      .from('renders')
-      .update({ 
-        approval_status: 'approved',
-        approved_at: new Date().toISOString(),
-      })
+      .from('render_versions')
+      .update({ is_approved: true, approved_by: user?.id, approved_at: new Date().toISOString() })
       .eq('id', versionId);
-
     if (error) throw error;
-  },
+  }
 
-  /**
-   * Delete a version (soft delete by setting status)
-   */
-  async deleteVersion(versionId: string): Promise<void> {
+  async markAsFinal(versionId: string): Promise<void> {
     const { error } = await supabase
-      .from('renders')
-      .delete()
+      .from('render_versions')
+      .update({ is_final: true, is_approved: true })
       .eq('id', versionId);
-
     if (error) throw error;
-  },
+  }
 
-  /**
-   * Restore a previous version as the current active render
-   */
-  async restoreVersion(versionId: string, roomId: string): Promise<RenderVersion> {
-    // Get the version to restore
-    const version = await this.getVersion(versionId);
-    if (!version) throw new Error('Version not found');
+  async revertToVersion(versionId: string): Promise<RenderVersion> {
+    const source = await this.getVersionById(versionId);
+    if (!source) throw new Error('Version not found');
 
-    // Create a new version based on this one
+    const versions = await this.getRenderVersions(source.room_id);
     return this.createVersion({
-      room_id: roomId,
-      render_id: versionId,
-      render_url: version.image_url,
-      storage_path: version.storage_path || undefined,
-      prompt_used: version.prompt_used || undefined,
-      quality_score: version.quality_score || undefined,
+      room_id: source.room_id,
+      parent_version_id: versions[0]?.id || null,
+      render_url: source.render_url,
+      thumbnail_url: source.thumbnail_url,
+      storage_path: source.storage_path,
+      style_config: source.style_config,
+      generation_params: source.generation_params,
+      prompt_used: source.prompt_used || undefined,
+      quality_score: source.quality_score,
+      notes: `Reverted from v${source.version_number}`,
+      tags: [...(source.tags || []), 'reverted'],
     });
-  },
-};
+  }
+
+  async updateNotes(versionId: string, notes: string): Promise<void> {
+    const { error } = await supabase.from('render_versions').update({ notes }).eq('id', versionId);
+    if (error) throw error;
+  }
+
+  async addTags(versionId: string, newTags: string[]): Promise<void> {
+    const version = await this.getVersionById(versionId);
+    if (!version) throw new Error('Version not found');
+    const merged = [...new Set([...(version.tags || []), ...newTags])];
+    const { error } = await supabase.from('render_versions').update({ tags: merged }).eq('id', versionId);
+    if (error) throw error;
+  }
+
+  async rateVersion(versionId: string, rating: number): Promise<void> {
+    if (rating < 1 || rating > 5) throw new Error('Rating must be 1-5');
+    const { error } = await supabase.from('render_versions').update({ user_rating: rating }).eq('id', versionId);
+    if (error) throw error;
+  }
+
+  async deleteVersion(versionId: string): Promise<void> {
+    const { error } = await supabase.from('render_versions').delete().eq('id', versionId);
+    if (error) throw error;
+  }
+
+  private getObjectDiff(obj1: Record<string, any>, obj2: Record<string, any>): string[] {
+    const diffs: string[] = [];
+    const allKeys = new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})]);
+    allKeys.forEach(key => {
+      if (JSON.stringify(obj1?.[key]) !== JSON.stringify(obj2?.[key])) {
+        diffs.push(`${key}: ${JSON.stringify(obj1?.[key])} → ${JSON.stringify(obj2?.[key])}`);
+      }
+    });
+    return diffs;
+  }
+}
+
+export const versionControlService = new VersionControlService();
