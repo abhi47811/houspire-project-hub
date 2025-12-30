@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Houspire API Test - Direct</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .success {
+            background: #dcfce7;
+            border: 2px solid #22c55e;
+            color: #166534;
+        }
+        .error {
+            background: #fee2e2;
+            border: 2px solid #ef4444;
+            color: #991b1b;
+        }
+        .info {
+            background: #dbeafe;
+            border: 2px solid #3b82f6;
+            color: #1e40af;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status-success {
+            background: #22c55e;
+            color: white;
+        }
+        .status-error {
+            background: #ef4444;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            🔍 Houspire API Test
+            <span id="status" class="status-badge" style="display: none;"></span>
+        </h1>
+        <p class="subtitle">Direct test of the vision-ai endpoint</p>
+        
+        <button id="testBtn" onclick="testAPI()">
+            🚀 Test Room Analysis
+        </button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://nvnxptkgksuhfcpmungq.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52bnhwdGtna3N1aGZjcG11bmdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4MDE3OTMsImV4cCI6MjA4MjM3Nzc5M30.rxcOYBa0rJwEFCqkD52H_8vkN-9j92zIQOT3aO_VqZM';
+
+        async function testAPI() {
+            const btn = document.getElementById('testBtn');
+            const resultDiv = document.getElementById('result');
+            const statusBadge = document.getElementById('status');
+            
+            btn.disabled = true;
+            btn.textContent = '⏳ Testing...';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = 'Calling API... This may take 20-30 seconds...';
+            statusBadge.style.display = 'none';
+            
+            const startTime = Date.now();
+            
+            try {
+                console.log('[Direct Test] Starting API call...');
+                
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/vision-ai`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                    },
+                    body: JSON.stringify({
+                        action: 'analyzeRoom',
+                        imageUrl: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace',
+                        projectId: 'direct-test',
+                        roomId: 'direct-test-room'
+                    }),
+                });
+
+                const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                const data = await response.json();
+
+                console.log('[Direct Test] Response:', {
+                    status: response.status,
+                    ok: response.ok,
+                    data
+                });
+
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || data.message || `HTTP ${response.status}`);
+                }
+
+                // Success!
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `
+<strong>✅ SUCCESS!</strong>
+
+Duration: ${duration} seconds
+Status: ${response.status} ${response.statusText}
+
+Analysis Results:
+- Dimensions: ${data.result?.dimensions?.length_feet || 0}' × ${data.result?.dimensions?.width_feet || 0}' × ${data.result?.dimensions?.height_feet || 0}'
+- Windows: ${data.result?.window_count || 0}
+- Doors: ${data.result?.door_count || 0}
+- Mirrors: ${data.result?.mirror_count || 0}
+- Ceiling Fans: ${data.result?.ceiling_fan_count || 0}
+
+Suggested Styles:
+${(data.result?.suggested_styles || []).map((s, i) => `${i + 1}. ${s.name} (${s.confidence}% confidence)`).join('\n')}
+
+Cost: $${(data.usage?.costUsd || 0).toFixed(4)}
+
+Full Response:
+${JSON.stringify(data, null, 2)}
+                `.trim();
+                
+                statusBadge.className = 'status-badge status-success';
+                statusBadge.textContent = '✓ Working';
+                statusBadge.style.display = 'inline-block';
+
+            } catch (error) {
+                const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                
+                console.error('[Direct Test] Error:', error);
+                
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+<strong>❌ ERROR</strong>
+
+Duration: ${duration} seconds
+Error: ${error.message}
+
+This means:
+1. If you see this working, but your app shows errors → Your app has old code
+2. If you see timeout → Image URL might be blocked
+3. If you see 401/403 → API key issue (unlikely since test passed earlier)
+4. If you see 500 → Check Supabase function logs
+
+What to do:
+1. Check browser console (F12) for more details
+2. Verify your deployed app is using latest code from GitHub
+3. Try hard refresh (Ctrl+Shift+R) on your app
+4. Redeploy your frontend if needed
+
+Error Details:
+${error.stack || error.toString()}
+                `.trim();
+                
+                statusBadge.className = 'status-badge status-error';
+                statusBadge.textContent = '✗ Error';
+                statusBadge.style.display = 'inline-block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔄 Test Again';
+            }
+        }
+
+        // Show info on load
+        document.getElementById('result').className = 'result info';
+        document.getElementById('result').innerHTML = `
+<strong>ℹ️ Ready to Test</strong>
+
+This page tests the Houspire API directly without any app dependencies.
+
+Click the button above to:
+1. Call the vision-ai endpoint
+2. Analyze a sample room image
+3. Display the results
+
+If this works but your app doesn't:
+→ Your app needs to be redeployed with latest code from GitHub
+
+GitHub Latest Commit: 8aafee0
+API Status: Should be working (tested separately)
+        `.trim();
+    </script>
+</body>
+</html>
