@@ -14,6 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_recommendations: {
+        Row: {
+          budget_alternatives: Json | null
+          confidence_score: number | null
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          furniture_suggestions: Json | null
+          generated_at: string
+          id: string
+          model_used: string | null
+          reasoning: string | null
+          recommendation_type: string
+          recommended_styles: Json | null
+          room_context: Json
+          room_id: string
+          selected_option: string | null
+          trend_data: Json | null
+          updated_at: string
+          user_feedback: string | null
+          was_accepted: boolean | null
+        }
+        Insert: {
+          budget_alternatives?: Json | null
+          confidence_score?: number | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          furniture_suggestions?: Json | null
+          generated_at?: string
+          id?: string
+          model_used?: string | null
+          reasoning?: string | null
+          recommendation_type: string
+          recommended_styles?: Json | null
+          room_context?: Json
+          room_id: string
+          selected_option?: string | null
+          trend_data?: Json | null
+          updated_at?: string
+          user_feedback?: string | null
+          was_accepted?: boolean | null
+        }
+        Update: {
+          budget_alternatives?: Json | null
+          confidence_score?: number | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          furniture_suggestions?: Json | null
+          generated_at?: string
+          id?: string
+          model_used?: string | null
+          reasoning?: string | null
+          recommendation_type?: string
+          recommended_styles?: Json | null
+          room_context?: Json
+          room_id?: string
+          selected_option?: string | null
+          trend_data?: Json | null
+          updated_at?: string
+          user_feedback?: string | null
+          was_accepted?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_recommendations_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_logs: {
         Row: {
           cost_usd: number
@@ -1024,6 +1098,66 @@ export type Database = {
           },
         ]
       }
+      recommendation_feedback: {
+        Row: {
+          created_at: string
+          created_by: string
+          feedback_data: Json | null
+          feedback_type: string
+          helpfulness_score: number | null
+          id: string
+          modification_details: Json | null
+          recommendation_id: string
+          rejection_reason: string | null
+          room_id: string
+          selected_option: string | null
+          user_comment: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          feedback_data?: Json | null
+          feedback_type: string
+          helpfulness_score?: number | null
+          id?: string
+          modification_details?: Json | null
+          recommendation_id: string
+          rejection_reason?: string | null
+          room_id: string
+          selected_option?: string | null
+          user_comment?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          feedback_data?: Json | null
+          feedback_type?: string
+          helpfulness_score?: number | null
+          id?: string
+          modification_details?: Json | null
+          recommendation_id?: string
+          rejection_reason?: string | null
+          room_id?: string
+          selected_option?: string | null
+          user_comment?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendation_feedback_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_recommendations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendation_feedback_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       render_feedback: {
         Row: {
           comment: string | null
@@ -1548,6 +1682,60 @@ export type Database = {
             columns: ["smart_default_id"]
             isOneToOne: false
             referencedRelation: "smart_defaults"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      similar_projects: {
+        Row: {
+          calculated_at: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          matching_factors: string[] | null
+          similar_room_id: string
+          similar_room_preview: Json | null
+          similarity_score: number
+          source_room_id: string
+          updated_at: string
+        }
+        Insert: {
+          calculated_at?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          matching_factors?: string[] | null
+          similar_room_id: string
+          similar_room_preview?: Json | null
+          similarity_score: number
+          source_room_id: string
+          updated_at?: string
+        }
+        Update: {
+          calculated_at?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          matching_factors?: string[] | null
+          similar_room_id?: string
+          similar_room_preview?: Json | null
+          similarity_score?: number
+          source_room_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "similar_projects_similar_room_id_fkey"
+            columns: ["similar_room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "similar_projects_source_room_id_fkey"
+            columns: ["source_room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
             referencedColumns: ["id"]
           },
         ]
