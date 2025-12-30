@@ -44,6 +44,10 @@ import {
   RotateCcw,
   AlertCircle,
   History,
+  Download,
+  FileText,
+  TrendingUp,
+  ShoppingCart,
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PhaseUpload } from '@/components/rooms/PhaseUpload';
@@ -52,7 +56,12 @@ import { PhaseClean } from '@/components/rooms/PhaseClean';
 import { PhaseCustomize } from '@/components/rooms/PhaseCustomize';
 import { PhaseGenerate } from '@/components/rooms/PhaseGenerate';
 import { RenderVersionTimeline } from '@/components/rooms/RenderVersionTimeline';
+import { RenderHistoryTimeline } from '@/components/refinement/RenderHistoryTimeline';
+import { VersionComparisonComponent } from '@/components/refinement/VersionComparisonComponent';
 import { VersionCompareView } from '@/components/rooms/VersionCompareView';
+import { BudgetBreakdownDisplay } from '@/components/budget/BudgetBreakdownDisplay';
+import { ExportOptionsComponent } from '@/components/export/ExportOptionsComponent';
+import { VendorRecommendationsComponent } from '@/components/vendor/VendorRecommendationsComponent';
 
 type RoomType = 'living_room' | 'master_bedroom' | 'bedroom' | 'kitchen' | 'dining_room' | 'balcony' | 'study_room' | 'kids_room' | 'guest_room' | 'pooja_room' | 'home_office' | 'gym' | 'entertainment_room' | 'utility_room';
 
@@ -132,6 +141,10 @@ export default function RoomDetail() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [versionsToCompare, setVersionsToCompare] = useState<RenderVersion[]>([]);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showBudgetDialog, setShowBudgetDialog] = useState(false);
+  const [showVendorDialog, setShowVendorDialog] = useState(false);
+  const [showQualityDialog, setShowQualityDialog] = useState(false);
 
   // Version control hook
   const { versionCount } = useRenderVersions(roomId);
@@ -351,6 +364,22 @@ export default function RoomDetail() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-popover">
+                <DropdownMenuItem onClick={() => setShowExportDialog(true)}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Room
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowBudgetDialog(true)}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Budget
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowVendorDialog(true)}>
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  Find Vendors
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowQualityDialog(true)}>
+                  <TrendingUp className="mr-2 h-4 w-4" />
+                  Quality Score
+                </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Edit className="mr-2 h-4 w-4" />
                   Edit Room
@@ -532,6 +561,137 @@ export default function RoomDetail() {
         onClose={() => setShowComparison(false)}
         roomId={roomId}
       />
+
+      {/* Export Dialog */}
+      {showExportDialog && room && (
+        <AlertDialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+          <AlertDialogContent className="max-w-4xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Export Room Design</AlertDialogTitle>
+              <AlertDialogDescription>
+                Export your room design in multiple formats
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <ExportOptionsComponent
+              projectData={{
+                projectId: room.project_id,
+                projectName: project?.name || 'Untitled Project',
+                roomId: room.id,
+                roomName: room.room_name || 'Untitled Room',
+                roomType: room.room_type || 'living_room',
+                style: room.selected_style || 'modern_indian',
+                dimensions: {
+                  length: room.length_feet || 0,
+                  width: room.width_feet || 0,
+                  height: room.height_feet || 0,
+                },
+              }}
+              onExport={async (options) => {
+                toast({
+                  title: 'Export Started',
+                  description: 'Your export is being generated...',
+                });
+                setShowExportDialog(false);
+              }}
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel>Close</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {/* Budget Dialog */}
+      {showBudgetDialog && room && (
+        <AlertDialog open={showBudgetDialog} onOpenChange={setShowBudgetDialog}>
+          <AlertDialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Budget Breakdown</AlertDialogTitle>
+              <AlertDialogDescription>
+                Detailed cost analysis for your room design
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <BudgetBreakdownDisplay
+              projectData={{
+                roomType: room.room_type || 'living_room',
+                style: room.selected_style || 'modern_indian',
+                smartDefaultId: room.smart_default_id,
+                dimensions: {
+                  length: room.length_feet || 0,
+                  width: room.width_feet || 0,
+                  height: room.height_feet || 0,
+                },
+              }}
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel>Close</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {/* Vendor Dialog */}
+      {showVendorDialog && room && (
+        <AlertDialog open={showVendorDialog} onOpenChange={setShowVendorDialog}>
+          <AlertDialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Vendor Recommendations</AlertDialogTitle>
+              <AlertDialogDescription>
+                Find the best vendors for your room design
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <VendorRecommendationsComponent
+              projectData={{
+                roomType: room.room_type || 'living_room',
+                style: room.selected_style || 'modern_indian',
+                smartDefaultId: room.smart_default_id,
+                budget: {
+                  total: 500000, // This should be fetched from budget service
+                  tier: 'mid_range',
+                },
+              }}
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel>Close</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {/* Quality Score Dialog */}
+      {showQualityDialog && room && room.final_quality_score && (
+        <AlertDialog open={showQualityDialog} onOpenChange={setShowQualityDialog}>
+          <AlertDialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Quality Score Analysis</AlertDialogTitle>
+              <AlertDialogDescription>
+                Comprehensive quality metrics for your room design
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-4">
+              <p className="text-center text-4xl font-bold mb-4">
+                {room.final_quality_score}/100
+              </p>
+              <p className="text-center text-muted-foreground mb-6">
+                Quality Score: {room.final_quality_score >= 85 ? 'A' : room.final_quality_score >= 70 ? 'B' : room.final_quality_score >= 55 ? 'C' : 'D'}
+              </p>
+              <div className="text-sm text-muted-foreground">
+                <p>This room has been evaluated based on:</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Design complexity and sophistication</li>
+                  <li>Functionality and layout efficiency</li>
+                  <li>Aesthetic appeal and style consistency</li>
+                  <li>Budget adherence and value optimization</li>
+                  <li>Technical execution quality</li>
+                </ul>
+              </div>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Close</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

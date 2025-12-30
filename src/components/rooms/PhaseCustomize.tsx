@@ -27,6 +27,9 @@ import { cn } from '@/lib/utils';
 import { GenerationPathsSelector, GenerationPath } from './GenerationPathsSelector';
 import { SmartDefaultsDisplay } from './SmartDefaultsDisplay';
 import { SmartRecommendations } from './SmartRecommendations';
+import { SmartDefaultsVariationSelector } from './SmartDefaultsVariationSelector';
+import { FinishCombinationsSelector } from './FinishCombinationsSelector';
+import { ArchitecturalPreservationSettings } from './ArchitecturalPreservationSettings';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { RoomContext } from '@/services/features/recommendationService';
 import { ManualPromptEditor } from './ManualPromptEditor';
@@ -37,6 +40,8 @@ import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hook
 import { useProjectStyle } from '@/hooks/useProjectStyle';
 import { useApplyStyleToAllRooms } from '@/hooks/useBulkOperations';
 import { handleApiError } from '@/lib/api-error';
+import { BudgetService } from '@/services/features/budgetService';
+import { useBudget } from '@/hooks/useBudget';
 
 interface Room {
   id: string;
