@@ -2,13 +2,16 @@ import { useState, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ArrowRight, CheckCircle2, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { ImageUpload } from './ImageUpload';
 import { ImageViewer } from './ImageViewer';
 import { PhaseUploadSkeleton } from './PhaseSkeletons';
 import { useToast } from '@/hooks/use-toast';
 import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hooks/useEnhancedKeyboardShortcuts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useRoomAnalysis } from '@/hooks/useRoomAnalysis';
 
 interface Room {
   id: string;
@@ -28,6 +31,9 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
   const [uploadComplete, setUploadComplete] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // AI Room Analysis Hook
+  const { analysisResult, suggestions, isAnalyzing, analyzeImage } = useRoomAnalysis(room.id);
 
   const { data: existingImage, isLoading: isLoadingImage } = useQuery({
     queryKey: ['room-images', room.id, 1, 'original'],
@@ -72,10 +78,15 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
     onContinue: handleKeyboardContinue,
   });
 
-  const handleUploadComplete = () => {
+  const handleUploadComplete = (imageUrl: string) => {
     setUploadComplete(true);
     queryClient.invalidateQueries({ queryKey: ['room', room.id] });
     queryClient.invalidateQueries({ queryKey: ['room-images', room.id] });
+    
+    // Trigger AI analysis automatically
+    if (imageUrl) {
+      analyzeImage.mutate({ imageUrl });
+    }
   };
 
   const handleContinue = async () => {
@@ -155,6 +166,132 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
           </div>
         )}
       </div>
+
+      {/* AI Analysis Results */}
+      {isAnalyzing && (
+        <Card className="border-primary/50 bg-primary/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <div>
+                <p className="font-medium">Analyzing Room...</p>
+                <p className="text-sm text-muted-foreground">
+                  AI is detecting doors, windows, and estimating dimensions
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {analysisResult && !isAnalyzing && (
+        <Card className="border-green-500/50 bg-green-50 dark:bg-green-950/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Sparkles className="h-5 w-5 text-green-600" />
+              AI Analysis Results
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Room Type */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Room Type</p>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-base">
+                  {analysisResult.room_type.replace('_', ' ').toUpperCase()}
+                </Badge>
+                <Badge variant="outline">
+                  {analysisResult.confidence}% confidence
+                </Badge>
+              </div>
+            </div>
+
+            {/* Detected Features */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Doors</p>
+                <Badge variant="secondary" className="text-base">
+                  {analysisResult.detected_features.doors.reduce((sum, d) => sum + d.count, 0)}
+                </Badge>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Windows</p>
+                <Badge variant="secondary" className="text-base">
+                  {analysisResult.detected_features.windows.reduce((sum, w) => sum + w.count, 0)}
+                </Badge>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Length</p>
+                <Badge variant="outline" className="text-base">
+                  {analysisResult.dimensions.length_feet} ft
+                </Badge>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Width</p>
+                <Badge variant="outline" className="text-base">
+                  {analysisResult.dimensions.width_feet} ft
+                </Badge>
+              </div>
+            </div>
+
+            {/* Dimensions Details */}
+            <div className="space-y-2 text-sm">
+              <p className="font-medium">Estimated Dimensions:</p>
+              <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                <div className="flex justify-between">
+                  <span>Length:</span>
+                  <span className="font-medium text-foreground">{analysisResult.dimensions.length_feet} ft</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Width:</span>
+                  <span className="font-medium text-foreground">{analysisResult.dimensions.width_feet} ft</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Height:</span>
+                  <span className="font-medium text-foreground">{analysisResult.dimensions.height_feet} ft</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Area:</span>
+                  <span className="font-medium text-foreground">{analysisResult.dimensions.area_sqft} sq ft</span>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Suggestions */}
+            {suggestions.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  Smart Suggestions:
+                </p>
+                <ul className="space-y-1">
+                  {suggestions.map((suggestion, index) => (
+                    <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span>
+                      <span>{suggestion}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Lighting Analysis */}
+            {analysisResult.lighting && (
+              <div className="text-sm space-y-1">
+                <p className="font-medium">Lighting Analysis:</p>
+                <div className="flex gap-2">
+                  <Badge variant="outline">
+                    Natural: {analysisResult.lighting.natural_light_level}
+                  </Badge>
+                  <Badge variant="outline">
+                    Quality: {analysisResult.lighting.overall_quality}
+                  </Badge>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Guidelines */}
       <div className="space-y-2 text-sm bg-muted/50 rounded-lg p-4">
