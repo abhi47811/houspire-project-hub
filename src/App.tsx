@@ -32,6 +32,7 @@ const ApprovalDashboard = lazy(() => import("./pages/admin/ApprovalDashboard"));
 const ApiTestPage = lazy(() => import("./pages/ApiTestPage"));
 const DiagnosticPage = lazy(() => import("./pages/DiagnosticPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const RoomRedirect = lazy(() => import("./pages/RoomRedirect"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,13 @@ const App = () => (
                 <Route path="/diagnostic" element={
                   <RouteErrorBoundary routeName="Diagnostic">
                     <DiagnosticPage />
+                  </RouteErrorBoundary>
+                } />
+                
+                {/* Old URL pattern redirect */}
+                <Route path="/room/:roomId" element={
+                  <RouteErrorBoundary routeName="RoomRedirect">
+                    <RoomRedirect />
                   </RouteErrorBoundary>
                 } />
 
