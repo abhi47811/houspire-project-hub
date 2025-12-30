@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -16,6 +17,7 @@ interface AttentionCounts {
  */
 export function useAttentionCounts() {
   const { user, profile } = useAuth();
+  const queryClient = useQueryClient();
   const isAdmin = profile?.role === 'admin';
 
   // Fetch pending approvals count (admin only)
@@ -29,8 +31,8 @@ export function useAttentionCounts() {
       return count || 0;
     },
     enabled: isAdmin,
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // Refetch every minute
+    staleTime: 15000,
+    refetchInterval: 30000,
   });
 
   // Fetch unresolved quality violations count (admin only)
@@ -44,8 +46,8 @@ export function useAttentionCounts() {
       return count || 0;
     },
     enabled: isAdmin,
-    staleTime: 30000,
-    refetchInterval: 60000,
+    staleTime: 15000,
+    refetchInterval: 30000,
   });
 
   // Fetch unread notifications count (all users)
@@ -61,9 +63,58 @@ export function useAttentionCounts() {
       return count || 0;
     },
     enabled: !!user?.id,
-    staleTime: 30000,
-    refetchInterval: 60000,
+    staleTime: 15000,
+    refetchInterval: 30000,
   });
+
+  // Real-time subscriptions for instant badge updates
+  useEffect(() => {
+    if (!user) return;
+    
+    const channels: ReturnType<typeof supabase.channel>[] = [];
+
+    // Subscribe to renders changes (for pending approvals badge)
+    if (isAdmin) {
+      const rendersChannel = supabase
+        .channel('attention-renders')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'renders' },
+          () => {
+            queryClient.invalidateQueries({ queryKey: ['attention-pending-approvals'] });
+          }
+        )
+        .subscribe();
+      channels.push(rendersChannel);
+
+      // Subscribe to quality_violations changes
+      const violationsChannel = supabase
+        .channel('attention-violations')
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'quality_violations' },
+          () => {
+            queryClient.invalidateQueries({ queryKey: ['attention-unresolved-violations'] });
+          }
+        )
+        .subscribe();
+      channels.push(violationsChannel);
+    }
+
+    // Subscribe to notifications changes for this user
+    const notificationsChannel = supabase
+      .channel('attention-notifications')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['attention-unread-notifications', user.id] });
+        }
+      )
+      .subscribe();
+    channels.push(notificationsChannel);
+
+    return () => {
+      channels.forEach(channel => supabase.removeChannel(channel));
+    };
+  }, [user, isAdmin, queryClient]);
 
   const adminTotal = pendingApprovals + unresolvedViolations;
   const hasAnyAttention = adminTotal > 0 || unreadNotifications > 0;
