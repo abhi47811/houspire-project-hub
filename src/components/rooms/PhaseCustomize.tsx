@@ -15,6 +15,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
@@ -25,6 +26,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { GenerationPathsSelector, GenerationPath } from './GenerationPathsSelector';
 import { SmartDefaultsDisplay } from './SmartDefaultsDisplay';
+import { SmartRecommendations } from './SmartRecommendations';
+import { useRecommendations } from '@/hooks/useRecommendations';
+import type { RoomContext } from '@/services/features/recommendationService';
 import { ManualPromptEditor } from './ManualPromptEditor';
 import { PromptPreview } from './PromptPreview';
 import { CopySettingsDialog, SaveTemplateDialog, UseTemplateDialog, StyleConflictDialog } from '@/components/dialogs';
@@ -275,6 +279,10 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
   const [showCopyDialog, setShowCopyDialog] = useState(false);
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
   const [showUseTemplateDialog, setShowUseTemplateDialog] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
+  
+  // AI Recommendations hook
+  const { generateStyles } = useRecommendations(room.id);
   
   // Keyboard shortcuts for customize phase
   useEnhancedKeyboardShortcuts({
@@ -623,6 +631,48 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         description: 'Reference images for your selected style are ready.',
       });
     }, 1500);
+  };
+
+  // Helper function to build room context for AI recommendations
+  const buildRoomContext = (): RoomContext => {
+    return {
+      room_id: room.id,
+      room_type: roomType || 'living_room',
+      room_name: roomType?.replace('_', ' ') || 'Room',
+      dimensions: {
+        length_feet: 15, // Default values - could be from room data
+        width_feet: 12,
+        height_feet: 10,
+        area_sqft: 180,
+      },
+      budget: {
+        total_budget: 100000, // Default - could be from project budget
+        spent: 0,
+        remaining: 100000,
+      },
+      location: {
+        city: userCity,
+        region: 'India',
+      },
+      characteristics: {
+        natural_light: 'medium' as const,
+        window_count: 2,
+        door_count: 1,
+        ceiling_features: [],
+      },
+      current_phase: room.current_phase,
+      selected_style: selectedStyle || undefined,
+    };
+  };
+
+  // Handle style selection from AI recommendations
+  const handleRecommendedStyleSelect = async (styleName: string) => {
+    await handleStyleChange(styleName);
+    setShowRecommendations(false);
+    toast({
+      title: 'Style Applied',
+      description: `"${styleName}" has been applied to this room.`,
+    });
   };
 
   const selectedStyleData = designStyles.find(s => s.id === selectedStyle);
@@ -1052,6 +1102,25 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
       {/* Path-specific content */}
       {generationPath === 'smart_defaults' && (
         <>
+          {/* AI Recommendations Button */}
+          <div className="mb-6">
+            <Button 
+              onClick={() => setShowRecommendations(true)}
+              variant="outline"
+              className="w-full h-auto py-4 border-primary/30 hover:border-primary hover:bg-primary/5 transition-all"
+            >
+              <div className="flex items-center justify-center gap-3 w-full">
+                <div className="p-2 rounded-full bg-gradient-to-br from-primary to-primary/70">
+                  <Sparkles className="h-5 w-5 text-primary-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-base">Get AI Style Recommendations</div>
+                  <div className="text-xs text-muted-foreground">Let AI suggest perfect styles for your room</div>
+                </div>
+              </div>
+            </Button>
+          </div>
+
           {/* Design Style Selection */}
           <div className="space-y-3">
             <h4 className="font-medium text-sm">Design Style</h4>
@@ -1466,6 +1535,23 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         dominantStyle={conflictDialog.dominantStyle}
         onResolve={conflictDialog.onResolve || (() => {})}
       />
+
+      {/* AI Recommendations Dialog */}
+      <Dialog open={showRecommendations} onOpenChange={setShowRecommendations}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI Style Recommendations
+            </DialogTitle>
+          </DialogHeader>
+          <SmartRecommendations 
+            roomId={room.id}
+            roomContext={buildRoomContext()}
+            onStyleSelected={handleRecommendedStyleSelect}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

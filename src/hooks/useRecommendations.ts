@@ -1,75 +1,57 @@
 /**
- * Smart AI Recommendations Hooks
- * Feature 2: React hooks for recommendations, similar projects, and trends
+ * Recommendations Hooks
  * 
- * 3 hooks | 6 mutations | ~280-350 lines
+ * React hooks for managing AI recommendations including:
+ * - Main recommendations hook with real-time updates
+ * - Similar projects hook
+ * - Trend analysis hook
+ * 
+ * Size Target: 8-10 KB | ~280-350 lines
+ * Hooks: 3 hooks + 6 mutations required
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import {
   recommendationService,
-  AIRecommendation,
-  RoomContext,
-  SimilarProject,
-  TrendAnalysis,
-  RecommendationFeedback,
-} from "@/services/features/recommendationService";
+  type RoomContext,
+  type AIRecommendation,
+  type SimilarProject,
+  type TrendAnalysis,
+  type RecommendationFeedback,
+} from '@/services/features/recommendationService';
 
-// ============================================
+// =====================================================
 // HOOK 1: useRecommendations
 // Main hook for fetching and managing recommendations
-// ============================================
+// =====================================================
 
-interface UseRecommendationsOptions {
-  roomId: string;
-  type?: AIRecommendation['recommendation_type'];
-  enabled?: boolean;
-}
-
-interface UseRecommendationsResult {
-  recommendations: AIRecommendation[];
-  isLoading: boolean;
-  error: Error | null;
-  refetch: () => void;
-  // Mutations
-  generateStyles: ReturnType<typeof useMutation<AIRecommendation | null, Error, RoomContext>>;
-  generateFurniture: ReturnType<typeof useMutation<AIRecommendation | null, Error, RoomContext>>;
-  acceptRecommendation: ReturnType<typeof useMutation<boolean, Error, { id: string; option?: string }>>;
-  rejectRecommendation: ReturnType<typeof useMutation<boolean, Error, { id: string; reason?: string }>>;
-  submitFeedback: ReturnType<typeof useMutation<RecommendationFeedback | null, Error, Omit<RecommendationFeedback, 'id' | 'created_at'>>>;
-}
-
-export function useRecommendations({
-  roomId,
-  type,
-  enabled = true,
-}: UseRecommendationsOptions): UseRecommendationsResult {
+export function useRecommendations(
+  roomId: string | undefined,
+  type?: 'style' | 'furniture_placement' | 'budget_optimization' | 'trend_analysis'
+) {
   const queryClient = useQueryClient();
-  const queryKey = ['recommendations', roomId, type];
+  const { toast } = useToast();
 
-  // Main query
+  // Query: Fetch recommendations
   const {
     data: recommendations = [],
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      const { data, error } = await recommendationService.getRecommendations(roomId, type);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: enabled && !!roomId,
-    staleTime: 30000, // 30 seconds
+    queryKey: ['recommendations', roomId, type],
+    queryFn: () => recommendationService.getRecommendations(roomId!, type),
+    enabled: !!roomId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  // Real-time subscription
+  // Real-time subscription for recommendations
   useEffect(() => {
-    if (!roomId || !enabled) return;
+    if (!roomId) return;
 
     const channel = supabase
       .channel(`recommendations-${roomId}`)
@@ -81,9 +63,8 @@ export function useRecommendations({
           table: 'ai_recommendations',
           filter: `room_id=eq.${roomId}`,
         },
-        (payload) => {
-          console.log('📡 Recommendation update:', payload.eventType);
-          queryClient.invalidateQueries({ queryKey });
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['recommendations', roomId] });
         }
       )
       .subscribe();
@@ -91,340 +72,343 @@ export function useRecommendations({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId, enabled, queryClient, queryKey]);
+  }, [roomId, queryClient]);
 
   // Mutation 1: Generate style recommendations
   const generateStyles = useMutation({
-    mutationFn: async (roomContext: RoomContext) => {
-      const { data, error } = await recommendationService.generateStyleRecommendations(roomContext);
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: (context: RoomContext) =>
+      recommendationService.generateStyleRecommendations(context),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recommendations', roomId] });
       toast({
-        title: "Style Recommendations Generated",
-        description: "AI has generated personalized style recommendations for your room.",
+        title: '✨ Style recommendations generated',
+        description: 'AI has analyzed your room and suggested the best styles',
       });
-      queryClient.invalidateQueries({ queryKey });
     },
-    onError: (error) => {
+    onError: (e: Error) => {
       toast({
-        title: "Failed to Generate Styles",
-        description: error.message || "Could not generate style recommendations. Please try again.",
-        variant: "destructive",
+        title: '❌ Failed to generate recommendations',
+        description: e.message,
+        variant: 'destructive',
       });
     },
   });
 
   // Mutation 2: Generate furniture placement
   const generateFurniture = useMutation({
-    mutationFn: async (roomContext: RoomContext) => {
-      const { data, error } = await recommendationService.generateFurniturePlacement(roomContext);
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: (context: RoomContext) =>
+      recommendationService.generateFurniturePlacement(context),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recommendations', roomId] });
       toast({
-        title: "Furniture Layout Generated",
-        description: "AI has suggested an optimal furniture arrangement.",
+        title: '🛋️ Furniture suggestions generated',
+        description: 'Optimal furniture placement has been calculated',
       });
-      queryClient.invalidateQueries({ queryKey });
     },
-    onError: (error) => {
+    onError: (e: Error) => {
       toast({
-        title: "Failed to Generate Layout",
-        description: error.message || "Could not generate furniture placement. Please try again.",
-        variant: "destructive",
+        title: '❌ Failed to generate furniture suggestions',
+        description: e.message,
+        variant: 'destructive',
       });
     },
   });
 
-  // Mutation 3: Accept recommendation
+  // Mutation 3: Generate budget alternatives
+  const generateBudgetAlternatives = useMutation({
+    mutationFn: ({ context, items }: { context: RoomContext; items: any[] }) =>
+      recommendationService.generateBudgetAlternatives(context, items),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recommendations', roomId] });
+      toast({
+        title: '💰 Budget alternatives found',
+        description: 'Cost-effective alternatives have been identified',
+      });
+    },
+    onError: (e: Error) => {
+      toast({
+        title: '❌ Failed to find budget alternatives',
+        description: e.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation 4: Accept recommendation
   const acceptRecommendation = useMutation({
-    mutationFn: async ({ id, option }: { id: string; option?: string }) => {
-      const { success, error } = await recommendationService.acceptRecommendation(id, option);
-      if (error) throw error;
-      return success;
-    },
+    mutationFn: ({ id, option }: { id: string; option: string }) =>
+      recommendationService.acceptRecommendation(id, option),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recommendations', roomId] });
       toast({
-        title: "Recommendation Accepted",
-        description: "Your selection has been saved.",
+        title: '✅ Recommendation accepted',
+        description: 'Your selection has been saved',
       });
-      queryClient.invalidateQueries({ queryKey });
     },
-    onError: (error) => {
+    onError: (e: Error) => {
       toast({
-        title: "Failed to Accept",
-        description: error.message || "Could not save your selection.",
-        variant: "destructive",
+        title: '❌ Failed to accept recommendation',
+        description: e.message,
+        variant: 'destructive',
       });
     },
   });
 
-  // Mutation 4: Reject recommendation
+  // Mutation 5: Reject recommendation
   const rejectRecommendation = useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
-      const { success, error } = await recommendationService.rejectRecommendation(id, reason);
-      if (error) throw error;
-      return success;
-    },
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      recommendationService.rejectRecommendation(id, reason),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recommendations', roomId] });
       toast({
-        title: "Recommendation Rejected",
-        description: "Your feedback has been recorded.",
+        title: '🚫 Recommendation rejected',
+        description: 'Your feedback has been recorded',
       });
-      queryClient.invalidateQueries({ queryKey });
     },
-    onError: (error) => {
+    onError: (e: Error) => {
       toast({
-        title: "Failed to Reject",
-        description: error.message || "Could not save your feedback.",
-        variant: "destructive",
+        title: '❌ Failed to reject recommendation',
+        description: e.message,
+        variant: 'destructive',
       });
     },
   });
 
-  // Mutation 5: Submit feedback
+  // Mutation 6: Submit feedback
   const submitFeedback = useMutation({
-    mutationFn: async (feedback: Omit<RecommendationFeedback, 'id' | 'created_at'>) => {
-      const { data, error } = await recommendationService.submitFeedback(feedback);
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: (feedback: Omit<RecommendationFeedback, 'id' | 'created_at'>) =>
+      recommendationService.submitFeedback(feedback),
     onSuccess: () => {
       toast({
-        title: "Feedback Submitted",
-        description: "Thank you for helping us improve!",
+        title: '📝 Feedback submitted',
+        description: 'Thank you for helping us improve our recommendations',
       });
     },
-    onError: (error) => {
+    onError: (e: Error) => {
       toast({
-        title: "Failed to Submit Feedback",
-        description: error.message || "Could not submit your feedback.",
-        variant: "destructive",
+        title: '❌ Failed to submit feedback',
+        description: e.message,
+        variant: 'destructive',
       });
     },
   });
+
+  // Computed values
+  const styleRecommendations = recommendations.filter(
+    (r) => r.recommendation_type === 'style'
+  );
+  const furnitureRecommendations = recommendations.filter(
+    (r) => r.recommendation_type === 'furniture_placement'
+  );
+  const budgetRecommendations = recommendations.filter(
+    (r) => r.recommendation_type === 'budget_optimization'
+  );
+  const hasRecommendations = recommendations.length > 0;
+  const hasStyleRecommendations = styleRecommendations.length > 0;
+  const hasFurnitureRecommendations = furnitureRecommendations.length > 0;
+  const hasBudgetRecommendations = budgetRecommendations.length > 0;
 
   return {
+    // Data
     recommendations,
+    styleRecommendations,
+    furnitureRecommendations,
+    budgetRecommendations,
+    
+    // Status flags
+    hasRecommendations,
+    hasStyleRecommendations,
+    hasFurnitureRecommendations,
+    hasBudgetRecommendations,
     isLoading,
-    error: error as Error | null,
+    error,
+    
+    // Actions
     refetch,
+    
+    // Mutations
     generateStyles,
     generateFurniture,
+    generateBudgetAlternatives,
     acceptRecommendation,
     rejectRecommendation,
     submitFeedback,
   };
 }
 
-// ============================================
+// =====================================================
 // HOOK 2: useSimilarProjects
-// Hook for finding similar projects
-// ============================================
+// Fetch and manage similar project recommendations
+// =====================================================
 
-interface UseSimilarProjectsOptions {
-  roomId: string;
-  limit?: number;
-  enabled?: boolean;
-}
-
-interface UseSimilarProjectsResult {
-  similarProjects: SimilarProject[];
-  isLoading: boolean;
-  error: Error | null;
-  refetch: () => void;
-  // Mutation 6
-  refreshSimilar: ReturnType<typeof useMutation<SimilarProject[] | null, Error, void>>;
-}
-
-export function useSimilarProjects({
-  roomId,
-  limit = 10,
-  enabled = true,
-}: UseSimilarProjectsOptions): UseSimilarProjectsResult {
+export function useSimilarProjects(roomId: string | undefined, limit: number = 5) {
   const queryClient = useQueryClient();
-  const queryKey = ['similar-projects', roomId, limit];
+  const { toast } = useToast();
 
+  // Query: Fetch similar projects
   const {
     data: similarProjects = [],
     isLoading,
     error,
-    refetch,
   } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      const { data, error } = await recommendationService.findSimilarProjects(roomId, limit);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: enabled && !!roomId,
-    staleTime: 60000, // 1 minute
+    queryKey: ['similar-projects', roomId, limit],
+    queryFn: () => recommendationService.findSimilarProjects(roomId!, limit),
+    enabled: !!roomId,
+    staleTime: 30 * 60 * 1000, // 30 minutes (similar projects don't change often)
+    gcTime: 60 * 60 * 1000, // 1 hour
   });
 
-  // Mutation 6: Refresh similar projects
+  // Mutation: Refresh similar projects cache
   const refreshSimilar = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await recommendationService.refreshSimilarProjects(roomId);
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: (roomId: string) =>
+      recommendationService.refreshSimilarProjects(roomId),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['similar-projects', roomId] });
       toast({
-        title: "Similar Projects Refreshed",
-        description: "Found updated similar projects for your room.",
+        title: '🔄 Similar projects refreshed',
+        description: 'Updated list of similar projects is now available',
       });
-      queryClient.invalidateQueries({ queryKey });
     },
-    onError: (error) => {
+    onError: (e: Error) => {
       toast({
-        title: "Failed to Refresh",
-        description: error.message || "Could not refresh similar projects.",
-        variant: "destructive",
+        title: '❌ Failed to refresh similar projects',
+        description: e.message,
+        variant: 'destructive',
       });
     },
   });
+
+  // Computed values
+  const hasSimilarProjects = similarProjects.length > 0;
+  const topSimilarProjects = similarProjects.slice(0, 3); // Top 3 most similar
 
   return {
     similarProjects,
+    topSimilarProjects,
+    hasSimilarProjects,
     isLoading,
-    error: error as Error | null,
-    refetch,
+    error,
     refreshSimilar,
   };
 }
 
-// ============================================
+// =====================================================
 // HOOK 3: useTrendAnalysis
-// Hook for fetching trend data
-// ============================================
+// Fetch trend analysis data for a city and room type
+// =====================================================
 
-interface UseTrendAnalysisOptions {
-  city?: string;
-  roomType?: string;
-  enabled?: boolean;
-}
+export function useTrendAnalysis(
+  city: string | undefined,
+  roomType: string | undefined
+) {
+  const { toast } = useToast();
 
-interface UseTrendAnalysisResult {
-  trendData: TrendAnalysis | null;
-  isLoading: boolean;
-  error: Error | null;
-  refetch: () => void;
-}
-
-export function useTrendAnalysis({
-  city,
-  roomType,
-  enabled = true,
-}: UseTrendAnalysisOptions): UseTrendAnalysisResult {
-  const queryKey = ['trend-analysis', city, roomType];
-
+  // Query: Fetch trend analysis
   const {
-    data: trendData = null,
+    data: trendData,
     isLoading,
     error,
-    refetch,
   } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      const { data, error } = await recommendationService.getTrendAnalysis(city, roomType);
-      if (error) throw error;
-      return data;
-    },
-    enabled,
-    staleTime: 300000, // 5 minutes
+    queryKey: ['trend-analysis', city, roomType],
+    queryFn: () => recommendationService.getTrendAnalysis(city!, roomType!),
+    enabled: !!city && !!roomType,
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours (trends don't change rapidly)
+    gcTime: 48 * 60 * 60 * 1000, // 48 hours
   });
+
+  // Query: Fetch global trending styles
+  const {
+    data: globalTrends = [],
+    isLoading: isLoadingGlobal,
+  } = useQuery({
+    queryKey: ['trending-styles'],
+    queryFn: () => recommendationService.getTrendingStyles(),
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours
+    gcTime: 48 * 60 * 60 * 1000, // 48 hours
+  });
+
+  // Computed values
+  const hasTrendData = !!trendData && trendData.popular_styles.length > 0;
+  const topTrendingStyle = trendData?.popular_styles[0];
+  const risingStyles = trendData?.popular_styles.filter(
+    (s) => s.trend === 'rising'
+  ) || [];
+  const decliningStyles = trendData?.popular_styles.filter(
+    (s) => s.trend === 'declining'
+  ) || [];
 
   return {
     trendData,
-    isLoading,
-    error: error as Error | null,
-    refetch,
+    globalTrends,
+    hasTrendData,
+    topTrendingStyle,
+    risingStyles,
+    decliningStyles,
+    isLoading: isLoading || isLoadingGlobal,
+    error,
   };
 }
 
-// ============================================
-// ADDITIONAL UTILITY HOOKS
-// ============================================
+// =====================================================
+// UTILITY HOOK: useRecommendationById
+// Fetch a single recommendation by ID
+// =====================================================
 
-/**
- * Hook for getting trending styles globally
- */
-export function useTrendingStyles(enabled = true) {
-  return useQuery({
-    queryKey: ['trending-styles'],
-    queryFn: async () => {
-      const { data, error } = await recommendationService.getTrendingStyles();
-      if (error) throw error;
-      return data || [];
-    },
-    enabled,
-    staleTime: 300000, // 5 minutes
-  });
-}
-
-/**
- * Hook for generating budget alternatives
- */
-export function useBudgetOptimization(roomId: string) {
-  const queryClient = useQueryClient();
-
-  const generateBudgetAlternatives = useMutation({
-    mutationFn: async ({
-      roomContext,
-      budgetItems,
-    }: {
-      roomContext: RoomContext;
-      budgetItems: Array<{ name: string; category: string; cost: number; specification?: string }>;
-    }) => {
-      const { data, error } = await recommendationService.generateBudgetAlternatives(
-        roomContext,
-        budgetItems
-      );
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Budget Optimized",
-        description: "AI has found cost-saving alternatives for your budget.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['recommendations', roomId, 'budget'] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Failed to Optimize Budget",
-        description: error.message || "Could not generate budget alternatives.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const calculateSavings = useQuery({
-    queryKey: ['potential-savings', roomId],
-    queryFn: async () => {
-      const { data, error } = await recommendationService.calculatePotentialSavings(roomId);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!roomId,
-    staleTime: 60000,
+export function useRecommendationById(recommendationId: string | undefined) {
+  const {
+    data: recommendation,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['recommendation', recommendationId],
+    queryFn: () => recommendationService.getRecommendationById(recommendationId!),
+    enabled: !!recommendationId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   return {
-    generateBudgetAlternatives,
-    potentialSavings: calculateSavings.data,
-    isCalculatingSavings: calculateSavings.isLoading,
+    recommendation,
+    isLoading,
+    error,
+  };
+}
+
+// =====================================================
+// UTILITY HOOK: usePotentialSavings
+// Calculate potential savings from budget alternatives
+// =====================================================
+
+export function usePotentialSavings(roomId: string | undefined) {
+  const {
+    data: savings,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['potential-savings', roomId],
+    queryFn: () => recommendationService.calculatePotentialSavings(roomId!),
+    enabled: !!roomId,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  const hasSavings = (savings?.total_savings || 0) > 0;
+  const formattedSavings = savings?.total_savings
+    ? `₹${savings.total_savings.toLocaleString()}`
+    : '₹0';
+
+  return {
+    savings,
+    hasSavings,
+    formattedSavings,
+    isLoading,
+    error,
   };
 }
 
 // Export all hooks
-export default {
-  useRecommendations,
-  useSimilarProjects,
-  useTrendAnalysis,
-  useTrendingStyles,
-  useBudgetOptimization,
+export type {
+  RoomContext,
+  AIRecommendation,
+  SimilarProject,
+  TrendAnalysis,
+  RecommendationFeedback,
 };
