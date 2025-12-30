@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -42,12 +43,13 @@ const queryClient = new QueryClient({
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
-      <MutationMonitorProvider />
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <FlowTracker />
-        <BrowserRouter>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <MutationMonitorProvider />
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <FlowTracker />
+          <BrowserRouter>
           <AuthProvider>
             <GlobalSearch />
             <Suspense fallback={<PageLoader text="Loading..." />}>
@@ -145,7 +147,8 @@ const App = () => (
             </Suspense>
           </AuthProvider>
         </BrowserRouter>
-      </TooltipProvider>
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   </ErrorBoundary>
 );
