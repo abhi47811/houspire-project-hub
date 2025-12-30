@@ -1075,6 +1075,116 @@ export type Database = {
           },
         ]
       }
+      render_versions: {
+        Row: {
+          ai_validation_score: number | null
+          approved_at: string | null
+          approved_by: string | null
+          change_summary: string | null
+          changes_from_parent: Json | null
+          created_at: string | null
+          created_by: string | null
+          generation_params: Json | null
+          id: string
+          is_approved: boolean | null
+          is_final: boolean | null
+          notes: string | null
+          parent_version_id: string | null
+          prompt_used: string | null
+          quality_score: number | null
+          render_url: string
+          room_id: string
+          storage_path: string
+          style_config: Json | null
+          tags: string[] | null
+          thumbnail_url: string | null
+          updated_at: string | null
+          user_rating: number | null
+          version_number: number
+        }
+        Insert: {
+          ai_validation_score?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
+          change_summary?: string | null
+          changes_from_parent?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          generation_params?: Json | null
+          id?: string
+          is_approved?: boolean | null
+          is_final?: boolean | null
+          notes?: string | null
+          parent_version_id?: string | null
+          prompt_used?: string | null
+          quality_score?: number | null
+          render_url: string
+          room_id: string
+          storage_path: string
+          style_config?: Json | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          updated_at?: string | null
+          user_rating?: number | null
+          version_number?: number
+        }
+        Update: {
+          ai_validation_score?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
+          change_summary?: string | null
+          changes_from_parent?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          generation_params?: Json | null
+          id?: string
+          is_approved?: boolean | null
+          is_final?: boolean | null
+          notes?: string | null
+          parent_version_id?: string | null
+          prompt_used?: string | null
+          quality_score?: number | null
+          render_url?: string
+          room_id?: string
+          storage_path?: string
+          style_config?: Json | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          updated_at?: string | null
+          user_rating?: number | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_versions_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_versions_parent_version_id_fkey"
+            columns: ["parent_version_id"]
+            isOneToOne: false
+            referencedRelation: "render_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_versions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       renders: {
         Row: {
           approval_status: string | null
@@ -2101,6 +2211,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_next_version_number: { Args: { p_room_id: string }; Returns: number }
       get_pending_renders_for_review: {
         Args: never
         Returns: {
