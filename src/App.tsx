@@ -64,6 +64,12 @@ const App = () => (
                     <Login />
                   </RouteErrorBoundary>
                 } />
+                
+                <Route path="/diagnostic" element={
+                  <RouteErrorBoundary routeName="Diagnostic">
+                    <DiagnosticPage />
+                  </RouteErrorBoundary>
+                } />
 
                 {/* Protected Routes with App Layout */}
                 <Route
@@ -151,14 +157,6 @@ const App = () => (
                           <ApiTestPage />
                         </RouteErrorBoundary>
                       </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/diagnostic"
-                    element={
-                      <RouteErrorBoundary routeName="Diagnostic">
-                        <DiagnosticPage />
-                      </RouteErrorBoundary>
                     }
                   />
                 </Route>
