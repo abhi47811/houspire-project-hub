@@ -27,6 +27,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useSessionTracking } from '@/hooks/useSessionTracking';
 import { useRealtimeSubscriptions } from '@/hooks/useRealtimeSubscriptions';
+import { useRenderVersions, RenderVersion } from '@/hooks/useRenderVersions';
 import {
   ArrowLeft,
   CheckCircle,
@@ -42,6 +43,7 @@ import {
   ZoomOut,
   RotateCcw,
   AlertCircle,
+  History,
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PhaseUpload } from '@/components/rooms/PhaseUpload';
@@ -49,6 +51,8 @@ import { PhaseAnalyze } from '@/components/rooms/PhaseAnalyze';
 import { PhaseClean } from '@/components/rooms/PhaseClean';
 import { PhaseCustomize } from '@/components/rooms/PhaseCustomize';
 import { PhaseGenerate } from '@/components/rooms/PhaseGenerate';
+import { RenderVersionTimeline } from '@/components/rooms/RenderVersionTimeline';
+import { VersionCompareView } from '@/components/rooms/VersionCompareView';
 
 type RoomType = 'living_room' | 'master_bedroom' | 'bedroom' | 'kitchen' | 'dining_room' | 'balcony' | 'study_room' | 'kids_room' | 'guest_room' | 'pooja_room' | 'home_office' | 'gym' | 'entertainment_room' | 'utility_room';
 
@@ -101,6 +105,7 @@ const phases = [
   { id: 3, name: 'Clean', icon: Sparkles, imageType: 'cleaned' },
   { id: 4, name: 'Customize', icon: Palette, imageType: 'cleaned' },
   { id: 5, name: 'Generate', icon: ImageIcon, imageType: 'final' },
+  { id: 6, name: 'History', icon: History, imageType: 'final' },
 ];
 
 // Helper to resolve image URLs - handles both full URLs and storage paths
@@ -125,6 +130,11 @@ export default function RoomDetail() {
   const [activePhase, setActivePhase] = useState(1);
   const [zoom, setZoom] = useState(100);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [versionsToCompare, setVersionsToCompare] = useState<RenderVersion[]>([]);
+
+  // Version control hook
+  const { versionCount } = useRenderVersions(roomId);
 
   // Session tracking - track user viewing this room
   useSessionTracking({ projectId, roomId });
@@ -359,11 +369,12 @@ export default function RoomDetail() {
           {/* Phase Navigation */}
           <div className="mt-6">
             <Tabs value={String(activePhase)} onValueChange={(v) => setActivePhase(Number(v))}>
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-6">
                 {phases.map((phase) => {
-                  const completed = isPhaseCompleted(phase.id);
+                  const completed = phase.id <= 5 ? isPhaseCompleted(phase.id) : false;
                   const isCurrent = phase.id === room.current_phase;
                   const Icon = phase.icon;
+                  const isHistoryTab = phase.id === 6;
 
                   return (
                     <TabsTrigger
@@ -377,8 +388,13 @@ export default function RoomDetail() {
                         <Icon className="h-4 w-4" />
                       )}
                       <span className="hidden sm:inline">{phase.name}</span>
-                      {isCurrent && !completed && (
+                      {isCurrent && !completed && !isHistoryTab && (
                         <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+                      )}
+                      {isHistoryTab && versionCount > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1 text-xs">
+                          {versionCount}
+                        </Badge>
                       )}
                     </TabsTrigger>
                   );
@@ -474,6 +490,15 @@ export default function RoomDetail() {
             {activePhase === 5 && (
               <PhaseGenerate room={room} projectId={projectId!} />
             )}
+            {activePhase === 6 && (
+              <RenderVersionTimeline
+                roomId={roomId!}
+                onCompare={(versions) => {
+                  setVersionsToCompare(versions);
+                  setShowComparison(true);
+                }}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -499,6 +524,14 @@ export default function RoomDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Version Comparison Modal */}
+      <VersionCompareView
+        versions={versionsToCompare}
+        isOpen={showComparison}
+        onClose={() => setShowComparison(false)}
+        roomId={roomId}
+      />
     </div>
   );
 }
