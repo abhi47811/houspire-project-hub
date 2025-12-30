@@ -25,6 +25,7 @@ import {
   AlertCircle,
   StickyNote,
   Tag,
+  RefreshCw,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { versionControlService } from '@/services/features/versionControlService';
@@ -53,6 +54,7 @@ export function VersionCompareView({ versions, isOpen, onClose, roomId }: Versio
   const { toast } = useToast();
   const [overlayOpacity, setOverlayOpacity] = useState([50]);
   const [compareMode, setCompareMode] = useState<'side-by-side' | 'overlay'>('side-by-side');
+  const [overlaySwapped, setOverlaySwapped] = useState(false);
 
   // Get comparison data for first two versions
   const v1 = versions[0];
@@ -173,9 +175,11 @@ export function VersionCompareView({ versions, isOpen, onClose, roomId }: Versio
             {/* Overlay View */}
             <TabsContent value="overlay" className="mt-0">
               <div className="space-y-4">
-                {/* Opacity Slider */}
+                {/* Opacity Slider with Swap Button */}
                 <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
-                  <span className="text-sm font-medium min-w-[60px]">v{v1?.version_number}</span>
+                  <span className="text-sm font-medium min-w-[60px]">
+                    v{overlaySwapped ? v2?.version_number : v1?.version_number}
+                  </span>
                   <Slider
                     value={overlayOpacity}
                     onValueChange={setOverlayOpacity}
@@ -183,22 +187,40 @@ export function VersionCompareView({ versions, isOpen, onClose, roomId }: Versio
                     step={1}
                     className="flex-1"
                   />
-                  <span className="text-sm font-medium min-w-[60px] text-right">v{v2?.version_number}</span>
+                  <span className="text-sm font-medium min-w-[60px] text-right">
+                    v{overlaySwapped ? v1?.version_number : v2?.version_number}
+                  </span>
                   <Badge variant="outline">{overlayOpacity[0]}%</Badge>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setOverlaySwapped(!overlaySwapped)}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Swap
+                  </Button>
                 </div>
 
                 {/* Overlay Image Container */}
                 <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-muted">
-                  {/* Base image (v1) */}
+                  {/* Base image */}
                   <img
-                    src={resolveImageUrl(v1?.storage_path || v1?.render_url || '')}
-                    alt={`Version ${v1?.version_number}`}
+                    src={resolveImageUrl(
+                      overlaySwapped 
+                        ? (v2?.storage_path || v2?.render_url || '') 
+                        : (v1?.storage_path || v1?.render_url || '')
+                    )}
+                    alt={`Version ${overlaySwapped ? v2?.version_number : v1?.version_number}`}
                     className="absolute inset-0 w-full h-full object-contain"
                   />
-                  {/* Overlay image (v2) with opacity */}
+                  {/* Overlay image with opacity */}
                   <img
-                    src={resolveImageUrl(v2?.storage_path || v2?.render_url || '')}
-                    alt={`Version ${v2?.version_number}`}
+                    src={resolveImageUrl(
+                      overlaySwapped 
+                        ? (v1?.storage_path || v1?.render_url || '') 
+                        : (v2?.storage_path || v2?.render_url || '')
+                    )}
+                    alt={`Version ${overlaySwapped ? v1?.version_number : v2?.version_number}`}
                     className="absolute inset-0 w-full h-full object-contain"
                     style={{ opacity: overlayOpacity[0] / 100 }}
                   />
@@ -207,12 +229,16 @@ export function VersionCompareView({ versions, isOpen, onClose, roomId }: Versio
                 {/* Version Labels */}
                 <div className="flex justify-between text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline">v{v1?.version_number}</Badge>
-                    {v1?.is_final && <Badge>Final</Badge>}
+                    <Badge variant="outline">
+                      v{overlaySwapped ? v2?.version_number : v1?.version_number}
+                    </Badge>
+                    {(overlaySwapped ? v2 : v1)?.is_final && <Badge>Final</Badge>}
                   </div>
                   <div className="flex items-center gap-2">
-                    {v2?.is_final && <Badge>Final</Badge>}
-                    <Badge variant="outline">v{v2?.version_number}</Badge>
+                    {(overlaySwapped ? v1 : v2)?.is_final && <Badge>Final</Badge>}
+                    <Badge variant="outline">
+                      v{overlaySwapped ? v1?.version_number : v2?.version_number}
+                    </Badge>
                   </div>
                 </div>
 
