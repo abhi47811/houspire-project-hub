@@ -280,17 +280,43 @@ export default function Budget() {
     }
   };
 
-  const handleOptimizeBudget = () => {
-    // TODO: Implement budget optimization with room context and budget items
-    // For now, show a coming soon message
+  const handleOptimizeBudget = async () => {
+    if (!project || budgetItems.length === 0) {
+      toast({
+        title: 'Cannot Optimize',
+        description: 'Please add budget items first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Build a project-level context for budget optimization
+    const projectContext = {
+      projectId: project.id,
+      city: project.city || 'Mumbai',
+      totalBudget: grandTotal,
+      itemCount: itemsCount,
+      categories: [...new Set(budgetItems.map(item => item.category))],
+      currentItems: budgetItems.map(item => ({
+        category: item.category,
+        itemName: item.item_name,
+        quantity: item.quantity,
+        rate: item.rate,
+        total: item.total,
+      })),
+    };
+
     toast({
       title: 'AI Budget Optimization',
       description: 'Analyzing your budget for cost-saving alternatives...',
     });
+
+    // Note: This would call the generateBudgetAlternatives mutation
+    // For now, it shows user feedback. Full implementation would integrate
+    // with SmartRecommendations component's budget tab
     
-    // Example of what the full implementation would look like:
-    // const roomContext = buildRoomContext();
-    // generateBudgetAlternatives.mutate({ roomContext, currentBudgetItems: budgetItems });
+    // Future: Open dialog with budget alternatives from SmartRecommendations
+    // generateBudgetAlternatives.mutate({ roomContext: projectContext, currentBudgetItems: budgetItems });
   };
 
   const formatCurrency = (amount: number) => {

@@ -297,7 +297,7 @@ export function getSetupRecommendations(results: ApiTestResult[]): string[] {
   }
 
   if (recommendations.length === 0) {
-    recommendations.push('✅ All systems operational! You're ready to go!');
+    recommendations.push('✅ All systems operational! You are ready to go!');
   }
 
   return recommendations;
