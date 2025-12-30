@@ -16,6 +16,7 @@ import {
   XCircle,
   Library
 } from 'lucide-react';
+import { versionControlService } from '@/services/features/versionControlService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -330,7 +331,6 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         // Auto-score the new render if it doesn't have a score yet
         // Delay slightly to ensure render data is loaded
         setTimeout(async () => {
-          const renderToScore = currentRender || renderImage;
           const imageUrl = currentRender?.image_url || renderImage?.signedUrl;
           
           if (imageUrl && currentRender && currentRender.quality_score === null) {
@@ -339,8 +339,9 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
               description: 'AI is scoring your render...',
             });
             
+            let score: number | null = null;
             try {
-              const score = await scoreRender(imageUrl);
+              score = await scoreRender(imageUrl);
               
               // Update render with quality score
               if (currentRender?.id) {
@@ -367,6 +368,27 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
               }
             } catch (err) {
               console.error('Auto-scoring failed:', err);
+            }
+            
+            // Auto-create version entry for this render
+            try {
+              await versionControlService.createVersion({
+                room_id: room.id,
+                render_url: imageUrl,
+                storage_path: currentRender?.storage_path || '',
+                style_config: { style: room.selected_style },
+                generation_params: { 
+                  model: generationParams.model,
+                  resolution: generationParams.resolution,
+                  path: room.generation_path 
+                },
+                prompt_used: editablePrompt || currentRender?.prompt_used || undefined,
+                quality_score: score || currentRender?.quality_score || undefined,
+              });
+              console.log('Version auto-created for render');
+              queryClient.invalidateQueries({ queryKey: ['render-versions', room.id] });
+            } catch (versionError) {
+              console.error('Failed to auto-create version:', versionError);
             }
           }
         }, 1000);

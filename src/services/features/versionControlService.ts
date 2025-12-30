@@ -395,6 +395,93 @@ class VersionControlService {
     
     return lineage;
   }
+
+  // 13. Duplicate a version (creates a copy with new ID)
+  async duplicateVersion(versionId: string): Promise<RenderVersion> {
+    const source = await this.getVersionById(versionId);
+    if (!source) throw new Error('Version not found');
+
+    return this.createVersion({
+      room_id: source.room_id,
+      parent_version_id: source.id,
+      render_url: source.render_url,
+      thumbnail_url: source.thumbnail_url,
+      storage_path: source.storage_path,
+      style_config: source.style_config,
+      generation_params: source.generation_params,
+      prompt_used: source.prompt_used || undefined,
+      quality_score: source.quality_score,
+      notes: `Duplicated from v${source.version_number}`,
+      tags: [...new Set([...(source.tags || []), 'duplicate'])],
+    });
+  }
+
+  // 14. Batch delete versions
+  async batchDeleteVersions(versionIds: string[]): Promise<void> {
+    const { error } = await supabase
+      .from('render_versions')
+      .delete()
+      .in('id', versionIds)
+      .eq('is_final', false); // Cannot delete final versions
+    if (error) throw error;
+  }
+
+  // 15. Export version data as JSON
+  async exportVersionData(versionId: string): Promise<Record<string, any>> {
+    const version = await this.getVersionById(versionId);
+    if (!version) throw new Error('Version not found');
+
+    return {
+      export_date: new Date().toISOString(),
+      version: {
+        version_number: version.version_number,
+        render_url: version.render_url,
+        prompt_used: version.prompt_used,
+        style_config: version.style_config,
+        generation_params: version.generation_params,
+        quality_score: version.quality_score,
+        user_rating: version.user_rating,
+        notes: version.notes,
+        tags: version.tags,
+        is_final: version.is_final,
+        is_approved: version.is_approved,
+        created_at: version.created_at,
+      },
+    };
+  }
+
+  // 16. Get versions with filters
+  async getVersionsByRoom(
+    roomId: string, 
+    filters?: { 
+      isFinal?: boolean; 
+      isApproved?: boolean; 
+      minRating?: number;
+      tags?: string[];
+    }
+  ): Promise<RenderVersion[]> {
+    let query = supabase
+      .from('render_versions')
+      .select('*')
+      .eq('room_id', roomId);
+
+    if (filters?.isFinal !== undefined) {
+      query = query.eq('is_final', filters.isFinal);
+    }
+    if (filters?.isApproved !== undefined) {
+      query = query.eq('is_approved', filters.isApproved);
+    }
+    if (filters?.minRating !== undefined) {
+      query = query.gte('user_rating', filters.minRating);
+    }
+    if (filters?.tags && filters.tags.length > 0) {
+      query = query.overlaps('tags', filters.tags);
+    }
+
+    const { data, error } = await query.order('version_number', { ascending: false });
+    if (error) throw error;
+    return (data || []) as RenderVersion[];
+  }
 }
 
 export const versionControlService = new VersionControlService();
