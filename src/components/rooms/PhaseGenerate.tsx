@@ -469,8 +469,26 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   // Ref to track if we've already auto-triggered generation in this session
   const hasTriggeredAutoGeneration = useRef(false);
 
+  // Ref to avoid repeatedly re-loading stored score into state
+  const hasLoadedStoredScore = useRef(false);
+
   // Get the render URL (prefer renders table, fallback to room_images)
   const renderUrl = currentRender?.image_url || renderImage?.signedUrl;
+
+  // If we already have a stored breakdown from the backend, use it (prevents UI showing placeholder 100s)
+  useEffect(() => {
+    if (hasLoadedStoredScore.current) return;
+    if (latestScore) {
+      hasLoadedStoredScore.current = true;
+      return;
+    }
+
+    const stored = currentRender?.quality_details;
+    if (stored && typeof stored === 'object') {
+      setLatestScore(stored as any);
+      hasLoadedStoredScore.current = true;
+    }
+  }, [currentRender?.quality_details, latestScore]);
 
   // Determine generation status
   const getGenerationStatus = (): GenerationStatus => {
