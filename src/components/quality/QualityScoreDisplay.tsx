@@ -37,12 +37,18 @@ export function QualityScoreDisplay({
   // Determine grade color
   const getGradeColor = (grade: string) => {
     switch (grade) {
+      case 'A+':
       case 'Excellent':
         return 'text-green-600 dark:text-green-400';
+      case 'A':
       case 'Good':
         return 'text-blue-600 dark:text-blue-400';
+      case 'B':
       case 'Fair':
         return 'text-yellow-600 dark:text-yellow-400';
+      case 'C':
+      case 'D':
+      case 'F':
       case 'Poor':
         return 'text-red-600 dark:text-red-400';
       default:
@@ -52,12 +58,18 @@ export function QualityScoreDisplay({
 
   const getGradeBg = (grade: string) => {
     switch (grade) {
+      case 'A+':
       case 'Excellent':
         return 'bg-green-500/10 border-green-500/20';
+      case 'A':
       case 'Good':
         return 'bg-blue-500/10 border-blue-500/20';
+      case 'B':
       case 'Fair':
         return 'bg-yellow-500/10 border-yellow-500/20';
+      case 'C':
+      case 'D':
+      case 'F':
       case 'Poor':
         return 'bg-red-500/10 border-red-500/20';
       default:
@@ -67,12 +79,18 @@ export function QualityScoreDisplay({
 
   const getScoreIcon = (grade: string) => {
     switch (grade) {
+      case 'A+':
       case 'Excellent':
         return <Award className="w-6 h-6 text-green-600 dark:text-green-400" />;
+      case 'A':
       case 'Good':
         return <CheckCircle2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />;
+      case 'B':
       case 'Fair':
         return <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />;
+      case 'C':
+      case 'D':
+      case 'F':
       case 'Poor':
         return <XCircle className="w-6 h-6 text-red-600 dark:text-red-400" />;
       default:
@@ -141,18 +159,13 @@ export function QualityScoreDisplay({
                 <span>Style Consistency</span>
               </div>
               <span className="font-medium">
-                {score.style_consistency.score}/30
+                {score.style_consistency}/100
               </span>
             </div>
             <Progress
-              value={(score.style_consistency.score / 30) * 100}
+              value={score.style_consistency}
               className="h-1.5"
             />
-            {score.style_consistency.strengths.length > 0 && (
-              <div className="text-xs text-muted-foreground pl-6">
-                {score.style_consistency.strengths[0]}
-              </div>
-            )}
           </div>
 
           {/* Architectural Accuracy */}
@@ -163,26 +176,13 @@ export function QualityScoreDisplay({
                 <span>Architectural Accuracy</span>
               </div>
               <span className="font-medium">
-                {score.architectural_accuracy.score}/25
+                {score.architectural_accuracy}/100
               </span>
             </div>
             <Progress
-              value={(score.architectural_accuracy.score / 25) * 100}
+              value={score.architectural_accuracy}
               className="h-1.5"
             />
-            <div className="flex gap-2 text-xs pl-6">
-              <Badge variant={score.architectural_accuracy.door_match ? 'default' : 'destructive'} className="text-[10px] h-4 px-1">
-                Doors {score.architectural_accuracy.door_match ? '✓' : '✗'}
-              </Badge>
-              <Badge variant={score.architectural_accuracy.window_match ? 'default' : 'destructive'} className="text-[10px] h-4 px-1">
-                Windows {score.architectural_accuracy.window_match ? '✓' : '✗'}
-              </Badge>
-              {score.architectural_accuracy.dimension_variance > 0 && (
-                <Badge variant="outline" className="text-[10px] h-4 px-1">
-                  Variance: {score.architectural_accuracy.dimension_variance.toFixed(1)}%
-                </Badge>
-              )}
-            </div>
           </div>
 
           {/* Furniture Placement */}
@@ -193,11 +193,11 @@ export function QualityScoreDisplay({
                 <span>Furniture Placement</span>
               </div>
               <span className="font-medium">
-                {score.furniture_placement.score}/20
+                {score.furniture_placement}/100
               </span>
             </div>
             <Progress
-              value={(score.furniture_placement.score / 20) * 100}
+              value={score.furniture_placement}
               className="h-1.5"
             />
           </div>
@@ -210,21 +210,13 @@ export function QualityScoreDisplay({
                 <span>Color & Materials</span>
               </div>
               <span className="font-medium">
-                {score.color_material_adherence.score}/15
+                {score.color_material_adherence}/100
               </span>
             </div>
             <Progress
-              value={(score.color_material_adherence.score / 15) * 100}
+              value={score.color_material_adherence}
               className="h-1.5"
             />
-            <div className="flex gap-2 text-xs pl-6">
-              <Badge variant="outline" className="text-[10px] h-4 px-1">
-                Palette: {score.color_material_adherence.palette_match.toFixed(0)}%
-              </Badge>
-              <Badge variant="outline" className="text-[10px] h-4 px-1">
-                Materials: {score.color_material_adherence.material_accuracy.toFixed(0)}%
-              </Badge>
-            </div>
           </div>
 
           {/* Technical Quality */}
@@ -235,55 +227,15 @@ export function QualityScoreDisplay({
                 <span>Technical Quality</span>
               </div>
               <span className="font-medium">
-                {score.technical_quality.score}/10
+                {score.technical_quality}/100
               </span>
             </div>
             <Progress
-              value={(score.technical_quality.score / 10) * 100}
+              value={score.technical_quality}
               className="h-1.5"
             />
-            <div className="flex gap-2 text-xs pl-6">
-              <Badge
-                variant={score.technical_quality.resolution_adequate ? 'default' : 'destructive'}
-                className="text-[10px] h-4 px-1"
-              >
-                Resolution {score.technical_quality.resolution_adequate ? '✓' : '✗'}
-              </Badge>
-              <Badge variant="outline" className="text-[10px] h-4 px-1 capitalize">
-                Lighting: {score.technical_quality.lighting_quality}
-              </Badge>
-            </div>
           </div>
         </div>
-
-        {/* Issues */}
-        {(score.style_consistency.issues.length > 0 ||
-          score.architectural_accuracy.issues.length > 0 ||
-          score.furniture_placement.rule_violations.length > 0 ||
-          score.technical_quality.render_artifacts.length > 0) && (
-          <>
-            <Separator />
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <AlertCircle className="w-4 h-4 text-yellow-600" />
-                <span>Issues Detected</span>
-              </div>
-              <div className="space-y-1 text-xs">
-                {[
-                  ...score.style_consistency.issues,
-                  ...score.architectural_accuracy.issues,
-                  ...score.furniture_placement.rule_violations,
-                  ...score.technical_quality.render_artifacts,
-                ].map((issue, idx) => (
-                  <div key={idx} className="flex items-start gap-2 p-2 bg-yellow-500/10 rounded">
-                    <div className="w-1 h-1 rounded-full bg-yellow-600 mt-1.5 shrink-0" />
-                    <span>{issue}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
 
         {/* Improvement Suggestions */}
         {score.suggestions.length > 0 && (
@@ -306,22 +258,14 @@ export function QualityScoreDisplay({
           </>
         )}
 
-        {/* Strengths */}
-        {score.style_consistency.strengths.length > 0 && score.total_score >= 85 && (
+        {/* Success State for High Scores */}
+        {score.total_score >= 85 && (
           <>
             <Separator />
             <div className="p-3 bg-green-500/10 rounded-lg border border-green-500/20">
-              <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400 mb-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Key Strengths</span>
-              </div>
-              <div className="space-y-1 text-xs text-green-700 dark:text-green-400">
-                {score.style_consistency.strengths.map((strength, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <div className="w-1 h-1 rounded-full bg-green-600" />
-                    <span>{strength}</span>
-                  </div>
-                ))}
+                <span>Excellent Quality - Ready for client presentation</span>
               </div>
             </div>
           </>

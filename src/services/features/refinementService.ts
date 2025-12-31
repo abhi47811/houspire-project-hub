@@ -1,46 +1,37 @@
 /**
- * F-061 to F-063: Refinement System
+ * Refinement Service
  * 
- * Comprehensive render refinement and version control system.
- * Enables users to request specific changes, track render history,
- * and compare versions side-by-side.
- * 
- * Features:
- * - F-061: Version comparison UI
- * - F-062: Refinement request workflow
- * - F-063: Render history tracking
+ * Simplified render refinement and version control system.
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 export interface RenderVersion {
   id: string;
   room_id: string;
   version_number: number;
-  image_url: string;
-  thumbnail_url?: string;
-  
-  // Generation details
-  style_id: string;
-  generation_params: {
-    prompt: string;
-    negative_prompt?: string;
-    seed?: number;
-    steps?: number;
-    cfg_scale?: number;
-    model?: string;
-  };
-  
-  // Parent version (for refinements)
-  parent_version_id?: string;
-  refinement_request?: RefinementRequest;
-  
-  // Metadata
-  quality_score?: number;
+  render_url: string;
+  thumbnail_url?: string | null;
+  storage_path: string;
+  style_config: Record<string, any>;
+  generation_params: Record<string, any>;
+  prompt_used?: string | null;
+  quality_score?: number | null;
+  ai_validation_score?: number | null;
+  user_rating?: number | null;
+  changes_from_parent: any[];
+  change_summary?: string | null;
+  parent_version_id?: string | null;
   is_approved: boolean;
-  is_favorite: boolean;
+  is_final: boolean;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  notes?: string | null;
+  tags: string[];
+  created_by?: string | null;
   created_at: string;
-  created_by: string;
+  updated_at: string;
 }
 
 export interface RefinementRequest {
@@ -48,7 +39,6 @@ export interface RefinementRequest {
   description: string;
   specific_areas?: string[];
   priority: 'low' | 'medium' | 'high';
-  status: 'pending' | 'in_progress' | 'completed' | 'rejected';
 }
 
 export interface RenderHistory {
@@ -57,18 +47,6 @@ export interface RenderHistory {
   total_versions: number;
   approved_version_id?: string;
   favorite_versions: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface VersionComparison {
-  version_a: RenderVersion;
-  version_b: RenderVersion;
-  differences: {
-    style_changed: boolean;
-    quality_difference: number;
-    param_differences: string[];
-  };
 }
 
 /**
@@ -78,242 +56,221 @@ export async function createRenderVersion(
   roomId: string,
   imageUrl: string,
   generationParams: any,
-  parentVersionId?: string,
-  refinementRequest?: RefinementRequest
+  styleConfig: any,
+  options: {
+    parentVersionId?: string;
+    promptUsed?: string;
+    qualityScore?: number;
+    notes?: string;
+    tags?: string[];
+  } = {}
 ): Promise<RenderVersion> {
-  try {
-    // Get current version count
-    const { data: existing } = await supabase
-      .from('render_versions')
-      .select('version_number')
-      .eq('room_id', roomId)
-      .order('version_number', { ascending: false })
-      .limit(1);
+  // Get next version number
+  const { data: versionNum } = await supabase
+    .rpc('get_next_version_number', { p_room_id: roomId });
 
-    const nextVersion = existing && existing.length > 0 
-      ? existing[0].version_number + 1 
-      : 1;
+  const insertData = {
+    room_id: roomId,
+    version_number: versionNum || 1,
+    render_url: imageUrl,
+    storage_path: imageUrl,
+    style_config: styleConfig as unknown as Json,
+    generation_params: generationParams as unknown as Json,
+    prompt_used: options.promptUsed,
+    quality_score: options.qualityScore,
+    parent_version_id: options.parentVersionId,
+    notes: options.notes,
+    tags: options.tags || [],
+    is_approved: false,
+    is_final: false,
+  };
 
-    // Create new version
-    const { data, error } = await supabase
-      .from('render_versions')
-      .insert({
-        room_id: roomId,
-        version_number: nextVersion,
-        image_url: imageUrl,
-        style_id: generationParams.style_id,
-        generation_params: generationParams,
-        parent_version_id: parentVersionId,
-        refinement_request: refinementRequest,
-        is_approved: false,
-        is_favorite: false,
-      })
-      .select()
-      .single();
+  const { data, error } = await supabase
+    .from('render_versions')
+    .insert([insertData])
+    .select()
+    .single();
 
-    if (error) throw error;
+  if (error) throw new Error(`Failed to create render version: ${error.message}`);
 
-    return data as RenderVersion;
-  } catch (error) {
-    console.error('Error creating render version:', error);
-    throw error;
-  }
+  return mapDbToRenderVersion(data);
 }
 
 /**
- * Get render history for room
+ * Get all versions for a room
  */
 export async function getRenderHistory(roomId: string): Promise<RenderHistory> {
-  try {
-    const { data, error } = await supabase
-      .from('render_versions')
-      .select('*')
-      .eq('room_id', roomId)
-      .order('version_number', { ascending: false });
+  const { data, error } = await supabase
+    .from('render_versions')
+    .select('*')
+    .eq('room_id', roomId)
+    .order('version_number', { ascending: false });
 
-    if (error) throw error;
+  if (error) throw new Error(`Failed to fetch render history: ${error.message}`);
 
-    const versions = (data || []) as RenderVersion[];
-    const approvedVersion = versions.find((v) => v.is_approved);
-    const favorites = versions.filter((v) => v.is_favorite).map((v) => v.id);
+  const versions = (data || []).map(mapDbToRenderVersion);
+  const approvedVersion = versions.find(v => v.is_approved);
+  const favoriteVersions = versions.filter(v => v.user_rating && v.user_rating >= 4).map(v => v.id);
 
-    return {
-      room_id: roomId,
-      versions,
-      total_versions: versions.length,
-      approved_version_id: approvedVersion?.id,
-      favorite_versions: favorites,
-      created_at: versions[versions.length - 1]?.created_at || new Date().toISOString(),
-      updated_at: versions[0]?.created_at || new Date().toISOString(),
-    };
-  } catch (error) {
-    console.error('Error fetching render history:', error);
-    throw error;
-  }
+  return {
+    room_id: roomId,
+    versions,
+    total_versions: versions.length,
+    approved_version_id: approvedVersion?.id,
+    favorite_versions: favoriteVersions,
+  };
 }
 
 /**
- * Compare two render versions
+ * Compare two versions
  */
 export async function compareVersions(
-  versionIdA: string,
-  versionIdB: string
-): Promise<VersionComparison> {
-  try {
-    const { data, error } = await supabase
-      .from('render_versions')
-      .select('*')
-      .in('id', [versionIdA, versionIdB]);
+  versionId1: string,
+  versionId2: string
+): Promise<{ version1: RenderVersion; version2: RenderVersion }> {
+  const { data: v1Data, error: e1 } = await supabase
+    .from('render_versions')
+    .select('*')
+    .eq('id', versionId1)
+    .single();
 
-    if (error) throw error;
-    if (!data || data.length !== 2) {
-      throw new Error('One or both versions not found');
-    }
+  const { data: v2Data, error: e2 } = await supabase
+    .from('render_versions')
+    .select('*')
+    .eq('id', versionId2)
+    .single();
 
-    const versionA = data.find((v) => v.id === versionIdA) as RenderVersion;
-    const versionB = data.find((v) => v.id === versionIdB) as RenderVersion;
+  if (e1 || e2) throw new Error('Failed to fetch versions for comparison');
 
-    // Analyze differences
-    const styleChanged = versionA.style_id !== versionB.style_id;
-    const qualityDifference = (versionA.quality_score || 0) - (versionB.quality_score || 0);
-
-    const paramDifferences: string[] = [];
-    const paramsA = versionA.generation_params;
-    const paramsB = versionB.generation_params;
-
-    if (paramsA.prompt !== paramsB.prompt) {
-      paramDifferences.push('Prompt changed');
-    }
-    if (paramsA.steps !== paramsB.steps) {
-      paramDifferences.push(`Steps: ${paramsA.steps} → ${paramsB.steps}`);
-    }
-    if (paramsA.cfg_scale !== paramsB.cfg_scale) {
-      paramDifferences.push(`CFG: ${paramsA.cfg_scale} → ${paramsB.cfg_scale}`);
-    }
-
-    return {
-      version_a: versionA,
-      version_b: versionB,
-      differences: {
-        style_changed: styleChanged,
-        quality_difference: qualityDifference,
-        param_differences: paramDifferences,
-      },
-    };
-  } catch (error) {
-    console.error('Error comparing versions:', error);
-    throw error;
-  }
+  return {
+    version1: mapDbToRenderVersion(v1Data),
+    version2: mapDbToRenderVersion(v2Data),
+  };
 }
 
 /**
- * Submit refinement request
+ * Request refinement on a version
  */
-export async function submitRefinementRequest(
+export async function requestRefinement(
   versionId: string,
   request: RefinementRequest
 ): Promise<void> {
-  try {
-    const { error } = await supabase
-      .from('render_versions')
-      .update({
-        refinement_request: request,
-      })
-      .eq('id', versionId);
+  const { data: version } = await supabase
+    .from('render_versions')
+    .select('*')
+    .eq('id', versionId)
+    .single();
 
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error submitting refinement request:', error);
-    throw error;
-  }
+  if (!version) throw new Error('Version not found');
+
+  // Store refinement request in generation_params
+  const updatedParams = {
+    ...(version.generation_params as Record<string, any> || {}),
+    refinement_request: request,
+    refinement_requested_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from('render_versions')
+    .update({
+      generation_params: updatedParams as unknown as Json,
+      change_summary: `Refinement requested: ${request.description}`,
+    })
+    .eq('id', versionId);
+
+  if (error) throw new Error(`Failed to request refinement: ${error.message}`);
 }
 
 /**
- * Approve render version
+ * Approve a version
  */
-export async function approveVersion(
-  roomId: string,
-  versionId: string
-): Promise<void> {
-  try {
-    // Remove approval from all other versions
-    await supabase
-      .from('render_versions')
-      .update({ is_approved: false })
-      .eq('room_id', roomId);
+export async function approveVersion(versionId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
 
-    // Approve selected version
-    const { error } = await supabase
-      .from('render_versions')
-      .update({ is_approved: true })
-      .eq('id', versionId);
+  const { error } = await supabase
+    .from('render_versions')
+    .update({
+      is_approved: true,
+      approved_by: user?.id,
+      approved_at: new Date().toISOString(),
+    })
+    .eq('id', versionId);
 
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error approving version:', error);
-    throw error;
-  }
+  if (error) throw new Error(`Failed to approve version: ${error.message}`);
 }
 
 /**
- * Toggle favorite status
+ * Mark version as final
  */
-export async function toggleFavorite(
-  versionId: string,
-  isFavorite: boolean
-): Promise<void> {
-  try {
-    const { error } = await supabase
-      .from('render_versions')
-      .update({ is_favorite: isFavorite })
-      .eq('id', versionId);
+export async function markAsFinal(versionId: string): Promise<void> {
+  const { error } = await supabase
+    .from('render_versions')
+    .update({ is_final: true })
+    .eq('id', versionId);
 
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error toggling favorite:', error);
-    throw error;
-  }
+  if (error) throw new Error(`Failed to mark as final: ${error.message}`);
 }
 
 /**
- * Delete render version
+ * Rate a version
+ */
+export async function rateVersion(versionId: string, rating: number): Promise<void> {
+  const { error } = await supabase
+    .from('render_versions')
+    .update({ user_rating: rating })
+    .eq('id', versionId);
+
+  if (error) throw new Error(`Failed to rate version: ${error.message}`);
+}
+
+/**
+ * Delete a version (only if not approved or final)
  */
 export async function deleteVersion(versionId: string): Promise<void> {
-  try {
-    const { error } = await supabase
-      .from('render_versions')
-      .delete()
-      .eq('id', versionId);
+  const { data: version } = await supabase
+    .from('render_versions')
+    .select('is_approved, is_final')
+    .eq('id', versionId)
+    .single();
 
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error deleting version:', error);
-    throw error;
+  if (version?.is_approved || version?.is_final) {
+    throw new Error('Cannot delete approved or final versions');
   }
+
+  const { error } = await supabase
+    .from('render_versions')
+    .delete()
+    .eq('id', versionId);
+
+  if (error) throw new Error(`Failed to delete version: ${error.message}`);
 }
 
-/**
- * Get refinement suggestions based on quality score
- */
-export function getRefinementSuggestions(
-  version: RenderVersion,
-  qualityScore: number
-): string[] {
-  const suggestions: string[] = [];
-
-  if (qualityScore < 70) {
-    suggestions.push('Consider adjusting the style prompt for better consistency');
-    suggestions.push('Review architectural preservation settings');
-  }
-
-  if (qualityScore >= 70 && qualityScore < 85) {
-    suggestions.push('Fine-tune color palette to better match style');
-    suggestions.push('Adjust lighting for improved ambiance');
-  }
-
-  if (version.generation_params.steps && version.generation_params.steps < 30) {
-    suggestions.push('Increase generation steps for better quality');
-  }
-
-  return suggestions;
+// Helper function to map database row to interface
+function mapDbToRenderVersion(row: any): RenderVersion {
+  return {
+    id: row.id,
+    room_id: row.room_id,
+    version_number: row.version_number,
+    render_url: row.render_url,
+    thumbnail_url: row.thumbnail_url,
+    storage_path: row.storage_path,
+    style_config: (row.style_config || {}) as Record<string, any>,
+    generation_params: (row.generation_params || {}) as Record<string, any>,
+    prompt_used: row.prompt_used,
+    quality_score: row.quality_score,
+    ai_validation_score: row.ai_validation_score,
+    user_rating: row.user_rating,
+    changes_from_parent: (row.changes_from_parent || []) as any[],
+    change_summary: row.change_summary,
+    parent_version_id: row.parent_version_id,
+    is_approved: row.is_approved || false,
+    is_final: row.is_final || false,
+    approved_by: row.approved_by,
+    approved_at: row.approved_at,
+    notes: row.notes,
+    tags: row.tags || [],
+    created_by: row.created_by,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
 }

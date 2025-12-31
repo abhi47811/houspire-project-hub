@@ -1,11 +1,11 @@
-// ============================================================================
-// RENDER VERSION CONTROL SERVICE
-// ============================================================================
-// Purpose: Manage render versions, comparisons, and history
-// Location: src/services/features/versionControlService.ts
-// ============================================================================
+/**
+ * Render Version Control Service
+ * 
+ * Manages render versions, comparisons, and history.
+ */
 
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 // ============================================================================
 // TYPES
@@ -62,6 +62,35 @@ export interface VersionComparison {
   };
 }
 
+// Helper function to map database row to interface
+function mapDbRowToVersion(row: any): RenderVersion {
+  return {
+    id: row.id,
+    room_id: row.room_id,
+    version_number: row.version_number,
+    parent_version_id: row.parent_version_id,
+    render_url: row.render_url,
+    thumbnail_url: row.thumbnail_url,
+    storage_path: row.storage_path,
+    style_config: (row.style_config || {}) as Record<string, any>,
+    generation_params: (row.generation_params || {}) as Record<string, any>,
+    prompt_used: row.prompt_used,
+    quality_score: row.quality_score,
+    ai_validation_score: row.ai_validation_score,
+    user_rating: row.user_rating,
+    changes_from_parent: (row.changes_from_parent || []) as any[],
+    change_summary: row.change_summary,
+    is_approved: row.is_approved || false,
+    is_final: row.is_final || false,
+    approved_by: row.approved_by,
+    approved_at: row.approved_at,
+    notes: row.notes,
+    tags: row.tags || [],
+    created_by: row.created_by,
+    created_at: row.created_at,
+  };
+}
+
 // ============================================================================
 // SERVICE CLASS
 // ============================================================================
@@ -82,7 +111,7 @@ class VersionControlService {
       throw new Error(`Failed to fetch versions: ${error.message}`);
     }
 
-    return data || [];
+    return (data || []).map(mapDbRowToVersion);
   }
 
   /**
@@ -100,7 +129,7 @@ class VersionControlService {
       return null;
     }
 
-    return data;
+    return data ? mapDbRowToVersion(data) : null;
   }
 
   /**
@@ -118,39 +147,33 @@ class VersionControlService {
     if (input.parent_version_id) {
       const parent = await this.getVersionById(input.parent_version_id);
       if (parent) {
-        changes_from_parent = this.calculateChanges(
-          parent.style_config,
-          input.style_config,
-          parent.generation_params,
-          input.generation_params
-        );
-        change_summary = this.generateChangeSummary(changes_from_parent);
+        changes_from_parent = this.calculateChanges(parent, input);
+        change_summary = `Refined from v${parent.version_number}`;
       }
     }
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    const insertData = {
+      room_id: input.room_id,
+      version_number: versionNumber || 1,
+      parent_version_id: input.parent_version_id || null,
+      render_url: input.render_url,
+      thumbnail_url: input.thumbnail_url || null,
+      storage_path: input.storage_path,
+      style_config: input.style_config as unknown as Json,
+      generation_params: input.generation_params as unknown as Json,
+      prompt_used: input.prompt_used || null,
+      quality_score: input.quality_score || null,
+      changes_from_parent: changes_from_parent as unknown as Json,
+      change_summary,
+      notes: input.notes || null,
+      tags: input.tags || [],
+      is_approved: false,
+      is_final: false,
+    };
 
-    // Insert new version
     const { data, error } = await supabase
       .from('render_versions')
-      .insert({
-        room_id: input.room_id,
-        version_number: versionNumber || 1,
-        parent_version_id: input.parent_version_id || null,
-        render_url: input.render_url,
-        thumbnail_url: input.thumbnail_url || null,
-        storage_path: input.storage_path,
-        style_config: input.style_config,
-        generation_params: input.generation_params,
-        prompt_used: input.prompt_used || null,
-        quality_score: input.quality_score || null,
-        changes_from_parent,
-        change_summary,
-        notes: input.notes || null,
-        tags: input.tags || [],
-        created_by: user?.id || null,
-      })
+      .insert([insertData])
       .select()
       .single();
 
@@ -159,168 +182,106 @@ class VersionControlService {
       throw new Error(`Failed to create version: ${error.message}`);
     }
 
-    return data;
+    return mapDbRowToVersion(data);
   }
 
   /**
-   * Compare two versions
+   * Update a version
    */
-  async compareVersions(
-    version1Id: string,
-    version2Id: string
-  ): Promise<VersionComparison> {
-    const [v1, v2] = await Promise.all([
-      this.getVersionById(version1Id),
-      this.getVersionById(version2Id),
-    ]);
+  async updateVersion(
+    versionId: string,
+    updates: Partial<{
+      notes: string;
+      tags: string[];
+      user_rating: number;
+    }>
+  ): Promise<RenderVersion> {
+    const { data, error } = await supabase
+      .from('render_versions')
+      .update(updates)
+      .eq('id', versionId)
+      .select()
+      .single();
 
-    if (!v1 || !v2) {
-      throw new Error('One or both versions not found');
+    if (error) {
+      throw new Error(`Failed to update version: ${error.message}`);
     }
 
-    const differences = {
-      style_changes: this.getStyleDifferences(v1.style_config, v2.style_config),
-      param_changes: this.getParamDifferences(
-        v1.generation_params,
-        v2.generation_params
-      ),
-      quality_delta: (v2.quality_score || 0) - (v1.quality_score || 0),
-    };
-
-    return {
-      version1: v1,
-      version2: v2,
-      differences,
-    };
+    return mapDbRowToVersion(data);
   }
 
   /**
    * Approve a version
    */
-  async approveVersion(versionId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const { error } = await supabase
+  async approveVersion(versionId: string, userId: string): Promise<RenderVersion> {
+    const { data, error } = await supabase
       .from('render_versions')
       .update({
         is_approved: true,
-        approved_by: user?.id || null,
+        approved_by: userId,
         approved_at: new Date().toISOString(),
       })
-      .eq('id', versionId);
+      .eq('id', versionId)
+      .select()
+      .single();
 
     if (error) {
       throw new Error(`Failed to approve version: ${error.message}`);
     }
+
+    return mapDbRowToVersion(data);
   }
 
   /**
-   * Mark version as final
+   * Mark a version as final
    */
-  async markAsFinal(versionId: string): Promise<void> {
-    const version = await this.getVersionById(versionId);
+  async markAsFinal(versionId: string): Promise<RenderVersion> {
+    const { data: version } = await supabase
+      .from('render_versions')
+      .select('room_id')
+      .eq('id', versionId)
+      .single();
+
     if (!version) {
       throw new Error('Version not found');
     }
 
-    // Unmark other versions as final
+    // First, unmark any existing final version
     await supabase
       .from('render_versions')
       .update({ is_final: false })
-      .eq('room_id', version.room_id);
+      .eq('room_id', version.room_id)
+      .eq('is_final', true);
 
-    // Mark this version as final
-    const { error } = await supabase
+    // Then mark this version as final
+    const { data, error } = await supabase
       .from('render_versions')
       .update({ is_final: true })
-      .eq('id', versionId);
+      .eq('id', versionId)
+      .select()
+      .single();
 
     if (error) {
       throw new Error(`Failed to mark as final: ${error.message}`);
     }
-  }
 
-  /**
-   * Revert to a previous version (creates new version with old config)
-   */
-  async revertToVersion(versionId: string): Promise<RenderVersion> {
-    const version = await this.getVersionById(versionId);
-    if (!version) {
-      throw new Error('Version not found');
-    }
-
-    // Create new version with reverted config
-    return this.createVersion({
-      room_id: version.room_id,
-      parent_version_id: versionId,
-      render_url: version.render_url, // Will be regenerated
-      storage_path: version.storage_path,
-      style_config: version.style_config,
-      generation_params: version.generation_params,
-      prompt_used: version.prompt_used || undefined,
-      notes: `Reverted to version ${version.version_number}`,
-      tags: [...(version.tags || []), 'reverted'],
-    });
-  }
-
-  /**
-   * Update version notes
-   */
-  async updateNotes(versionId: string, notes: string): Promise<void> {
-    const { error } = await supabase
-      .from('render_versions')
-      .update({ notes })
-      .eq('id', versionId);
-
-    if (error) {
-      throw new Error(`Failed to update notes: ${error.message}`);
-    }
-  }
-
-  /**
-   * Add tags to version
-   */
-  async addTags(versionId: string, tags: string[]): Promise<void> {
-    const version = await this.getVersionById(versionId);
-    if (!version) {
-      throw new Error('Version not found');
-    }
-
-    const existingTags = version.tags || [];
-    const newTags = [...new Set([...existingTags, ...tags])];
-
-    const { error } = await supabase
-      .from('render_versions')
-      .update({ tags: newTags })
-      .eq('id', versionId);
-
-    if (error) {
-      throw new Error(`Failed to add tags: ${error.message}`);
-    }
-  }
-
-  /**
-   * Rate a version
-   */
-  async rateVersion(versionId: string, rating: number): Promise<void> {
-    if (rating < 1 || rating > 5) {
-      throw new Error('Rating must be between 1 and 5');
-    }
-
-    const { error } = await supabase
-      .from('render_versions')
-      .update({ user_rating: rating })
-      .eq('id', versionId);
-
-    if (error) {
-      throw new Error(`Failed to rate version: ${error.message}`);
-    }
+    return mapDbRowToVersion(data);
   }
 
   /**
    * Delete a version
    */
   async deleteVersion(versionId: string): Promise<void> {
+    const { data: version } = await supabase
+      .from('render_versions')
+      .select('is_final, is_approved')
+      .eq('id', versionId)
+      .single();
+
+    if (version?.is_final) {
+      throw new Error('Cannot delete a final version');
+    }
+
     const { error } = await supabase
       .from('render_versions')
       .delete()
@@ -332,55 +293,82 @@ class VersionControlService {
   }
 
   /**
-   * Get version history (parent chain)
+   * Compare two versions
    */
-  async getVersionHistory(versionId: string): Promise<RenderVersion[]> {
-    const history: RenderVersion[] = [];
-    let currentId: string | null = versionId;
+  async compareVersions(versionId1: string, versionId2: string): Promise<VersionComparison> {
+    const [version1, version2] = await Promise.all([
+      this.getVersionById(versionId1),
+      this.getVersionById(versionId2),
+    ]);
 
-    while (currentId) {
-      const version = await this.getVersionById(currentId);
-      if (!version) break;
-
-      history.push(version);
-      currentId = version.parent_version_id;
+    if (!version1 || !version2) {
+      throw new Error('One or both versions not found');
     }
 
-    return history;
+    const differences = {
+      style_changes: this.getStyleChanges(version1.style_config, version2.style_config),
+      param_changes: this.getParamChanges(version1.generation_params, version2.generation_params),
+      quality_delta: (version2.quality_score || 0) - (version1.quality_score || 0),
+    };
+
+    return {
+      version1,
+      version2,
+      differences,
+    };
   }
 
-  // ============================================================================
-  // PRIVATE HELPER METHODS
-  // ============================================================================
+  /**
+   * Get the final version for a room
+   */
+  async getFinalVersion(roomId: string): Promise<RenderVersion | null> {
+    const { data, error } = await supabase
+      .from('render_versions')
+      .select('*')
+      .eq('room_id', roomId)
+      .eq('is_final', true)
+      .single();
 
-  private calculateChanges(
-    oldStyle: Record<string, any>,
-    newStyle: Record<string, any>,
-    oldParams: Record<string, any>,
-    newParams: Record<string, any>
-  ): any[] {
+    if (error) {
+      return null;
+    }
+
+    return data ? mapDbRowToVersion(data) : null;
+  }
+
+  /**
+   * Get the latest version for a room
+   */
+  async getLatestVersion(roomId: string): Promise<RenderVersion | null> {
+    const { data, error } = await supabase
+      .from('render_versions')
+      .select('*')
+      .eq('room_id', roomId)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      return null;
+    }
+
+    return data ? mapDbRowToVersion(data) : null;
+  }
+
+  // Private helper methods
+  private calculateChanges(parent: RenderVersion, input: CreateVersionInput): any[] {
     const changes: any[] = [];
 
-    // Style changes
-    Object.keys(newStyle).forEach((key) => {
+    // Check style changes
+    const oldStyle = parent.style_config || {};
+    const newStyle = input.style_config || {};
+    
+    Object.keys({ ...oldStyle, ...newStyle }).forEach(key => {
       if (JSON.stringify(oldStyle[key]) !== JSON.stringify(newStyle[key])) {
         changes.push({
-          type: 'style',
-          field: key,
+          field: `style.${key}`,
           old_value: oldStyle[key],
           new_value: newStyle[key],
-        });
-      }
-    });
-
-    // Parameter changes
-    Object.keys(newParams).forEach((key) => {
-      if (JSON.stringify(oldParams[key]) !== JSON.stringify(newParams[key])) {
-        changes.push({
-          type: 'parameter',
-          field: key,
-          old_value: oldParams[key],
-          new_value: newParams[key],
         });
       }
     });
@@ -388,72 +376,35 @@ class VersionControlService {
     return changes;
   }
 
-  private generateChangeSummary(changes: any[]): string {
-    if (changes.length === 0) return 'No changes';
+  private getStyleChanges(config1: Record<string, any>, config2: Record<string, any>): string[] {
+    const changes: string[] = [];
+    const allKeys = new Set([...Object.keys(config1 || {}), ...Object.keys(config2 || {})]);
 
-    const summaryParts: string[] = [];
-
-    const styleChanges = changes.filter((c) => c.type === 'style');
-    const paramChanges = changes.filter((c) => c.type === 'parameter');
-
-    if (styleChanges.length > 0) {
-      summaryParts.push(
-        `${styleChanges.length} style change${styleChanges.length > 1 ? 's' : ''}`
-      );
-    }
-
-    if (paramChanges.length > 0) {
-      summaryParts.push(
-        `${paramChanges.length} parameter change${paramChanges.length > 1 ? 's' : ''}`
-      );
-    }
-
-    return summaryParts.join(', ');
-  }
-
-  private getStyleDifferences(
-    style1: Record<string, any>,
-    style2: Record<string, any>
-  ): string[] {
-    const diffs: string[] = [];
-
-    const allKeys = new Set([...Object.keys(style1), ...Object.keys(style2)]);
-
-    allKeys.forEach((key) => {
-      const val1 = style1[key];
-      const val2 = style2[key];
-
-      if (JSON.stringify(val1) !== JSON.stringify(val2)) {
-        diffs.push(`${key}: ${val1} → ${val2}`);
+    allKeys.forEach(key => {
+      if (JSON.stringify(config1?.[key]) !== JSON.stringify(config2?.[key])) {
+        changes.push(key);
       }
     });
 
-    return diffs;
+    return changes;
   }
 
-  private getParamDifferences(
-    params1: Record<string, any>,
-    params2: Record<string, any>
-  ): string[] {
-    const diffs: string[] = [];
+  private getParamChanges(params1: Record<string, any>, params2: Record<string, any>): string[] {
+    const changes: string[] = [];
+    const allKeys = new Set([...Object.keys(params1 || {}), ...Object.keys(params2 || {})]);
 
-    const allKeys = new Set([...Object.keys(params1), ...Object.keys(params2)]);
-
-    allKeys.forEach((key) => {
-      const val1 = params1[key];
-      const val2 = params2[key];
-
-      if (JSON.stringify(val1) !== JSON.stringify(val2)) {
-        diffs.push(`${key}: ${val1} → ${val2}`);
+    allKeys.forEach(key => {
+      if (JSON.stringify(params1?.[key]) !== JSON.stringify(params2?.[key])) {
+        changes.push(key);
       }
     });
 
-    return diffs;
+    return changes;
   }
 }
 
-// ============================================================================
-// EXPORT SINGLETON
-// ============================================================================
-
+// Export singleton instance
 export const versionControlService = new VersionControlService();
+
+// Export the class for testing
+export { VersionControlService };
