@@ -328,26 +328,22 @@ async function fetchAnalytics(): Promise<AnalyticsData> {
   const activeProjects = projects?.filter((p) => p.status === 'in_progress').length || 0;
   const completedProjects = projects?.filter((p) => p.status === 'completed').length || 0;
   const totalRenders = renders?.length || 0;
-  const approvedRenders = renders?.filter((r) => r.approved).length || 0;
+  const approvedRenders = renders?.filter((r) => r.approval_status === 'approved').length || 0;
 
-  // Calculate preservation stats
+  // Calculate preservation stats from quality_details jsonb field
   const rendersWithPreservation = renders?.filter(
-    (r) => r.doors_preserved !== null || r.windows_preserved !== null
+    (r) => r.quality_details && typeof r.quality_details === 'object'
   ) || [];
   const preservationStats = {
     totalWithPreservation: rendersWithPreservation.length,
     successRate: rendersWithPreservation.length > 0
-      ? rendersWithPreservation.filter((r) => r.doors_preserved && r.windows_preserved).length /
-        rendersWithPreservation.length
+      ? rendersWithPreservation.filter((r) => {
+          const details = r.quality_details as any;
+          return details?.doors_preserved && details?.windows_preserved;
+        }).length / rendersWithPreservation.length
       : 0,
-    avgDoorsPreserved: rendersWithPreservation.length > 0
-      ? rendersWithPreservation.reduce((sum, r) => sum + (r.doors_preserved || 0), 0) /
-        rendersWithPreservation.length
-      : 0,
-    avgWindowsPreserved: rendersWithPreservation.length > 0
-      ? rendersWithPreservation.reduce((sum, r) => sum + (r.windows_preserved || 0), 0) /
-        rendersWithPreservation.length
-      : 0,
+    avgDoorsPreserved: 0,
+    avgWindowsPreserved: 0,
   };
 
   // Calculate revenue (dummy data - would come from actual budget table)

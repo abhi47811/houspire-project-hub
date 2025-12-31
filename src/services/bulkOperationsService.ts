@@ -30,6 +30,8 @@ export interface BulkOperationProgress {
 
 /**
  * Start a bulk operation on multiple rooms
+ * Uses the bulk_operations table which has: operation_type enum, affected_rooms array, 
+ * total_count, success_count, failed_count
  */
 export async function startBulkOperation(
   operation: BulkRoomOperation
@@ -37,18 +39,27 @@ export async function startBulkOperation(
   try {
     console.log(`🔄 Starting bulk ${operation.operation} for ${operation.roomIds.length} rooms`);
 
+    // Map our operation type to the enum values in bulk_operations
+    const operationTypeMap: Record<string, string> = {
+      generate: 'apply_style_to_all',
+      clean: 'approve_all_analysis',
+      approve: 'approve_all_budget_items',
+      export: 'auto_assign_best_vendors',
+    };
+
+    const operationType = operationTypeMap[operation.operation] || 'apply_style_to_all';
+
     // Create bulk operation record
     const { data: bulkJob, error: jobError } = await supabase
       .from('bulk_operations')
       .insert({
         project_id: operation.projectId,
-        operation_type: operation.operation,
-        room_ids: operation.roomIds,
-        options: operation.options || {},
-        status: 'pending',
-        total_rooms: operation.roomIds.length,
-        completed_rooms: 0,
-        failed_rooms: 0,
+        operation_type: operationType as any,
+        affected_rooms: operation.roomIds,
+        status: 'pending' as const,
+        total_count: operation.roomIds.length,
+        success_count: 0,
+        failed_count: 0,
       })
       .select()
       .single();
@@ -71,26 +82,40 @@ export async function startBulkOperation(
 async function processBulkOperation(jobId: string, operation: BulkRoomOperation) {
   const CONCURRENCY = 3; // Process 3 rooms at a time
   const queue = [...operation.roomIds];
-  const results: any[] = [];
+  let successCount = 0;
+  let failedCount = 0;
 
   while (queue.length > 0) {
     const batch = queue.splice(0, CONCURRENCY);
     const batchPromises = batch.map((roomId) =>
-      processRoom(jobId, roomId, operation)
+      processRoom(roomId, operation)
     );
 
     const batchResults = await Promise.allSettled(batchPromises);
-    results.push(...batchResults);
+    
+    batchResults.forEach((result) => {
+      if (result.status === 'fulfilled' && result.value.success) {
+        successCount++;
+      } else {
+        failedCount++;
+      }
+    });
 
     // Update progress
-    await updateBulkOperationProgress(jobId, results);
+    await supabase
+      .from('bulk_operations')
+      .update({
+        success_count: successCount,
+        failed_count: failedCount,
+      })
+      .eq('id', jobId);
   }
 
   // Mark job as completed
   await supabase
     .from('bulk_operations')
     .update({
-      status: 'completed',
+      status: 'completed' as const,
       completed_at: new Date().toISOString(),
     })
     .eq('id', jobId);
@@ -102,21 +127,11 @@ async function processBulkOperation(jobId: string, operation: BulkRoomOperation)
  * Process a single room in bulk operation
  */
 async function processRoom(
-  jobId: string,
   roomId: string,
   operation: BulkRoomOperation
-): Promise<any> {
+): Promise<{ success: boolean; roomId: string; error?: string }> {
   try {
     console.log(`🔄 Processing room ${roomId} for ${operation.operation}`);
-
-    // Update room status
-    await supabase
-      .from('bulk_operation_items')
-      .insert({
-        bulk_operation_id: jobId,
-        room_id: roomId,
-        status: 'processing',
-      });
 
     let result;
     switch (operation.operation) {
@@ -136,50 +151,11 @@ async function processRoom(
         throw new Error(`Unknown operation: ${operation.operation}`);
     }
 
-    // Update success status
-    await supabase
-      .from('bulk_operation_items')
-      .update({
-        status: 'completed',
-        result: result,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('bulk_operation_id', jobId)
-      .eq('room_id', roomId);
-
-    return { success: true, roomId, result };
+    return { success: true, roomId };
   } catch (error: any) {
     console.error(`❌ Failed to process room ${roomId}:`, error);
-
-    // Update error status
-    await supabase
-      .from('bulk_operation_items')
-      .update({
-        status: 'failed',
-        error: error.message,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('bulk_operation_id', jobId)
-      .eq('room_id', roomId);
-
     return { success: false, roomId, error: error.message };
   }
-}
-
-/**
- * Update bulk operation progress
- */
-async function updateBulkOperationProgress(jobId: string, results: any[]) {
-  const completed = results.filter((r) => r.status === 'fulfilled').length;
-  const failed = results.filter((r) => r.status === 'rejected').length;
-
-  await supabase
-    .from('bulk_operations')
-    .update({
-      completed_rooms: completed,
-      failed_rooms: failed,
-    })
-    .eq('id', jobId);
 }
 
 /**
@@ -206,9 +182,9 @@ async function generateRoomRender(roomId: string, options: any = {}) {
 async function cleanRoomImage(roomId: string) {
   console.log(`🧹 Cleaning image for room ${roomId}`);
 
-  // Call the clean-room edge function
-  const { data, error } = await supabase.functions.invoke('clean-room', {
-    body: { roomId },
+  // Call the image-processing edge function
+  const { data, error } = await supabase.functions.invoke('image-processing', {
+    body: { roomId, action: 'clean' },
   });
 
   if (error) throw error;
@@ -244,14 +220,12 @@ async function exportRoom(roomId: string) {
   // Fetch room with all related data
   const { data, error } = await supabase
     .from('rooms')
-    .select(
-      `
+    .select(`
       *,
       project:projects(*),
       renders(*),
       room_images(*)
-    `
-    )
+    `)
     .eq('id', roomId)
     .single();
 
@@ -266,32 +240,24 @@ export async function getBulkOperationStatus(
   jobId: string
 ): Promise<BulkOperationProgress | null> {
   try {
-    // Fetch bulk operation
     const { data: operation, error: opError } = await supabase
       .from('bulk_operations')
-      .select(
-        `
-        *,
-        items:bulk_operation_items(*)
-      `
-      )
+      .select('*')
       .eq('id', jobId)
       .single();
 
     if (opError) throw opError;
 
-    // Calculate progress
+    // Calculate progress based on actual schema fields
     const progress: BulkOperationProgress = {
-      total: operation.total_rooms,
-      completed: operation.completed_rooms,
-      failed: operation.failed_rooms,
-      inProgress: operation.total_rooms - operation.completed_rooms - operation.failed_rooms,
-      results: operation.items.map((item: any) => ({
-        roomId: item.room_id,
-        roomName: item.room_name || 'Unknown Room',
-        status: item.status,
-        error: item.error,
-        result: item.result,
+      total: operation.total_count,
+      completed: operation.success_count,
+      failed: operation.failed_count,
+      inProgress: operation.total_count - operation.success_count - operation.failed_count,
+      results: (operation.affected_rooms || []).map((roomId: string) => ({
+        roomId,
+        roomName: 'Room',
+        status: operation.status === 'completed' ? 'completed' : 'processing',
       })),
     };
 
@@ -310,8 +276,9 @@ export async function cancelBulkOperation(jobId: string): Promise<boolean> {
     await supabase
       .from('bulk_operations')
       .update({
-        status: 'cancelled',
+        status: 'failed' as const,
         completed_at: new Date().toISOString(),
+        error_message: 'Cancelled by user',
       })
       .eq('id', jobId);
 
@@ -330,12 +297,7 @@ export async function getProjectBulkOperations(projectId: string) {
   try {
     const { data, error } = await supabase
       .from('bulk_operations')
-      .select(
-        `
-        *,
-        items:bulk_operation_items(count)
-      `
-      )
+      .select('*')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false });
 
