@@ -44,7 +44,7 @@ export interface RoomAnalysisResult {
   suggestions?: string[];
 }
 
-// Type guard for position arrays
+// Type for position data
 interface PositionData {
   x: number;
   y: number;
@@ -53,15 +53,29 @@ interface PositionData {
   type: string;
 }
 
-function isPositionArray(data: Json | null): data is PositionData[] {
-  if (!Array.isArray(data)) return false;
-  return data.every(
-    (item) =>
+// Parse and validate position arrays from JSON
+function parsePositionArray(data: Json | null): PositionData[] {
+  if (!Array.isArray(data)) return [];
+  const result: PositionData[] = [];
+  for (const item of data) {
+    if (
       typeof item === 'object' &&
       item !== null &&
+      !Array.isArray(item) &&
       'x' in item &&
       'y' in item
-  );
+    ) {
+      const obj = item as { [key: string]: Json | undefined };
+      result.push({
+        x: typeof obj.x === 'number' ? obj.x : 0,
+        y: typeof obj.y === 'number' ? obj.y : 0,
+        width: typeof obj.width === 'number' ? obj.width : 0,
+        height: typeof obj.height === 'number' ? obj.height : 0,
+        type: typeof obj.type === 'string' ? obj.type : 'unknown',
+      });
+    }
+  }
+  return result;
 }
 
 /**
@@ -197,12 +211,8 @@ export async function getRoomAnalysis(roomId: string): Promise<RoomAnalysisResul
     if (!data) return null;
 
     // Parse position data with type safety
-    const doorPositions = isPositionArray(data.door_positions) 
-      ? data.door_positions 
-      : [];
-    const windowPositions = isPositionArray(data.window_positions) 
-      ? data.window_positions 
-      : [];
+    const doorPositions = parsePositionArray(data.door_positions);
+    const windowPositions = parsePositionArray(data.window_positions);
 
     // Parse other_features JSON
     const otherFeatures = (data.other_features || {}) as Record<string, any>;

@@ -136,15 +136,30 @@ ${windowDetails || '   - Study the cleaned image carefully and keep ALL windows 
    - You CAN: Change paint colors, add furniture, update flooring, add decor
    - You CANNOT: Move/add/remove doors, move/add/remove windows, change room shape
 
+5. **🎥 CAMERA ANGLE / VIEWPOINT: MUST MATCH EXACTLY**
+   - Study the cleaned image viewpoint - this is your EXACT camera position
+   - DO NOT rotate the view or change the perspective
+   - If cleaned image shows frontal view → render MUST be frontal view
+   - If cleaned image shows corner view → render MUST be corner view
+   - Eye level, camera height, and angle MUST be identical
+   - You are photographing from the SAME spot as the original
+   
+   ⚠️ CRITICAL: Changing the camera angle is like moving to a different room!
+   The client expects to see THEIR room from THEIR perspective.
+
 ### ⚠️ COMPARISON CHECK:
 Before generating, mentally compare:
+- Camera is at the EXACT same position and angle as cleaned image
+- If cleaned image looks straight ahead, your render must look straight ahead
+- If cleaned image looks at a corner, your render must look at that corner
 - Cleaned image shows window on RIGHT wall → Your render MUST show window on RIGHT wall
 - Cleaned image shows door on LEFT wall → Your render MUST show door on LEFT wall
 - Cleaned image shows 2 windows → Your render MUST show EXACTLY 2 windows
-- If you move ANY architectural element, the render is WRONG and must be regenerated
+- If you move ANY architectural element OR camera angle, the render is WRONG
 
 **THINK OF IT THIS WAY:** You're showing a client how their EXISTING room will look after renovation.
-You CANNOT move their windows or doors - that would require major construction!`;
+You CANNOT move their windows or doors - that would require major construction!
+You CANNOT change the camera angle - the client is standing in ONE spot!`;
 }
 
 // ============================================================================
