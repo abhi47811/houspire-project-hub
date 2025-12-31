@@ -543,6 +543,8 @@ serve(async (req) => {
         let libraryImageUrl: string | undefined;
         let smartDefaultData: any = null;
         let libraryImageData: any = null;
+        let preservationPrompt: string = '';
+        let stylePrompt: string = '';
         
         // Check if refinement prompt is provided (for making specific changes while preserving the rest)
         if (refinementPrompt && refinementPrompt.trim().length > 0) {
@@ -591,13 +593,13 @@ serve(async (req) => {
           console.log("\n[5/6] Building comprehensive prompt with architectural preservation...");
           
           // 🚨 STEP 5A: Build architectural preservation prompt (MUST BE FIRST!)
-          const preservationPrompt = buildArchitecturalPreservationPrompt(room);
+          preservationPrompt = buildArchitecturalPreservationPrompt(room);
           console.log(`✓ Architectural preservation prompt: ${preservationPrompt.length} characters`);
           console.log(`  Doors to preserve: ${room.room_analysis?.door_count || 0}`);
           console.log(`  Windows to preserve: ${room.room_analysis?.window_count || 0}`);
           
           // 🎨 STEP 5B: Build style and design prompt
-          const stylePrompt = buildComprehensivePrompt({
+          stylePrompt = buildComprehensivePrompt({
             roomType: room.room_type,
             selectedStyle: room.selected_style,
             smartDefaultData,
@@ -676,10 +678,10 @@ serve(async (req) => {
             latency: result.latency,
             promptLength: comprehensivePrompt.length,
             preservationData: {
-              expectedDoors: room.doors || 0,
-              expectedWindows: room.windows || 0,
-              doorPositions: room.door_positions || [],
-              windowPositions: room.window_positions || [],
+              expectedDoors: room.room_analysis?.door_count || 0,
+              expectedWindows: room.room_analysis?.window_count || 0,
+              doorPositions: room.room_analysis?.door_positions || [],
+              windowPositions: room.room_analysis?.window_positions || [],
               preservationPromptLength: preservationPrompt?.length || 0,
             },
             dataUsed: {

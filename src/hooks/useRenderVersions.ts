@@ -38,10 +38,14 @@ export function useRenderVersions(roomId: string) {
     },
   });
 
-  // Mutation: Approve version
+  // Mutation: Approve version (uses current user from auth)
   const approveVersionMutation = useMutation({
-    mutationFn: (versionId: string) =>
-      versionControlService.approveVersion(versionId),
+    mutationFn: async (versionId: string) => {
+      // Get current user for approval
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data: { user } } = await supabase.auth.getUser();
+      return versionControlService.approveVersion(versionId, user?.id || '');
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['render-versions', roomId] });
       toast.success('Version approved');
@@ -64,55 +68,16 @@ export function useRenderVersions(roomId: string) {
     },
   });
 
-  // Mutation: Revert to version
-  const revertToVersionMutation = useMutation({
-    mutationFn: (versionId: string) =>
-      versionControlService.revertToVersion(versionId),
+  // Mutation: Update version (notes/tags/rating)
+  const updateVersionMutation = useMutation({
+    mutationFn: ({ versionId, updates }: { versionId: string; updates: Partial<{ notes: string; tags: string[]; user_rating: number }> }) =>
+      versionControlService.updateVersion(versionId, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['render-versions', roomId] });
-      toast.success('Reverted to previous version');
+      toast.success('Version updated');
     },
     onError: (error: Error) => {
-      toast.error(`Failed to revert: ${error.message}`);
-    },
-  });
-
-  // Mutation: Update notes
-  const updateNotesMutation = useMutation({
-    mutationFn: ({ versionId, notes }: { versionId: string; notes: string }) =>
-      versionControlService.updateNotes(versionId, notes),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['render-versions', roomId] });
-      toast.success('Notes updated');
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to update notes: ${error.message}`);
-    },
-  });
-
-  // Mutation: Add tags
-  const addTagsMutation = useMutation({
-    mutationFn: ({ versionId, tags }: { versionId: string; tags: string[] }) =>
-      versionControlService.addTags(versionId, tags),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['render-versions', roomId] });
-      toast.success('Tags added');
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to add tags: ${error.message}`);
-    },
-  });
-
-  // Mutation: Rate version
-  const rateVersionMutation = useMutation({
-    mutationFn: ({ versionId, rating }: { versionId: string; rating: number }) =>
-      versionControlService.rateVersion(versionId, rating),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['render-versions', roomId] });
-      toast.success('Rating submitted');
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to rate version: ${error.message}`);
+      toast.error(`Failed to update version: ${error.message}`);
     },
   });
 
@@ -149,10 +114,7 @@ export function useRenderVersions(roomId: string) {
     createVersion: createVersionMutation.mutate,
     approveVersion: approveVersionMutation.mutate,
     markAsFinal: markAsFinalMutation.mutate,
-    revertToVersion: revertToVersionMutation.mutate,
-    updateNotes: updateNotesMutation.mutate,
-    addTags: addTagsMutation.mutate,
-    rateVersion: rateVersionMutation.mutate,
+    updateVersion: updateVersionMutation.mutate,
     deleteVersion: deleteVersionMutation.mutate,
     refetch,
 
@@ -160,8 +122,7 @@ export function useRenderVersions(roomId: string) {
     isCreating: createVersionMutation.isPending,
     isApproving: approveVersionMutation.isPending,
     isMarking: markAsFinalMutation.isPending,
-    isReverting: revertToVersionMutation.isPending,
-    isUpdating: updateNotesMutation.isPending,
+    isUpdating: updateVersionMutation.isPending,
     isDeleting: deleteVersionMutation.isPending,
   };
 }
@@ -180,15 +141,15 @@ export function useVersionComparison(version1Id?: string, version2Id?: string) {
   });
 }
 
-// Hook for version history
-export function useVersionHistory(versionId?: string) {
+// Hook for getting a single version by ID
+export function useVersionById(versionId?: string) {
   return useQuery({
-    queryKey: ['version-history', versionId],
+    queryKey: ['render-version', versionId],
     queryFn: () => {
       if (!versionId) {
         throw new Error('Version ID is required');
       }
-      return versionControlService.getVersionHistory(versionId);
+      return versionControlService.getVersionById(versionId);
     },
     enabled: !!versionId,
   });

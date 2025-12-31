@@ -7,9 +7,6 @@
  * - Budget optimization alternatives
  * - Trend analysis insights
  * - Similar projects gallery
- * 
- * Size Target: 18-22 KB | ~650-750 lines
- * Features: 5 tabs, multiple sections, real-time updates
  */
 
 import React, { useState } from 'react';
@@ -21,7 +18,6 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   useRecommendations, 
   useSimilarProjects, 
@@ -30,7 +26,7 @@ import {
   type RoomContext 
 } from '@/hooks/useRecommendations';
 import { StyleRecommendationCard } from './StyleRecommendationCard';
-import { FurniturePlacementViewer } from './FurniturePlacementViewer';
+import type { Json } from '@/integrations/supabase/types';
 
 // =====================================================
 // COMPONENT PROPS
@@ -42,6 +38,23 @@ interface SmartRecommendationsProps {
   onStyleSelected?: (styleName: string) => void;
   onFurnitureAccepted?: (placements: any[]) => void;
   onBudgetAlternativeAccepted?: (alternative: any) => void;
+}
+
+// Helper to safely parse similar_room_preview JSON
+interface SimilarRoomPreview {
+  room_id?: string;
+  room_name?: string;
+  project_name?: string;
+  final_image_url?: string;
+  style?: string;
+  budget?: number;
+}
+
+function parseSimilarRoomPreview(preview: Json | null): SimilarRoomPreview {
+  if (!preview || typeof preview !== 'object' || Array.isArray(preview)) {
+    return {};
+  }
+  return preview as unknown as SimilarRoomPreview;
 }
 
 // =====================================================
@@ -89,7 +102,6 @@ export function SmartRecommendations({
     similarProjects,
     hasSimilarProjects,
     isLoading: isLoadingSimilar,
-    refreshSimilar,
   } = useSimilarProjects(roomId, 6);
 
   const {
@@ -112,29 +124,15 @@ export function SmartRecommendations({
   // ===================================================
   
   const handleGenerateStyles = () => {
-    generateStyles.mutate(roomContext);
+    generateStyles.mutate();
   };
 
   const handleGenerateFurniture = () => {
-    generateFurniture.mutate(roomContext);
+    generateFurniture.mutate();
   };
 
   const handleGenerateBudgetAlternatives = async () => {
-    // Fetch actual budget items from the room
-    let budgetItems: any[] = [];
-    try {
-      const { data: items } = await import('@/integrations/supabase/client').then(m => 
-        m.supabase.from('budget_items').select('*').eq('room_id', roomId)
-      );
-      budgetItems = items || [];
-    } catch (error) {
-      console.error('Failed to fetch budget items:', error);
-    }
-    
-    generateBudgetAlternatives.mutate({
-      context: roomContext,
-      items: budgetItems,
-    });
+    generateBudgetAlternatives.mutate();
   };
 
   const handleStyleSelect = (styleName: string) => {
@@ -166,10 +164,6 @@ export function SmartRecommendations({
     if (onBudgetAlternativeAccepted) {
       onBudgetAlternativeAccepted(alternative);
     }
-  };
-
-  const handleRefreshSimilar = () => {
-    refreshSimilar.mutate(roomId);
   };
 
   // ===================================================
@@ -462,54 +456,16 @@ export function SmartRecommendations({
                     <CardTitle className="text-base">Furniture Items</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ScrollArea className="h-[400px]">
-                      <div className="space-y-4">
-                        {latestFurnitureRec?.furniture_suggestions?.map((item, index) => (
-                          <div key={index} className="border rounded-lg p-4 space-y-2">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <h4 className="font-semibold">{item.item_name}</h4>
-                                <p className="text-sm text-muted-foreground">{item.category}</p>
-                              </div>
-                              <Badge
-                                variant={
-                                  item.priority === 'essential'
-                                    ? 'default'
-                                    : item.priority === 'recommended'
-                                    ? 'secondary'
-                                    : 'outline'
-                                }
-                              >
-                                {item.priority}
-                              </Badge>
-                            </div>
-                            <Separator />
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">Position:</span>
-                                <span className="ml-2">
-                                  {Math.round(item.placement.x)}%, {Math.round(item.placement.y)}%
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Cost:</span>
-                                <span className="ml-2">₹{item.estimated_cost.toLocaleString()}</span>
-                              </div>
-                            </div>
-                            <p className="text-xs text-muted-foreground">{item.rationale}</p>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="w-full"
-                              onClick={() => handleAcceptPlacement(item.item_name)}
-                              disabled={acceptedPlacements.includes(item.item_name)}
-                            >
-                              {acceptedPlacements.includes(item.item_name) ? '✓ Accepted' : 'Accept Item'}
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
+                    <div className="space-y-2">
+                      {latestFurnitureRec?.furniture_suggestions?.map((item: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                          <span className="text-sm">{item.name || item.type}</span>
+                          <Badge variant="outline">{item.position || 'Suggested'}</Badge>
+                        </div>
+                      )) || (
+                        <p className="text-sm text-muted-foreground">No furniture items available</p>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </>
@@ -523,9 +479,10 @@ export function SmartRecommendations({
             {!hasBudgetRecommendations ? (
               <Alert>
                 <DollarSign className="h-4 w-4" />
-                <AlertTitle>Find Budget Alternatives</AlertTitle>
+                <AlertTitle>Generate Budget Alternatives</AlertTitle>
                 <AlertDescription>
-                  Discover cost-effective alternatives that maintain quality while reducing expenses.
+                  AI will analyze your budget items and suggest cost-saving alternatives
+                  without compromising on quality.
                 </AlertDescription>
                 <Button
                   className="mt-4"
@@ -535,7 +492,7 @@ export function SmartRecommendations({
                   {generateBudgetAlternatives.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Finding Alternatives...
+                      Analyzing...
                     </>
                   ) : (
                     <>
@@ -547,80 +504,94 @@ export function SmartRecommendations({
               </Alert>
             ) : (
               <>
-                {/* Savings Summary */}
-                <Card className="bg-green-50 dark:bg-green-900/20">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Budget Alternatives</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Potential savings: {formattedSavings}
+                    </p>
+                  </div>
+                </div>
+
+                <Card>
                   <CardContent className="pt-6">
-                    <div className="text-center space-y-2">
-                      <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-                        {formattedSavings}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Total Potential Savings ({savings?.savings_percentage.toFixed(1)}%)
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {savings?.alternatives_count} alternatives found
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Budget Alternatives List */}
-                <div className="space-y-4">
-                  {latestBudgetRec?.budget_alternatives?.map((alt, index) => (
-                    <Card key={index}>
-                      <CardContent className="pt-6">
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            {/* Original */}
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium text-muted-foreground">Original</p>
-                              <h4 className="font-semibold">{alt.original_item}</h4>
-                              <p className="text-lg font-bold">
-                                ₹{alt.original_cost.toLocaleString()}
-                              </p>
-                            </div>
-
-                            {/* Alternative */}
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium text-muted-foreground">Alternative</p>
-                              <h4 className="font-semibold">{alt.alternative_item}</h4>
-                              <p className="text-lg font-bold text-green-600">
-                                ₹{alt.alternative_cost.toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
-
-                          <Separator />
-
+                    <div className="space-y-4">
+                      {latestBudgetRec?.budget_alternatives?.map((alt: any, index: number) => (
+                        <div key={index} className="p-4 border rounded-lg space-y-2">
                           <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium">Savings</p>
-                              <p className="text-lg font-bold text-green-600">
-                                ₹{alt.cost_saving.toLocaleString()} ({alt.savings_percentage}%)
-                              </p>
-                            </div>
-                            <Badge
-                              variant={
-                                alt.quality_impact === 'minimal'
-                                  ? 'default'
-                                  : alt.quality_impact === 'moderate'
-                                  ? 'secondary'
-                                  : 'destructive'
-                              }
-                            >
-                              {alt.quality_impact} quality impact
+                            <span className="font-medium">{alt.item_name || alt.original_item}</span>
+                            <Badge variant="secondary">
+                              Save ₹{(alt.savings || 0).toLocaleString()}
                             </Badge>
                           </div>
-
-                          <p className="text-sm text-muted-foreground">{alt.recommendation}</p>
-
-                          <Button
-                            className="w-full"
+                          <p className="text-sm text-muted-foreground">{alt.alternative || alt.suggestion}</p>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
                             onClick={() => handleAcceptBudgetAlternative(alt)}
                           >
                             Accept Alternative
                           </Button>
                         </div>
+                      )) || (
+                        <p className="text-sm text-muted-foreground">No alternatives available</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+
+          {/* ============================================= */}
+          {/* TAB 4: TRENDS */}
+          {/* ============================================= */}
+          <TabsContent value="trends" className="space-y-4">
+            {isLoadingTrends ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : !hasTrendData ? (
+              <Alert>
+                <TrendingUp className="h-4 w-4" />
+                <AlertTitle>No Trend Data Available</AlertTitle>
+                <AlertDescription>
+                  Trend data for your city and room type is not available yet.
+                  Check back later as we gather more data.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <h3 className="text-lg font-semibold">Design Trends</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Popular styles in {roomContext.location.city} for {roomContext.room_type}
+                  </p>
+                </div>
+
+                {topTrendingStyle && (
+                  <Card className="bg-primary/5 border-primary/20">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-3">
+                        <TrendingUp className="h-8 w-8 text-primary" />
+                        <div>
+                          <p className="font-semibold">{topTrendingStyle}</p>
+                          <p className="text-sm text-muted-foreground">Top trending style this month</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {globalTrends.map((trend: any, index: number) => (
+                    <Card key={index}>
+                      <CardContent className="pt-4">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{trend.style || trend.name}</span>
+                          <Badge variant="outline">{trend.popularity || trend.score}%</Badge>
+                        </div>
+                        <Progress value={trend.popularity || trend.score} className="h-2 mt-2" />
                       </CardContent>
                     </Card>
                   ))}
@@ -630,134 +601,16 @@ export function SmartRecommendations({
           </TabsContent>
 
           {/* ============================================= */}
-          {/* TAB 4: TREND ANALYSIS */}
-          {/* ============================================= */}
-          <TabsContent value="trends" className="space-y-4">
-            {isLoadingTrends ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <>
-                {/* City Trends */}
-                {hasTrendData && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <TrendingUp className="h-5 w-5" />
-                        Popular in {roomContext.location.city}
-                      </CardTitle>
-                      <CardDescription>
-                        Based on {trendData?.sample_size || 0} recent projects
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {trendData?.popular_styles.map((style, index) => (
-                          <div key={index} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium">{style.style_name}</span>
-                              <div className="flex items-center gap-2">
-                                <Badge variant={style.trend === 'rising' ? 'default' : 'secondary'}>
-                                  {style.trend === 'rising' ? '↑' : style.trend === 'declining' ? '↓' : '→'} {style.trend}
-                                </Badge>
-                                <span className="text-sm font-semibold">
-                                  {style.adoption_rate.toFixed(1)}%
-                                </span>
-                              </div>
-                            </div>
-                            <Progress value={style.adoption_rate} className="h-2" />
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Seasonal Trends */}
-                {trendData?.seasonal_trends && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Seasonal Recommendations</CardTitle>
-                      <CardDescription>
-                        Trending for {trendData.seasonal_trends.current_season}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div>
-                          <p className="text-sm font-medium mb-2">Recommended Colors</p>
-                          <div className="flex flex-wrap gap-2">
-                            {trendData.seasonal_trends.recommended_colors.map((color, index) => (
-                              <Badge key={index} variant="outline">
-                                {color}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium mb-2">Recommended Materials</p>
-                          <div className="flex flex-wrap gap-2">
-                            {trendData.seasonal_trends.recommended_materials.map((material, index) => (
-                              <Badge key={index} variant="secondary">
-                                {material}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Global Trends */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Top Trending Styles Globally</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {globalTrends.slice(0, 5).map((trend, index) => (
-                        <div key={index} className="flex items-center justify-between">
-                          <span className="font-medium">{trend.style}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">
-                              {trend.cities.length} cities
-                            </span>
-                            <Badge>{trend.trend_score}</Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </TabsContent>
-
-          {/* ============================================= */}
           {/* TAB 5: SIMILAR PROJECTS */}
           {/* ============================================= */}
           <TabsContent value="similar" className="space-y-4">
             <div className="flex items-center justify-between">
-              <div>
+              <div className="space-y-1">
                 <h3 className="text-lg font-semibold">Similar Projects</h3>
                 <p className="text-sm text-muted-foreground">
-                  Completed projects similar to yours
+                  Projects with similar room characteristics
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefreshSimilar}
-                disabled={refreshSimilar.isPending}
-              >
-                {refreshSimilar.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-              </Button>
             </div>
 
             {isLoadingSimilar ? (
@@ -775,41 +628,44 @@ export function SmartRecommendations({
               </Alert>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {similarProjects.map((project) => (
-                  <Card key={project.room_id} className="overflow-hidden">
-                    <div className="aspect-video relative bg-muted">
-                      {project.final_image_url ? (
-                        <img
-                          src={project.final_image_url}
-                          alt={project.room_name}
-                          className="object-cover w-full h-full"
-                        />
-                      ) : (
-                        <div className="flex items-center justify-center h-full">
-                          <Images className="h-12 w-12 text-muted-foreground" />
+                {similarProjects.map((project) => {
+                  const preview = parseSimilarRoomPreview(project.similar_room_preview);
+                  return (
+                    <Card key={project.id} className="overflow-hidden">
+                      <div className="aspect-video relative bg-muted">
+                        {preview.final_image_url ? (
+                          <img
+                            src={preview.final_image_url}
+                            alt={preview.room_name || 'Similar room'}
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-full">
+                            <Images className="h-12 w-12 text-muted-foreground" />
+                          </div>
+                        )}
+                        <Badge className="absolute top-2 right-2">
+                          {Math.round(project.similarity_score * 100)}% match
+                        </Badge>
+                      </div>
+                      <CardContent className="pt-4 space-y-2">
+                        <h4 className="font-semibold">{preview.room_name || 'Room'}</h4>
+                        <p className="text-sm text-muted-foreground">{preview.project_name || 'Project'}</p>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">{preview.style || 'Style'}</span>
+                          <span className="font-medium">₹{(preview.budget || 0).toLocaleString()}</span>
                         </div>
-                      )}
-                      <Badge className="absolute top-2 right-2">
-                        {project.similarity_score}% match
-                      </Badge>
-                    </div>
-                    <CardContent className="pt-4 space-y-2">
-                      <h4 className="font-semibold">{project.room_name}</h4>
-                      <p className="text-sm text-muted-foreground">{project.project_name}</p>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{project.style}</span>
-                        <span className="font-medium">₹{project.budget.toLocaleString()}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {project.matching_factors.map((factor, index) => (
-                          <Badge key={index} variant="outline" className="text-xs">
-                            {factor.replace('_', ' ')}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                        <div className="flex flex-wrap gap-1">
+                          {project.matching_factors?.map((factor, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {factor.replace('_', ' ')}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
