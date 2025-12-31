@@ -23,8 +23,7 @@ export function QualityMetricsCard() {
       value={`${Math.round(avgScore)}%`}
       subtitle={`${passed}/${total} passed (85%+ threshold)`}
       icon={Star}
-      iconColor="text-yellow-500"
-      iconBgColor="bg-yellow-500/10"
+      gradient="green"
       badge={total > 0 ? getBadge() : undefined}
       isLoading={isLoading}
     />

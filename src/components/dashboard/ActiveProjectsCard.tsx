@@ -11,8 +11,7 @@ export function ActiveProjectsCard() {
       title="Active Projects"
       value={activeCount ?? 0}
       icon={FolderOpen}
-      iconColor="text-primary"
-      iconBgColor="bg-primary/10"
+      gradient="blue"
       isLoading={isLoading}
     />
   );

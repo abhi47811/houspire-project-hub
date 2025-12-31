@@ -106,9 +106,9 @@ export function EnhancedProjectCard({
       : 100);
 
   return (
-    <Card className="card-interactive overflow-hidden border-border group animate-fade-in">
+    <Card className="card-premium shine-effect group cursor-pointer overflow-hidden border-border animate-fade-in">
       {/* Header with gradient and thumbnails */}
-      <div className="relative h-36 bg-gradient-to-br from-primary/20 via-primary/10 to-accent/5">
+      <div className="relative h-40 bg-gradient-to-br from-primary/20 via-mocha/15 to-primary/5">
         {/* Thumbnails or placeholder */}
         {thumbnailUrls.length > 0 ? (
           <div className="absolute inset-0 flex">
@@ -127,12 +127,14 @@ export function EnhancedProjectCard({
                 <img 
                   src={url} 
                   alt={`Room ${idx + 1}`}
-                  className="absolute inset-0 w-full h-full object-cover opacity-80"
+                  className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-110 transition-transform duration-700"
                 />
               </div>
             ))}
+            {/* Gradient overlay on hover */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             {project.rooms_data.length > 3 && (
-              <div className="absolute bottom-2 right-2 bg-background/90 text-foreground px-2 py-0.5 rounded text-xs font-medium flex items-center gap-1">
+              <div className="absolute bottom-2 right-2 badge-premium bg-white/90 text-gray-900 px-2 py-0.5 rounded text-xs font-medium flex items-center gap-1">
                 <ImageIcon className="h-3 w-3" />
                 +{project.rooms_data.length - 3}
               </div>
@@ -140,7 +142,7 @@ export function EnhancedProjectCard({
           </div>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Home className="h-12 w-12 text-primary/30" />
+            <Home className="h-12 w-12 text-primary/30 group-hover:scale-110 transition-transform duration-300" />
           </div>
         )}
 

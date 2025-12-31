@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { PremiumSkeleton } from '@/components/ui/premium';
 import { cn } from '@/lib/utils';
 import { LucideIcon, TrendingUp, TrendingDown } from 'lucide-react';
 
@@ -11,6 +11,7 @@ interface MetricCardProps {
   icon: LucideIcon;
   iconColor?: string;
   iconBgColor?: string;
+  gradient?: string;
   trend?: {
     value: number;
     isPositive: boolean;
@@ -25,10 +26,18 @@ interface MetricCardProps {
 }
 
 const badgeVariants = {
-  success: 'bg-success/10 text-success',
-  warning: 'bg-warning/10 text-warning',
-  danger: 'bg-destructive/10 text-destructive',
-  info: 'bg-primary/10 text-primary',
+  success: 'badge-premium bg-green-100 text-green-700',
+  warning: 'badge-premium bg-yellow-100 text-yellow-700',
+  danger: 'badge-premium bg-red-100 text-red-700',
+  info: 'badge-premium bg-blue-100 text-blue-700',
+};
+
+const gradientVariants = {
+  blue: 'from-blue-500 to-cyan-500',
+  purple: 'from-purple-500 to-pink-500',
+  orange: 'from-orange-500 to-red-500',
+  green: 'from-green-500 to-emerald-500',
+  primary: 'from-primary to-primary/60',
 };
 
 export function MetricCard({
@@ -38,6 +47,7 @@ export function MetricCard({
   icon: Icon,
   iconColor = 'text-primary',
   iconBgColor,
+  gradient = 'primary',
   trend,
   badge,
   isLoading,
@@ -48,49 +58,63 @@ export function MetricCard({
     return <MetricCardSkeleton />;
   }
 
-  const delayClass = animationDelay > 0 ? `delay-${animationDelay}` : '';
+  const gradientClass = gradientVariants[gradient as keyof typeof gradientVariants] || gradientVariants.primary;
 
   return (
-    <Card 
+    <div
       className={cn(
-        'opacity-0 animate-fade-in-up card-interactive',
-        delayClass,
+        'group relative overflow-hidden rounded-2xl',
+        'bg-white hover:shadow-premium-2xl',
+        'border border-gray-200/50',
+        'hover:scale-[1.03] hover:-translate-y-2',
+        'transition-all duration-500 cursor-pointer',
+        'opacity-0 animate-fade-in-up',
         className
       )}
       style={{ animationDelay: `${animationDelay}ms` }}
     >
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-sm font-medium text-muted-foreground tracking-wide">
-          {title}
-        </CardTitle>
-        <div 
-          className={cn(
-            'rounded-xl p-2.5 transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg',
-            'bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5'
-          )}
-        >
-          <Icon className={cn('h-5 w-5 transition-colors', iconColor)} />
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="flex items-baseline justify-between gap-2">
-          <div className="metric-number text-foreground">{value}</div>
+      {/* Gradient background */}
+      <div className={cn(
+        'absolute inset-0 bg-gradient-to-br opacity-5',
+        'group-hover:opacity-10 transition-opacity duration-500',
+        gradientClass
+      )} />
+      
+      <div className="p-6 relative z-10">
+        <div className="flex items-start justify-between mb-4">
+          <div className={cn(
+            'p-3 rounded-xl bg-gradient-to-br',
+            'group-hover:scale-110 transition-transform duration-300',
+            'shadow-premium-sm',
+            gradientClass
+          )}>
+            <Icon className="w-6 h-6 text-white" />
+          </div>
+          
           {badge && (
             <span className={cn(
-              'rounded-full px-2.5 py-1 text-xs font-semibold',
               badgeVariants[badge.variant]
             )}>
               {badge.text}
             </span>
           )}
         </div>
+        
+        <div>
+          <p className="text-sm text-gray-600 mb-1">{title}</p>
+          <p className="text-3xl font-bold text-gray-900 group-hover:scale-105 transition-transform duration-300">
+            {value}
+          </p>
+        </div>
+
         {subtitle && (
-          <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
+          <p className="mt-2 text-sm text-gray-500">{subtitle}</p>
         )}
+        
         {trend && (
           <div className={cn(
             'mt-3 flex items-center gap-1.5 text-sm font-medium',
-            trend.isPositive ? 'text-success' : 'text-destructive'
+            trend.isPositive ? 'text-green-600' : 'text-red-600'
           )}>
             {trend.isPositive ? (
               <TrendingUp className="h-4 w-4" />
@@ -100,22 +124,25 @@ export function MetricCard({
             <span>{Math.abs(trend.value)}% from last month</span>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+      
+      {/* Shine effect */}
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000" />
+    </div>
   );
 }
 
 export function MetricCardSkeleton() {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-10 w-10 rounded-xl" />
-      </CardHeader>
-      <CardContent className="pt-0">
-        <Skeleton className="h-9 w-20" />
-        <Skeleton className="mt-3 h-4 w-36" />
-      </CardContent>
-    </Card>
+    <div className="rounded-2xl bg-white border border-gray-200/50 p-6 space-y-4">
+      <div className="flex items-start justify-between">
+        <PremiumSkeleton variant="circular" className="h-12 w-12" />
+        <PremiumSkeleton variant="text" className="h-6 w-16" />
+      </div>
+      <div className="space-y-2">
+        <PremiumSkeleton variant="text" className="h-4 w-24" />
+        <PremiumSkeleton variant="text" className="h-8 w-20" />
+      </div>
+    </div>
   );
 }

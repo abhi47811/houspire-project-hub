@@ -32,8 +32,7 @@ export function CostTrackingCard() {
       value={formatCurrency(todaysCost)}
       subtitle={`This month: ${formatCurrency(monthsCost)} • Avg/project: ${formatCurrency(avgCost)}`}
       icon={IndianRupee}
-      iconColor="text-success"
-      iconBgColor="bg-success/10"
+      gradient="orange"
       badge={getBadge()}
       isLoading={isLoading}
     />

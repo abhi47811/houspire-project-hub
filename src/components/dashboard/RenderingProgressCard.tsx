@@ -12,8 +12,7 @@ export function RenderingProgressCard() {
       value={renderingCount ?? 0}
       subtitle="Phase 5 - Generation"
       icon={Clock}
-      iconColor="text-warning"
-      iconBgColor="bg-warning/10"
+      gradient="purple"
       isLoading={isLoading}
     />
   );

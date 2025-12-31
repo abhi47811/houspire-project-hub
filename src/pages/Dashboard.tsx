@@ -19,16 +19,20 @@ export default function Dashboard() {
   return (
     <div className="dashboard-container animate-fade-in">
       <div className="space-y-8">
-        {/* Welcome Section */}
-        <div className="animate-fade-in-up">
-          <h1 className="text-3xl font-bold text-gradient tracking-tight">
+        {/* Welcome Section with Premium Styling */}
+        <div className="animate-fade-in-up relative">
+          <h1 className="text-4xl font-bold text-gradient-primary tracking-tight">
             Welcome back, {userName}!
           </h1>
-          <p className="text-muted-foreground mt-1 text-base">
+          <p className="text-gray-600 mt-2 text-lg">
             {profile?.role === 'admin' 
               ? "Here's an overview of all projects and team activity."
               : "Here's what's happening with your projects today."}
           </p>
+          
+          {/* Decorative elements */}
+          <div className="absolute -top-4 -left-4 w-24 h-24 bg-primary/10 rounded-full blur-3xl animate-float" />
+          <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-mocha/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }} />
         </div>
 
         {/* Role-based Dashboard */}
