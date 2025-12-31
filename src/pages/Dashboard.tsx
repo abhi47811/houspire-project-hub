@@ -48,7 +48,7 @@ export default function Dashboard() {
       
       {/* Floating Action Button */}
       <FloatingActionButton
-        icon={<Plus className="w-6 h-6" />}
+        icon={Plus}
         label="New Project"
         onClick={() => navigate('/projects')}
       />

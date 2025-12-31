@@ -100,7 +100,6 @@ async function callVisionAI<T>(
       method: 'POST',
       statusCode: response.status,
       responseTime: Date.now() - startTime,
-      errorDetails: data,
     });
 
     throw error;

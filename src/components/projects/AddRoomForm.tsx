@@ -85,12 +85,12 @@ export function AddRoomForm({ projectId, nextRoomNumber, onSuccess }: AddRoomFor
       const roomLabel = roomTypes.find(rt => rt.value === values.room_type)?.label || values.room_type;
       const finalRoomName = values.room_name?.trim() || `${roomLabel} ${nextRoomNumber}`;
 
-      // Insert the new room
-      const { error: roomError } = await supabase.from('rooms').insert({
+      // Insert the new room - use a single object, not array
+      const { error: roomError } = await supabase.from('rooms').insert([{
         project_id: projectId,
         room_number: nextRoomNumber,
         room_name: finalRoomName,
-        room_type: values.room_type,
+        room_type: values.room_type as any,
         length_feet: values.length_feet || null,
         width_feet: values.width_feet || null,
         height_feet: values.height_feet || null,
@@ -100,7 +100,7 @@ export function AddRoomForm({ projectId, nextRoomNumber, onSuccess }: AddRoomFor
         phase_3_completed: false,
         phase_4_completed: false,
         phase_5_completed: false,
-      });
+      }]);
 
       if (roomError) throw roomError;
 

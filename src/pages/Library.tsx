@@ -28,7 +28,7 @@ export function LibraryPage() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Houspire Library"
-        subtitle="Explore and manage design references, trends, and inspirations"
+        description="Explore and manage design references, trends, and inspirations"
         icon={Library}
       />
 

@@ -577,16 +577,8 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     }
   }, [room.generation_path, room.custom_prompt, room.selected_style]);
   
-  // Initialize preservation status from room data
-  useEffect(() => {
-    if (room.doors !== undefined || room.windows !== undefined) {
-      setPreservationStatus({
-        expectedDoors: room.doors || 0,
-        expectedWindows: room.windows || 0,
-        validationStatus: 'pending' // Will be updated after render generation
-      });
-    }
-  }, [room.doors, room.windows]);
+  // Preservation status is now populated from room_analysis or architectural_preservation tables
+  // via the preservationStatus state, not from room.doors/windows columns
 
   const qualityMetrics: QualityMetric[] = [
     { name: 'Architectural Preservation', score: 100, critical: true },
@@ -603,20 +595,20 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   // Real-time validation items based on preservation status
   const validationItems: ValidationItem[] = [];
   
-  // Add preservation validations if we have data
-  if (room.doors > 0 || preservationStatus?.expectedDoors) {
+  // Add preservation validations if we have data from preservationStatus
+  if (preservationStatus?.expectedDoors && preservationStatus.expectedDoors > 0) {
     validationItems.push({
       id: 'doors',
-      label: `Doors preserved (${room.doors || preservationStatus?.expectedDoors || 0} expected)`,
+      label: `Doors preserved (${preservationStatus.expectedDoors} expected)`,
       passed: preservationStatus?.validationStatus === 'passed' || preservationStatus?.validationStatus === 'pending',
       critical: true
     });
   }
   
-  if (room.windows > 0 || preservationStatus?.expectedWindows) {
+  if (preservationStatus?.expectedWindows && preservationStatus.expectedWindows > 0) {
     validationItems.push({
       id: 'windows',
-      label: `Windows preserved (${room.windows || preservationStatus?.expectedWindows || 0} expected)`,
+      label: `Windows preserved (${preservationStatus.expectedWindows} expected)`,
       passed: preservationStatus?.validationStatus === 'passed' || preservationStatus?.validationStatus === 'pending',
       critical: true
     });
@@ -1107,7 +1099,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       )}
 
       {/* Architectural Preservation Info Card */}
-      {(room.doors > 0 || room.windows > 0 || preservationStatus) && (
+      {preservationStatus && (preservationStatus.expectedDoors > 0 || preservationStatus.expectedWindows > 0) && (
         <Card className="border-orange-200 bg-orange-50/50">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
@@ -1128,13 +1120,13 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
                   <div className="p-3 rounded-lg bg-white/60 border border-orange-200">
                     <div className="text-xs font-medium text-orange-700 mb-1">Doors to Preserve</div>
                     <div className="text-2xl font-bold text-orange-900">
-                      {preservationStatus?.expectedDoors ?? room.doors ?? 0}
+                      {preservationStatus.expectedDoors}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-white/60 border border-orange-200">
                     <div className="text-xs font-medium text-orange-700 mb-1">Windows to Preserve</div>
                     <div className="text-2xl font-bold text-orange-900">
-                      {preservationStatus?.expectedWindows ?? room.windows ?? 0}
+                      {preservationStatus.expectedWindows}
                     </div>
                   </div>
                 </div>

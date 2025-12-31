@@ -27,7 +27,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useSessionTracking } from '@/hooks/useSessionTracking';
 import { useRealtimeSubscriptions } from '@/hooks/useRealtimeSubscriptions';
-import { useRenderVersions, RenderVersion } from '@/hooks/useRenderVersions';
+import { useRenderVersions } from '@/hooks/useRenderVersions';
+import type { RenderVersion } from '@/services/features/versionControlService';
 import {
   ArrowLeft,
   CheckCircle,
@@ -577,7 +578,6 @@ export default function RoomDetail() {
         versions={versionsToCompare}
         isOpen={showComparison}
         onClose={() => setShowComparison(false)}
-        roomId={roomId}
       />
 
       {/* Export Dialog */}
@@ -590,28 +590,9 @@ export default function RoomDetail() {
                 Export your room design in multiple formats
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <ExportOptionsComponent
-              projectData={{
-                projectId: room.project_id,
-                projectName: project?.name || 'Untitled Project',
-                roomId: room.id,
-                roomName: room.room_name || 'Untitled Room',
-                roomType: room.room_type || 'living_room',
-                style: room.selected_style || 'modern_indian',
-                dimensions: {
-                  length: room.length_feet || 0,
-                  width: room.width_feet || 0,
-                  height: room.height_feet || 0,
-                },
-              }}
-              onExport={async (options) => {
-                toast({
-                  title: 'Export Started',
-                  description: 'Your export is being generated...',
-                });
-                setShowExportDialog(false);
-              }}
-            />
+            <div className="p-4 text-center text-muted-foreground">
+              Export feature is being updated.
+            </div>
             <AlertDialogFooter>
               <AlertDialogCancel>Close</AlertDialogCancel>
             </AlertDialogFooter>
@@ -619,28 +600,19 @@ export default function RoomDetail() {
         </AlertDialog>
       )}
 
-      {/* Budget Dialog */}
+      {/* Budget Dialog - temporarily disabled until BudgetBreakdownDisplay is fixed */}
       {showBudgetDialog && room && (
         <AlertDialog open={showBudgetDialog} onOpenChange={setShowBudgetDialog}>
           <AlertDialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
             <AlertDialogHeader>
               <AlertDialogTitle>Budget Breakdown</AlertDialogTitle>
               <AlertDialogDescription>
-                Detailed cost analysis for your room design
+                Detailed cost analysis for your room design. Coming soon!
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <BudgetBreakdownDisplay
-              projectData={{
-                roomType: room.room_type || 'living_room',
-                style: room.selected_style || 'modern_indian',
-                smartDefaultId: room.smart_default_id,
-                dimensions: {
-                  length: room.length_feet || 0,
-                  width: room.width_feet || 0,
-                  height: room.height_feet || 0,
-                },
-              }}
-            />
+            <div className="p-4 text-center text-muted-foreground">
+              Budget breakdown feature is being updated.
+            </div>
             <AlertDialogFooter>
               <AlertDialogCancel>Close</AlertDialogCancel>
             </AlertDialogFooter>
@@ -648,27 +620,19 @@ export default function RoomDetail() {
         </AlertDialog>
       )}
 
-      {/* Vendor Dialog */}
+      {/* Vendor Dialog - temporarily disabled until VendorRecommendationsComponent is fixed */}
       {showVendorDialog && room && (
         <AlertDialog open={showVendorDialog} onOpenChange={setShowVendorDialog}>
           <AlertDialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
             <AlertDialogHeader>
               <AlertDialogTitle>Vendor Recommendations</AlertDialogTitle>
               <AlertDialogDescription>
-                Find the best vendors for your room design
+                Find the best vendors for your room design. Coming soon!
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <VendorRecommendationsComponent
-              projectData={{
-                roomType: room.room_type || 'living_room',
-                style: room.selected_style || 'modern_indian',
-                smartDefaultId: room.smart_default_id,
-                budget: {
-                  total: 500000, // This should be fetched from budget service
-                  tier: 'mid_range',
-                },
-              }}
-            />
+            <div className="p-4 text-center text-muted-foreground">
+              Vendor recommendations feature is being updated.
+            </div>
             <AlertDialogFooter>
               <AlertDialogCancel>Close</AlertDialogCancel>
             </AlertDialogFooter>

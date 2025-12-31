@@ -261,7 +261,7 @@ export default function ProjectDetail() {
 
   // Bulk update rooms mutation
   const bulkUpdateRooms = useMutation({
-    mutationFn: async (updates: Partial<Room>) => {
+    mutationFn: async (updates: Record<string, any>) => {
       const roomIds = Array.from(selectedRooms);
       const { error } = await supabase
         .from('rooms')

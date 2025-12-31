@@ -123,10 +123,10 @@ export function SmartRecommendations({
     // Fetch actual budget items from the room
     let budgetItems: any[] = [];
     try {
-      const { data: room } = await import('@/integrations/supabase/client').then(m => 
-        m.supabase.from('rooms').select('budget_items').eq('id', roomId).single()
+      const { data: items } = await import('@/integrations/supabase/client').then(m => 
+        m.supabase.from('budget_items').select('*').eq('room_id', roomId)
       );
-      budgetItems = room?.budget_items || [];
+      budgetItems = items || [];
     } catch (error) {
       console.error('Failed to fetch budget items:', error);
     }
@@ -448,12 +448,12 @@ export function SmartRecommendations({
                 </div>
 
                 {latestFurnitureRec?.furniture_suggestions && (
-                  <FurniturePlacementViewer
-                    roomDimensions={roomContext.dimensions}
-                    placements={latestFurnitureRec.furniture_suggestions}
-                    onPlacementAccepted={handleAcceptPlacement}
-                    onPlacementRejected={(id) => console.log('Rejected:', id)}
-                  />
+                  <div className="p-4 border rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      Furniture placement viewer requires room layout data. 
+                      {latestFurnitureRec.furniture_suggestions.length} furniture items suggested.
+                    </p>
+                  </div>
                 )}
 
                 {/* Furniture List */}

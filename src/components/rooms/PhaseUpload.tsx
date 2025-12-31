@@ -33,7 +33,7 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // AI Room Analysis Hook
-  const { analysisResult, suggestions, isAnalyzing, analyzeImage } = useRoomAnalysis(room.id);
+  const { analysisResult, isAnalyzing, analyzeImage } = useRoomAnalysis(room.id);
 
   const { data: existingImage, isLoading: isLoadingImage } = useQuery({
     queryKey: ['room-images', room.id, 1, 'original'],
@@ -257,22 +257,10 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
               </div>
             </div>
 
-            {/* AI Suggestions */}
-            {suggestions.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  Smart Suggestions:
-                </p>
-                <ul className="space-y-1">
-                  {suggestions.map((suggestion, index) => (
-                    <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
-                      <span className="text-primary mt-0.5">•</span>
-                      <span>{suggestion}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            {/* Room Analysis Complete */}
+            <div className="text-sm text-muted-foreground">
+              Room analysis complete. Proceed to the next phase.
+            </div>
             )}
 
             {/* Lighting Analysis */}
@@ -284,7 +272,7 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
                     Natural: {analysisResult.lighting.natural_light_level}
                   </Badge>
                   <Badge variant="outline">
-                    Quality: {analysisResult.lighting.overall_quality}
+                    Quality: {(analysisResult.lighting as any).overall_quality || 'N/A'}
                   </Badge>
                 </div>
               </div>

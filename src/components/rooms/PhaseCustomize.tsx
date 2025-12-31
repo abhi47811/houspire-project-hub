@@ -40,7 +40,6 @@ import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hook
 import { useProjectStyle } from '@/hooks/useProjectStyle';
 import { useApplyStyleToAllRooms } from '@/hooks/useBulkOperations';
 import { handleApiError } from '@/lib/api-error';
-import { BudgetService } from '@/services/features/budgetService';
 import { useBudget } from '@/hooks/useBudget';
 
 interface Room {
@@ -665,7 +664,7 @@ export function PhaseCustomize({ room, projectId }: PhaseCustomizeProps) {
         door_count: 1,
         ceiling_features: [],
       },
-      current_phase: room.current_phase,
+      current_phase: String(room.current_phase || 1),
       selected_style: selectedStyle || undefined,
     };
   };

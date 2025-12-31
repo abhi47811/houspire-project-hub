@@ -27,7 +27,7 @@ export default function Team() {
       {/* Header */}
       <PageHeader
         title="Team Management"
-        subtitle="Manage your team members, roles, and permissions"
+        description="Manage your team members, roles, and permissions"
         icon={Users}
       />
 

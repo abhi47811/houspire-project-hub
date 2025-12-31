@@ -403,18 +403,10 @@ export default function Projects() {
           icon={FolderOpen}
           title="No Projects Yet"
           description="Start creating your first interior design project or bulk upload multiple projects at once."
-          actions={[
-            {
-              label: "Create Project",
-              onClick: () => setIsCreateDialogOpen(true),
-              variant: "default"
-            },
-            {
-              label: "Bulk Upload",
-              onClick: () => setIsBulkUploadOpen(true),
-              variant: "outline"
-            }
-          ]}
+          action={{
+            label: "Create Project",
+            onClick: () => setIsCreateDialogOpen(true),
+          }}
         />
       )}
 
