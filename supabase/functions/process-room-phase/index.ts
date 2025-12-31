@@ -359,17 +359,50 @@ Output an improved clean, empty room.`;
   };
 }
 
-// Essential elements checklist - always added to prompts
-const ESSENTIAL_ELEMENTS = `
+// Essential elements checklist - added conditionally based on room_analysis
+function buildEssentialElements(hasWindows: boolean): string {
+  let elements = `
 
-ESSENTIAL ELEMENTS (MUST INCLUDE):
-- Window treatments (curtains, blinds, or drapes)
+ESSENTIAL ELEMENTS (MUST INCLUDE):`;
+  
+  // Only add window treatments if windows actually exist
+  if (hasWindows) {
+    elements += `
+- Window treatments (curtains, blinds, or drapes) for EXISTING windows only`;
+  }
+  
+  elements += `
 - Wall decor (artwork, mirrors, or decorative elements)
 - Plants and greenery in appropriate planters
 - Area rug with proper sizing
 - Decorative accessories and styling elements
 - Proper layered lighting (natural + artificial)
-- Rich, lived-in, luxurious feel`;
+- Rich, lived-in, luxurious feel
+
+CRITICAL: Do NOT add windows or doors. Only add treatments to windows that already exist in the image.`;
+  
+  return elements;
+}
+
+// Virtual Staging Lock Prompt - enforces photo-editing behavior
+function buildVirtualStagingLockPrompt(doorCount: number, windowCount: number): string {
+  return `
+=== VIRTUAL STAGING INSTRUCTIONS (NON-NEGOTIABLE) ===
+
+You are EDITING this existing photograph, NOT generating a new room.
+
+ABSOLUTE RULES:
+1. CAMERA: Keep the EXACT same camera position, angle, perspective, focal length, and field of view. Do NOT rotate, pan, zoom, or shift the viewpoint.
+2. ARCHITECTURE: Do NOT add, remove, or move any doors, windows, or openings. The room has exactly ${doorCount} door(s) and ${windowCount} window(s). Keep them EXACTLY as shown.
+3. WALLS: Do NOT add windows/doors/openings on walls that are visible OR not visible. Preserve all wall surfaces.
+4. GEOMETRY: Keep all wall angles, ceiling height, floor plane, and room proportions IDENTICAL.
+5. ONLY ADD: Furniture, decor, rugs, plants, lighting fixtures, and soft furnishings that fit the style. These MUST respect the existing floor/wall planes.
+
+This is VIRTUAL STAGING - take the empty room photo and add furniture/decor while preserving 100% of the architectural structure and camera viewpoint.
+
+=== END STAGING LOCK ===
+`;
+}
 
 // Build prompt details from smart default specifications
 function buildSmartDefaultPromptDetails(smartDefaultData: any): string {
@@ -581,14 +614,38 @@ async function runQualityChecks(
   return violations;
 }
 
-// Call AI for render generation
-async function generateRender(cleanedImageUrl: string, prompt: string): Promise<any> {
+// Call AI for render generation with virtual staging lock
+async function generateRender(
+  cleanedImageUrl: string, 
+  prompt: string, 
+  stagingLockPrompt: string,
+  retryContext?: string
+): Promise<any> {
   const startTime = Date.now();
   
   console.log('generateRender called with Gemini 3 Pro Image...');
   console.log('prompt length:', prompt?.length);
-  console.log('prompt preview:', prompt?.slice(0, 300));
+  console.log('stagingLockPrompt included: YES');
   console.log('cleanedImageUrl:', cleanedImageUrl?.slice(0, 100));
+  if (retryContext) {
+    console.log('RETRY CONTEXT:', retryContext);
+  }
+  
+  // Build the full generation prompt with staging lock at the TOP
+  let fullPrompt = stagingLockPrompt + '\n\n' + prompt;
+  
+  // If this is a retry, add extra enforcement
+  if (retryContext) {
+    fullPrompt = `
+CRITICAL RETRY - PREVIOUS ATTEMPT FAILED:
+${retryContext}
+
+YOU MUST FIX THIS. Do NOT change camera angle. Do NOT add/remove windows or doors.
+
+` + fullPrompt;
+  }
+  
+  console.log('Full prompt preview:', fullPrompt.slice(0, 600));
   
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -604,14 +661,11 @@ async function generateRender(cleanedImageUrl: string, prompt: string): Promise<
           content: [
             {
               type: "text",
-              text: `Transform this empty room into a photorealistic interior design render. ${prompt}. 
-              
-Requirements:
-- Magazine-quality photorealistic result
-- Preserve all architectural elements (windows, doors, walls)
-- Add furniture and decor matching the style
-- Natural lighting and shadows
-- High-end professional interior design aesthetic`
+              text: `VIRTUAL STAGING TASK: Edit this empty room photograph by adding furniture and decor. 
+
+${fullPrompt}
+
+FINAL REMINDER: This is photo editing. Keep the EXACT camera angle and all architectural elements (doors, windows, walls) unchanged. Only add furniture/decor.`
             },
             { type: "image_url", image_url: { url: cleanedImageUrl } }
           ]
@@ -646,6 +700,65 @@ Requirements:
     usage: { costUsd: 0.04 },
     latency,
   };
+}
+
+// Score a render against the cleaned reference image
+async function scoreRenderAgainstReference(
+  supabase: any,
+  renderImageUrl: string,
+  referenceImageUrl: string,
+  renderId: string
+): Promise<{ 
+  overall: number; 
+  architecturalPreservation: number; 
+  passed: boolean;
+  failureReasons: string[];
+}> {
+  try {
+    console.log('🎯 Scoring render against reference...');
+    
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/score-render`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        renderId,
+        imageUrl: renderImageUrl,
+        referenceImageUrl,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Score-render failed:', errorText);
+      return { overall: 50, architecturalPreservation: 50, passed: false, failureReasons: ['Scoring failed'] };
+    }
+    
+    const data = await response.json();
+    const score = data.score || {};
+    
+    const archScore = score.breakdown?.architectural_preservation || 50;
+    const overall = score.overall || 50;
+    const flags = score.preservation_flags || {};
+    
+    const failureReasons: string[] = [];
+    if (flags.camera_angle_match === false) failureReasons.push('Camera angle changed');
+    if (flags.openings_match === false) failureReasons.push('Window/door positions changed');
+    if (flags.extra_windows_detected === true) failureReasons.push('Extra windows added');
+    if (flags.extra_doors_detected === true) failureReasons.push('Extra doors added');
+    
+    // Pass if architectural preservation >= 70 and no critical failures
+    const passed = archScore >= 70 && failureReasons.length === 0;
+    
+    console.log(`Score result: overall=${overall}, arch=${archScore}, passed=${passed}, failures=${failureReasons.join(', ') || 'none'}`);
+    
+    return { overall, architecturalPreservation: archScore, passed, failureReasons };
+  } catch (err) {
+    console.error('Scoring error:', err);
+    return { overall: 50, architecturalPreservation: 50, passed: false, failureReasons: ['Scoring error'] };
+  }
 }
 
 // Helper to complete a job with fallback
@@ -897,6 +1010,24 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
       case "generation": {
         const basePrompt = job.payload?.prompt || "";
+        const MAX_RETRIES = 1; // Max retry attempts for failed preservation
+        
+        // Fetch room_analysis for door/window counts (critical for staging lock)
+        let doorCount = 0;
+        let windowCount = 0;
+        const { data: roomAnalysis } = await supabase
+          .from('room_analysis')
+          .select('door_count, window_count, door_positions, window_positions')
+          .eq('room_id', job.room_id)
+          .single();
+        
+        if (roomAnalysis) {
+          doorCount = roomAnalysis.door_count || 0;
+          windowCount = roomAnalysis.window_count || 0;
+          console.log(`📏 Room analysis: ${doorCount} doors, ${windowCount} windows`);
+        } else {
+          console.warn('⚠️ No room_analysis found, using defaults (0 doors, 0 windows)');
+        }
         
         // Fetch smart default data if available
         let smartDefaultData = null;
@@ -915,17 +1046,23 @@ async function processJob(supabase: any, job: any): Promise<void> {
           }
         }
 
-        // Build enriched prompt with smart default details
+        // Build enriched prompt with smart default details + conditional essential elements
         const smartDefaultDetails = buildSmartDefaultPromptDetails(smartDefaultData);
-        const finalPrompt = basePrompt + smartDefaultDetails + ESSENTIAL_ELEMENTS;
+        const essentialElements = buildEssentialElements(windowCount > 0);
+        const designPrompt = basePrompt + smartDefaultDetails + essentialElements;
+        
+        // Build virtual staging lock prompt with actual door/window counts
+        const stagingLockPrompt = buildVirtualStagingLockPrompt(doorCount, windowCount);
 
         console.log('=== GENERATION PROMPT DETAILS ===');
         console.log('Smart default used:', !!smartDefaultData);
         console.log('Style:', smartDefaultData?.style || room?.selected_style || 'none');
         console.log('Room type:', smartDefaultData?.room_type || room?.room_type);
-        console.log('Base prompt length:', basePrompt.length);
-        console.log('Final prompt length:', finalPrompt.length);
-        console.log('Prompt preview:', finalPrompt.substring(0, 500));
+        console.log('Door count from analysis:', doorCount);
+        console.log('Window count from analysis:', windowCount);
+        console.log('Window treatments included:', windowCount > 0);
+        console.log('Design prompt length:', designPrompt.length);
+        console.log('Staging lock included: YES');
         console.log('=================================');
         
         // Get cleaned image
@@ -939,56 +1076,62 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
         const cleanedUrl = await resolveRoomImageUrl(supabase, cleanedImage.storage_path);
 
-        console.log('🚀 Starting render generation:', {
+        console.log('🚀 Starting render generation with virtual staging lock:', {
           roomId: job.room_id,
           projectId: job.project_id,
           style: room?.selected_style || smartDefaultData?.style || 'none',
           roomType: room?.room_type || smartDefaultData?.room_type,
+          doorCount,
+          windowCount,
           smartDefaultUsed: !!smartDefaultData,
-          promptLength: finalPrompt.length,
           timestamp: new Date().toISOString()
         });
 
-        const genResult = await generateWithRetry(
-          () => generateRender(cleanedUrl, finalPrompt),
-          { operation: 'generateRender', roomId: job.room_id, projectId: job.project_id }
-        );
-
-        if (!genResult.result.imageUrl) {
-          throw new Error("No image generated");
-        }
-
-        // Save generated image - it's base64, need to convert
-        const renderImagePath = `${job.project_id}/${job.room_id}/render_${Date.now()}.png`;
+        // === GENERATE → SCORE → RETRY LOOP ===
+        let attemptCount = 0;
+        let finalRenderResult: any = null;
+        let retryContext: string | undefined = undefined;
         
-        // Extract base64 data and upload
-        const base64Data = genResult.result.imageUrl.split(",")[1];
-        const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-        
-        await supabase.storage
-          .from("room-images")
-          .upload(renderImagePath, binaryData, { contentType: "image/png" });
+        while (attemptCount <= MAX_RETRIES) {
+          attemptCount++;
+          console.log(`📸 Generation attempt ${attemptCount}/${MAX_RETRIES + 1}`);
+          
+          const genResult = await generateWithRetry(
+            () => generateRender(cleanedUrl, designPrompt, stagingLockPrompt, retryContext),
+            { operation: 'generateRender', roomId: job.room_id, projectId: job.project_id }
+          );
 
-        // Save to room_images
-        await supabase.from("room_images").insert({
-          room_id: job.room_id,
-          phase: 5,
-          image_type: "render",
-          file_name: `render_${Date.now()}.png`,
-          storage_path: renderImagePath,
-          resolution: "high",
-        });
+          if (!genResult.result.imageUrl) {
+            throw new Error("No image generated");
+          }
 
-        // ===== SAVE TO RENDERS TABLE (for approval workflow & version tracking) =====
-        try {
+          // Save generated image
+          const renderImagePath = `${job.project_id}/${job.room_id}/render_${Date.now()}.png`;
+          const base64Data = genResult.result.imageUrl.split(",")[1];
+          const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+          
+          await supabase.storage
+            .from("room-images")
+            .upload(renderImagePath, binaryData, { contentType: "image/png" });
+
+          // Save to room_images
+          await supabase.from("room_images").insert({
+            room_id: job.room_id,
+            phase: 5,
+            image_type: "render",
+            file_name: `render_${Date.now()}.png`,
+            storage_path: renderImagePath,
+            resolution: "high",
+          });
+
           // Get signed URL for the render
           const { data: signedUrlData } = await supabase.storage
             .from("room-images")
-            .createSignedUrl(renderImagePath, 86400 * 30); // 30 day expiry
+            .createSignedUrl(renderImagePath, 86400 * 30);
           
           const renderImageUrl = signedUrlData?.signedUrl || renderImagePath;
 
-          // Get version number and parent render for this room
+          // Get version number and parent render
           const { data: existingRenders } = await supabase
             .from("renders")
             .select("id, version_number")
@@ -999,25 +1142,28 @@ async function processJob(supabase: any, job: any): Promise<void> {
           const newVersionNumber = (existingRenders?.[0]?.version_number || 0) + 1;
           const parentRenderId = existingRenders?.[0]?.id || null;
 
-          // INSERT INTO RENDERS TABLE - Critical for approval workflow
+          // INSERT INTO RENDERS TABLE
           const { data: renderRecord, error: renderInsertError } = await supabase
             .from("renders")
             .insert({
               room_id: job.room_id,
               image_url: renderImageUrl,
               storage_path: renderImagePath,
-              prompt_used: finalPrompt,
+              prompt_used: designPrompt,
               model_used: "gemini-3-pro-image-preview",
               provider: "lovable-ai",
               generation_time_ms: genResult.latency,
               approval_status: "pending",
-              quality_score: null, // Will be updated after scoring
+              quality_score: null,
               version_number: newVersionNumber,
               parent_render_id: parentRenderId,
               quality_details: {
                 style: room?.selected_style || null,
                 room_type: room?.room_type || null,
                 smart_default_used: room?.smart_default_id !== null,
+                door_count_expected: doorCount,
+                window_count_expected: windowCount,
+                attempt_number: attemptCount,
                 phase: 5,
                 generated_at: new Date().toISOString(),
               },
@@ -1027,26 +1173,60 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
           if (renderInsertError) {
             console.error("❌ Failed to insert render record:", renderInsertError);
-            // Don't throw - room_images already has the image, approval workflow will be incomplete
           } else {
-            console.log(`✅ Render saved to renders table: id=${renderRecord?.id}, version=${newVersionNumber}, room=${job.room_id}`);
+            console.log(`✅ Render saved: id=${renderRecord?.id}, version=${newVersionNumber}, attempt=${attemptCount}`);
             
-            // Run quality checks on the prompt used
-            const violations = await runQualityChecks(
+            // === SCORE AGAINST REFERENCE ===
+            const scoreResult = await scoreRenderAgainstReference(
               supabase,
-              finalPrompt,
-              job.room_id,
-              renderRecord?.id,
-              'generation'
+              renderImageUrl,
+              cleanedUrl,
+              renderRecord.id
             );
             
-            if (violations.length > 0) {
-              console.warn(`⚠️ Quality violations detected: ${violations.map(v => v.type).join(', ')}`);
+            console.log(`🎯 Score result: arch=${scoreResult.architecturalPreservation}, passed=${scoreResult.passed}`);
+            
+            if (scoreResult.passed || attemptCount > MAX_RETRIES) {
+              // Success or out of retries - use this render
+              finalRenderResult = { renderImagePath, renderId: renderRecord.id, attemptCount };
+              
+              if (!scoreResult.passed && attemptCount > MAX_RETRIES) {
+                console.warn(`⚠️ Max retries reached. Using best available render despite ${scoreResult.failureReasons.join(', ')}`);
+              }
+              
+              // Run prompt quality checks
+              const violations = await runQualityChecks(
+                supabase,
+                designPrompt,
+                job.room_id,
+                renderRecord.id,
+                'generation'
+              );
+              
+              if (violations.length > 0) {
+                console.warn(`⚠️ Quality violations: ${violations.map(v => v.type).join(', ')}`);
+              }
+              
+              break; // Exit retry loop
+            } else {
+              // Failed validation - prepare for retry
+              console.log(`❌ Attempt ${attemptCount} failed validation. Retrying...`);
+              retryContext = `Failures: ${scoreResult.failureReasons.join(', ')}. Architectural preservation score was only ${scoreResult.architecturalPreservation}/100.`;
+              
+              // Mark this render as rejected
+              await supabase
+                .from("renders")
+                .update({ 
+                  approval_status: 'rejected',
+                  rejection_reason: `Auto-rejected: ${scoreResult.failureReasons.join(', ')}`,
+                })
+                .eq("id", renderRecord.id);
             }
           }
-        } catch (renderTableError) {
-          console.error("❌ Error saving to renders table (non-fatal):", renderTableError);
-          // Non-fatal: room_images still has the image, but approval workflow won't work for this render
+        }
+
+        if (!finalRenderResult) {
+          throw new Error("Generation failed after all retry attempts");
         }
 
         // Update room phase
@@ -1061,12 +1241,12 @@ async function processJob(supabase: any, job: any): Promise<void> {
           service: "lovable-ai",
           endpoint: "generateRender",
           model: "gemini-3-pro-image-preview",
-          costUsd: genResult.usage.costUsd,
-          latencyMs: genResult.latency,
+          costUsd: 0.04 * finalRenderResult.attemptCount, // Cost per attempt
           status: "success",
+          metadata: { attempts: finalRenderResult.attemptCount }
         });
 
-        result = { renderImagePath };
+        result = finalRenderResult;
         break;
       }
 
