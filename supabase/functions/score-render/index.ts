@@ -360,19 +360,28 @@ serve(async (req) => {
 
     console.log(`Quality score: ${qualityScore.overall}/100 (arch: ${qualityScore.breakdown.architectural_preservation})`);
 
-    // If renderId provided, update the render record
+    // If renderId provided, try to update the render record (non-fatal if fails)
     if (renderId) {
-      const { error: updateError } = await supabase
-        .from("renders")
-        .update({
-          quality_score: qualityScore.overall, // Store as 0-100
-          quality_details: qualityScore,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", renderId);
+      try {
+        const { error: updateError } = await supabase
+          .from("renders")
+          .update({
+            quality_score: qualityScore.overall, // Store as 0-100
+            quality_details: qualityScore,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", renderId);
 
-      if (updateError) throw updateError;
-      console.log("Render record updated with quality score");
+        if (updateError) {
+          console.error("Failed to update render with score (non-fatal):", updateError);
+          // Continue - don't throw. The score is still in the response.
+        } else {
+          console.log("Render record updated with quality score");
+        }
+      } catch (dbError) {
+        console.error("Database update exception (non-fatal):", dbError);
+        // Continue - don't throw. The score is still returned.
+      }
     }
 
     return new Response(JSON.stringify({ success: true, score: qualityScore }), {
