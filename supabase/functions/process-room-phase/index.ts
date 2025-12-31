@@ -79,9 +79,13 @@ async function generateWithControlNet(
     console.log(`[ControlNet] Status: ${status.status} (${elapsed/1000}s)`);
     
     if (status.status === 'succeeded') {
-      const outputUrl = status.output?.[0] || status.output;
-      if (!outputUrl) {
-        throw new Error('ControlNet succeeded but no output image');
+      // Handle both array and string output formats from Replicate
+      const outputUrl = Array.isArray(status.output) ? status.output[0] : status.output;
+      console.log(`[ControlNet] Raw output type: ${typeof status.output}, isArray: ${Array.isArray(status.output)}`);
+      console.log(`[ControlNet] Extracted URL: ${outputUrl?.substring(0, 50)}...`);
+      
+      if (!outputUrl || typeof outputUrl !== 'string' || !outputUrl.startsWith('http')) {
+        throw new Error(`ControlNet returned invalid output: ${JSON.stringify(status.output)?.substring(0, 200)}`);
       }
       
       const latency = Date.now() - startTime;
