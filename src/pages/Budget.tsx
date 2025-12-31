@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PremiumButton, PremiumCard, PremiumSkeleton } from '@/components/ui/premium';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -329,12 +330,12 @@ export default function Budget() {
 
   if (projectLoading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24" />)}
+      <div className="space-y-6 animate-fade-in">
+        <PremiumSkeleton className="h-12 w-64" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => <PremiumSkeleton key={i} className="h-32" />)}
         </div>
-        <Skeleton className="h-96" />
+        <PremiumSkeleton className="h-96" />
       </div>
     );
   }
@@ -348,43 +349,43 @@ export default function Budget() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
+    <div className="space-y-6 animate-fade-in">
+      {/* Header with Premium Styling */}
+      <div className="flex items-center justify-between glass-subtle p-6 rounded-xl">
+        <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Link to={`/projects/${projectId}`} className="hover:text-foreground flex items-center gap-1">
+            <Link to={`/projects/${projectId}`} className="hover:text-foreground flex items-center gap-1 hover-lift">
               <ArrowLeft className="h-4 w-4" />
               {project.name}
             </Link>
             <span>/</span>
-            <span>Budget</span>
+            <span className="text-foreground font-medium">Budget</span>
           </div>
-          <h1 className="text-2xl font-bold">Budget & BOQ</h1>
+          <h1 className="text-3xl font-bold text-gradient-primary">Budget & BOQ</h1>
         </div>
 
         <div className="flex items-center gap-2">
           {budgetItems.length === 0 ? (
-            <Button onClick={handleGenerateBudget} disabled={isGenerating}>
+            <PremiumButton onClick={handleGenerateBudget} disabled={isGenerating}>
               {isGenerating ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Sparkles className="mr-2 h-4 w-4" />
               )}
               Generate Budget
-            </Button>
+            </PremiumButton>
           ) : (
             <>
-              <Button variant="outline" onClick={handleGenerateBudget} disabled={isGenerating}>
+              <PremiumButton variant="outline" onClick={handleGenerateBudget} disabled={isGenerating}>
                 {isGenerating ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <RefreshCw className="mr-2 h-4 w-4" />
                 )}
                 Regenerate
-              </Button>
+              </PremiumButton>
 
-              <Button 
+              <PremiumButton 
                 variant="outline" 
                 onClick={handleOptimizeBudget} 
                 disabled={isOptimizing || isGenerating}

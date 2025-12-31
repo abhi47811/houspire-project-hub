@@ -1,10 +1,13 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
 import { RendererDashboard } from '@/components/dashboard/RendererDashboard';
-import { Loader2 } from 'lucide-react';
+import { FloatingActionButton } from '@/components/ui/premium';
+import { Loader2, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
   const { profile, user, loading } = useAuth();
+  const navigate = useNavigate();
 
   if (loading) {
     return (
@@ -42,6 +45,13 @@ export default function Dashboard() {
           <RendererDashboard />
         )}
       </div>
+      
+      {/* Floating Action Button */}
+      <FloatingActionButton
+        icon={<Plus className="w-6 h-6" />}
+        label="New Project"
+        onClick={() => navigate('/projects')}
+      />
     </div>
   );
 }

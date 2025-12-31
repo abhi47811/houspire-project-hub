@@ -1,3 +1,5 @@
+import { PageHeader } from '@/components/ui/hero';
+import { PremiumButton, PremiumEmptyState } from '@/components/ui/premium';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -250,43 +252,42 @@ export default function Projects() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gradient">Projects</h1>
-          <p className="text-muted-foreground mt-1">Manage and track your design projects</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Bulk Upload Button */}
-          <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)} className="hover-lift">
-            <Upload className="mr-2 h-4 w-4" />
-            Bulk Upload
-          </Button>
-          
-          {/* Create Project Dialog */}
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="hover-lift shadow-premium-sm hover:shadow-premium-md">
-                <Plus className="mr-2 h-4 w-4" />
-                New Project
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Create New Project</DialogTitle>
-                <DialogDescription>
-                  Fill in the details to create a new interior design project.
-                </DialogDescription>
-              </DialogHeader>
-              <CreateProjectForm 
-                onSuccess={() => {
-                  setIsCreateDialogOpen(false);
-                  refetch();
-                }} 
-              />
-            </DialogContent>
-          </Dialog>
-        </div>
+      {/* Header with Premium Styling */}
+      <PageHeader
+        title="Projects"
+        description="Manage and track your interior design projects"
+        icon={FolderOpen}
+        badge={projects && projects.length > 0 ? { text: `${projects.length} Total`, variant: 'default' } : undefined}
+        actions={
+          <div className="flex items-center gap-2">
+            <PremiumButton variant="outline" size="md" icon={Upload} onClick={() => setIsBulkUploadOpen(true)}>
+              Bulk Upload
+            </PremiumButton>
+            
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <PremiumButton variant="primary" size="md" icon={Plus}>
+                  New Project
+                </PremiumButton>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass-subtle">
+                <DialogHeader>
+                  <DialogTitle>Create New Project</DialogTitle>
+                  <DialogDescription>
+                    Fill in the details to create a new interior design project.
+                  </DialogDescription>
+                </DialogHeader>
+                <CreateProjectForm 
+                  onSuccess={() => {
+                    setIsCreateDialogOpen(false);
+                    refetch();
+                  }} 
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
+        }
+      />
       </div>
 
       {/* Search and Filters */}
@@ -397,9 +398,22 @@ export default function Projects() {
           </div>
         )
       ) : (
-        <EmptyState 
-          onCreateClick={() => setIsCreateDialogOpen(true)} 
-          onBulkUploadClick={() => setIsBulkUploadOpen(true)}
+        <PremiumEmptyState 
+          icon={FolderOpen}
+          title="No Projects Yet"
+          description="Start creating your first interior design project or bulk upload multiple projects at once."
+          actions={[
+            {
+              label: "Create Project",
+              onClick: () => setIsCreateDialogOpen(true),
+              variant: "default"
+            },
+            {
+              label: "Bulk Upload",
+              onClick: () => setIsBulkUploadOpen(true),
+              variant: "outline"
+            }
+          ]}
         />
       )}
 

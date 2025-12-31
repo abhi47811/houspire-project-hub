@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { PremiumButton } from '@/components/ui/premium';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -106,30 +107,86 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen">
-      {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-primary flex-col justify-between p-12">
-        <div className="flex items-center">
-          <img src={logo} alt="Houspire" className="h-10 brightness-0 invert" />
-        </div>
+    <div className="flex min-h-screen overflow-hidden">
+      {/* Left Panel - Premium Hero */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        {/* Animated Background */}
+        <div className="absolute inset-0 bg-gradient-premium-1 opacity-90" />
+        <div className="absolute inset-0 bg-gradient-premium-2 opacity-50 animate-gradient" />
         
-        <div className="space-y-6">
-          <h1 className="text-4xl font-bold text-primary-foreground leading-tight">
-            Transform Your Interior Design Workflow
-          </h1>
-          <p className="text-lg text-primary-foreground/80">
-            Streamline projects, collaborate with your team, and deliver stunning designs faster than ever.
-          </p>
-        </div>
+        {/* Floating Orbs */}
+        <div className="absolute top-20 right-20 w-64 h-64 bg-primary/20 rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-20 left-20 w-96 h-96 bg-accent/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }} />
+        
+        {/* Content */}
+        <div className="relative z-10 flex flex-col justify-between p-12 text-white">
+          <div className="flex items-center space-x-3">
+            <img src={logo} alt="Houspire" className="h-10 brightness-0 invert" />
+          </div>
+          
+          <div className="space-y-8 max-w-lg">
+            <div className="space-y-4">
+              <div className="inline-flex items-center px-3 py-1 rounded-full glass-subtle border border-white/20 text-sm backdrop-blur-sm">
+                <span className="w-2 h-2 rounded-full bg-green-400 mr-2 animate-pulse" />
+                AI-Powered Design Platform
+              </div>
+              
+              <h1 className="text-5xl font-bold leading-tight">
+                Transform Your
+                <span className="block text-gradient bg-gradient-to-r from-white via-primary-100 to-white">
+                  Interior Design
+                </span>
+                Workflow
+              </h1>
+              
+              <p className="text-lg text-white/80 leading-relaxed">
+                Streamline projects, collaborate seamlessly, and deliver stunning designs faster than ever with AI-powered recommendations.
+              </p>
+            </div>
+            
+            {/* Features Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: 'AI Recommendations', icon: '🤖' },
+                { label: 'Smart Budgeting', icon: '💰' },
+                { label: 'Team Collaboration', icon: '👥' },
+                { label: 'Real-time Tracking', icon: '📊' },
+              ].map((feature, i) => (
+                <div
+                  key={feature.label}
+                  className="flex items-center space-x-2 p-3 rounded-xl glass-subtle backdrop-blur-md border border-white/10 hover-lift transition-all"
+                  style={{ animationDelay: `${i * 100}ms` }}
+                >
+                  <span className="text-2xl">{feature.icon}</span>
+                  <span className="text-sm font-medium">{feature.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
 
-        <p className="text-sm text-primary-foreground/60">
-          © 2024 Houspire. All rights reserved.
-        </p>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-4">
+              <div className="flex -space-x-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm border-2 border-white/40" />
+                ))}
+              </div>
+              <p className="text-sm text-white/80">
+                Trusted by <span className="font-semibold text-white">500+</span> designers
+              </p>
+            </div>
+            <p className="text-xs text-white/60">
+              © 2024 Houspire. All rights reserved.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Right Panel - Auth Form */}
-      <div className="flex w-full lg:w-1/2 items-center justify-center p-8 bg-background">
-        <Card className="w-full max-w-md border-0 shadow-none lg:border lg:shadow-sm">
+      <div className="flex w-full lg:w-1/2 items-center justify-center p-8 bg-gradient-to-br from-background via-background to-muted/20 relative">
+        {/* Subtle background pattern */}
+        <div className="absolute inset-0 bg-grid-pattern opacity-[0.02]" />
+        <Card className="w-full max-w-md border-0 shadow-none lg:glass-medium lg:shadow-premium-lg relative z-10 animate-fade-in">
           <CardHeader className="space-y-1 text-center">
             <div className="flex items-center justify-center lg:hidden mb-4">
               <img src={logo} alt="Houspire" className="h-10" />
@@ -195,10 +252,10 @@ export default function Login() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <PremiumButton type="submit" className="w-full" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isLogin ? 'Sign In' : 'Create Account'}
-              </Button>
+              </PremiumButton>
             </form>
 
             <div className="mt-6 text-center text-sm">
