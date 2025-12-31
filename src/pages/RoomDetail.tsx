@@ -63,7 +63,7 @@ import { BudgetBreakdownDisplay } from '@/components/budget/BudgetBreakdownDispl
 import { ExportOptionsComponent } from '@/components/export/ExportOptionsComponent';
 import { VendorRecommendationsComponent } from '@/components/vendor/VendorRecommendationsComponent';
 
-type RoomType = 'living_room' | 'master_bedroom' | 'bedroom' | 'kitchen' | 'dining_room' | 'balcony' | 'study_room' | 'kids_room' | 'guest_room' | 'pooja_room' | 'home_office' | 'gym' | 'entertainment_room' | 'utility_room';
+type RoomType = 'living_room' | 'master_bedroom' | 'bedroom' | 'kitchen' | 'dining_room' | 'bathroom' | 'balcony' | 'study_room' | 'kids_room' | 'guest_room' | 'pooja_room' | 'home_office' | 'gym' | 'entertainment_room' | 'utility_room' | 'foyer' | 'walk_in_closet';
 
 interface Room {
   id: string;
@@ -97,6 +97,7 @@ const roomTypeLabels: Record<RoomType, string> = {
   bedroom: 'Bedroom',
   kitchen: 'Kitchen',
   dining_room: 'Dining Room',
+  bathroom: 'Bathroom',
   balcony: 'Balcony',
   study_room: 'Study Room',
   kids_room: "Kids Room",
@@ -106,6 +107,8 @@ const roomTypeLabels: Record<RoomType, string> = {
   gym: 'Gym',
   entertainment_room: 'Entertainment Room',
   utility_room: 'Utility Room',
+  foyer: 'Entrance/Foyer',
+  walk_in_closet: 'Walk-in Closet',
 };
 
 const phases = [
