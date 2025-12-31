@@ -29,6 +29,7 @@ const roomTypes = [
   { value: 'bedroom', label: 'Bedroom' },
   { value: 'kitchen', label: 'Kitchen' },
   { value: 'dining_room', label: 'Dining Room' },
+  { value: 'bathroom', label: 'Bathroom' },
   { value: 'balcony', label: 'Balcony' },
   { value: 'study_room', label: 'Study Room' },
   { value: 'kids_room', label: "Kids Room" },
@@ -38,14 +39,16 @@ const roomTypes = [
   { value: 'gym', label: 'Gym' },
   { value: 'entertainment_room', label: 'Entertainment Room' },
   { value: 'utility_room', label: 'Utility Room' },
+  { value: 'foyer', label: 'Entrance/Foyer' },
+  { value: 'walk_in_closet', label: 'Walk-in Closet' },
 ] as const;
 
 const formSchema = z.object({
   room_name: z.string().optional(),
   room_type: z.enum([
     'living_room', 'master_bedroom', 'bedroom', 'kitchen', 'dining_room',
-    'balcony', 'study_room', 'kids_room', 'guest_room', 'pooja_room',
-    'home_office', 'gym', 'entertainment_room', 'utility_room'
+    'bathroom', 'balcony', 'study_room', 'kids_room', 'guest_room', 'pooja_room',
+    'home_office', 'gym', 'entertainment_room', 'utility_room', 'foyer', 'walk_in_closet'
   ], { required_error: 'Please select a room type' }),
   length_feet: z.number().min(1, 'Length must be at least 1').optional(),
   width_feet: z.number().min(1, 'Width must be at least 1').optional(),
