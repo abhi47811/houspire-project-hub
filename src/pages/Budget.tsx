@@ -397,7 +397,7 @@ export default function Budget() {
                   <Zap className="mr-2 h-4 w-4 text-primary" />
                 )}
                 Optimize Budget
-              </Button>
+              </PremiumButton>
             </>
           )}
 

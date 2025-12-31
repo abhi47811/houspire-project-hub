@@ -253,41 +253,42 @@ export default function Projects() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header with Premium Styling */}
-      <PageHeader
-        title="Projects"
-        description="Manage and track your interior design projects"
-        icon={FolderOpen}
-        badge={projects && projects.length > 0 ? { text: `${projects.length} Total`, variant: 'default' } : undefined}
-        actions={
-          <div className="flex items-center gap-2">
-            <PremiumButton variant="outline" size="md" icon={Upload} onClick={() => setIsBulkUploadOpen(true)}>
-              Bulk Upload
-            </PremiumButton>
-            
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <PremiumButton variant="primary" size="md" icon={Plus}>
-                  New Project
-                </PremiumButton>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass-subtle">
-                <DialogHeader>
-                  <DialogTitle>Create New Project</DialogTitle>
-                  <DialogDescription>
-                    Fill in the details to create a new interior design project.
-                  </DialogDescription>
-                </DialogHeader>
-                <CreateProjectForm 
-                  onSuccess={() => {
-                    setIsCreateDialogOpen(false);
-                    refetch();
-                  }} 
-                />
-              </DialogContent>
-            </Dialog>
-          </div>
-        }
-      />
+      <div className="space-y-6">
+        <PageHeader
+          title="Projects"
+          description="Manage and track your interior design projects"
+          icon={FolderOpen}
+          badge={projects && projects.length > 0 ? { text: `${projects.length} Total`, variant: 'default' } : undefined}
+          actions={
+            <div className="flex items-center gap-2">
+              <PremiumButton variant="outline" size="md" icon={Upload} onClick={() => setIsBulkUploadOpen(true)}>
+                Bulk Upload
+              </PremiumButton>
+              
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <PremiumButton variant="primary" size="md" icon={Plus}>
+                    New Project
+                  </PremiumButton>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass-subtle">
+                  <DialogHeader>
+                    <DialogTitle>Create New Project</DialogTitle>
+                    <DialogDescription>
+                      Fill in the details to create a new interior design project.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <CreateProjectForm 
+                    onSuccess={() => {
+                      setIsCreateDialogOpen(false);
+                      refetch();
+                    }} 
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
+          }
+        />
       </div>
 
       {/* Search and Filters */}

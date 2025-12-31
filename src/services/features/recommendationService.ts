@@ -884,6 +884,17 @@ class RecommendationService {
     // Calculate area
     const area = (room.length_feet || 10) * (room.width_feet || 10);
     
+    // Calculate spent amount from budget items
+    let spent = 0;
+    if (room.budget_items && Array.isArray(room.budget_items)) {
+      spent = room.budget_items.reduce((sum: number, item: any) => {
+        const itemCost = parseFloat(item.estimated_cost || item.cost || 0);
+        return sum + (isNaN(itemCost) ? 0 : itemCost);
+      }, 0);
+    }
+    
+    const totalBudget = room.projects?.budget || 100000;
+    
     return {
       room_id: room.id,
       room_type: room.room_type,
@@ -894,17 +905,6 @@ class RecommendationService {
         height_feet: room.height_feet || 10,
         area_sqft: area,
       },
-      // Calculate spent amount from budget items
-      let spent = 0;
-      if (room.budget_items && Array.isArray(room.budget_items)) {
-        spent = room.budget_items.reduce((sum: number, item: any) => {
-          const itemCost = parseFloat(item.estimated_cost || item.cost || 0);
-          return sum + (isNaN(itemCost) ? 0 : itemCost);
-        }, 0);
-      }
-      
-      const totalBudget = room.projects?.budget || 100000;
-      
       budget: {
         total_budget: totalBudget,
         spent,
