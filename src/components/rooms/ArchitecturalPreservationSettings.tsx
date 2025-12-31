@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import {
   Building2,
-  Door,
+  DoorOpen,
   Frame,
   Ruler,
   Shield,
@@ -141,7 +141,7 @@ export function ArchitecturalPreservationSettings({
           {doorElement && doorElement.count > 0 && (
             <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-3">
-                <Door className="w-5 h-5 text-muted-foreground" />
+                <DoorOpen className="w-5 h-5 text-muted-foreground" />
                 <div>
                   <div className="text-sm font-medium">
                     Doors
@@ -244,7 +244,7 @@ export function ArchitecturalPreservationSettings({
                   checked={localPreferences.preserve_built_ins}
                   onCheckedChange={(checked) => handleToggle('preserve_built_ins', checked)}
                   disabled={isUpdating}
-                </Switch>
+                />
               </div>
             </div>
           )}

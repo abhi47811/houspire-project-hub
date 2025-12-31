@@ -40,7 +40,7 @@ export function ImageComparisonSlider({
     setSliderPosition(Math.min(Math.max(percentage, 0), 100));
   };
 
-  const handleTouchMove = (e: TouchEvent) => {
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
 
     const rect = containerRef.current.getBoundingClientRect();
