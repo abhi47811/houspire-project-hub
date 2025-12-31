@@ -207,10 +207,11 @@ export function LibraryCuratorUpload() {
       queryClient.invalidateQueries({ queryKey: ['style-library'] });
       queryClient.invalidateQueries({ queryKey: ['library-count'] });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
       toast({
         title: 'Upload Failed',
-        description: error.message,
+        description: errorMessage,
         variant: 'destructive'
       });
     } finally {

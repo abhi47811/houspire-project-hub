@@ -41,9 +41,20 @@ function trackEvent(event: Omit<AnalyticsEvent, 'timestamp' | 'sessionId'>): voi
     console.log('📊 Analytics:', fullEvent.name, fullEvent.properties);
   }
 
-  // TODO: Send to Google Analytics / Mixpanel in production
-  // gtag('event', event.name, event.properties);
-  // mixpanel.track(event.name, event.properties);
+  // Production analytics integration
+  if (import.meta.env.PROD) {
+    // Send to Google Analytics if available
+    if (typeof window !== 'undefined' && 'gtag' in window) {
+      // @ts-expect-error gtag is injected by Google Analytics
+      window.gtag('event', event.name, event.properties);
+    }
+    
+    // Send to Mixpanel if available
+    if (typeof window !== 'undefined' && 'mixpanel' in window) {
+      // @ts-expect-error mixpanel is injected by Mixpanel SDK
+      window.mixpanel.track(event.name, event.properties);
+    }
+  }
 }
 
 // Predefined event names for type safety

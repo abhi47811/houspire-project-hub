@@ -460,13 +460,29 @@ class RecommendationService {
         });
       });
       
-      // Calculate adoption rates
+      // Calculate adoption rates and trends
       const popularStyles = Object.entries(styleCount)
-        .map(([style_name, count]) => ({
-          style_name,
-          adoption_rate: totalRooms > 0 ? (count / totalRooms) * 100 : 0,
-          trend: 'stable' as const, // TODO: Calculate trend based on time series
-        }))
+        .map(([style_name, count]) => {
+          const adoption_rate = totalRooms > 0 ? (count / totalRooms) * 100 : 0;
+          
+          // Calculate trend based on recent vs older data
+          // Compare last 30 days vs previous 60 days
+          const recentRooms = recentProjects.filter(p => 
+            p.rooms?.some(r => r.selected_style === style_name) &&
+            new Date(p.created_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+          ).length;
+          const olderRooms = recentProjects.filter(p => 
+            p.rooms?.some(r => r.selected_style === style_name) &&
+            new Date(p.created_at) <= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) &&
+            new Date(p.created_at) > new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+          ).length;
+          
+          let trend: 'rising' | 'falling' | 'stable' = 'stable';
+          if (recentRooms > olderRooms * 1.2) trend = 'rising';
+          else if (recentRooms < olderRooms * 0.8) trend = 'falling';
+          
+          return { style_name, adoption_rate, trend };
+        })
         .sort((a, b) => b.adoption_rate - a.adoption_rate)
         .slice(0, 5);
       
@@ -475,10 +491,40 @@ class RecommendationService {
       const season = this.getCurrentSeason(currentMonth);
       const seasonalTrends = this.getSeasonalRecommendations(season);
       
+      // Track trending items from recent rooms
+      const trendingItems: Array<{item_type: string, item_name: string, frequency: number}> = [];
+      const itemCounts: Record<string, Record<string, number>> = {};
+      
+      recentProjects.forEach(project => {
+        project.rooms?.forEach(room => {
+          // Track furniture items from budget if available
+          if (room.budget_items) {
+            room.budget_items.forEach((item: any) => {
+              const itemType = item.category || 'furniture';
+              const itemName = item.item_name || item.name;
+              if (itemName) {
+                if (!itemCounts[itemType]) itemCounts[itemType] = {};
+                itemCounts[itemType][itemName] = (itemCounts[itemType][itemName] || 0) + 1;
+              }
+            });
+          }
+        });
+      });
+      
+      // Convert to trending items array
+      Object.entries(itemCounts).forEach(([itemType, items]) => {
+        Object.entries(items)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 3)
+          .forEach(([itemName, frequency]) => {
+            trendingItems.push({ item_type: itemType, item_name: itemName, frequency });
+          });
+      });
+      
       return {
         city,
         popular_styles: popularStyles,
-        trending_items: [], // TODO: Implement item tracking
+        trending_items: trendingItems.slice(0, 10),
         seasonal_trends: seasonalTrends,
         time_period: 'last_90_days',
         sample_size: totalRooms,
@@ -848,10 +894,21 @@ class RecommendationService {
         height_feet: room.height_feet || 10,
         area_sqft: area,
       },
+      // Calculate spent amount from budget items
+      let spent = 0;
+      if (room.budget_items && Array.isArray(room.budget_items)) {
+        spent = room.budget_items.reduce((sum: number, item: any) => {
+          const itemCost = parseFloat(item.estimated_cost || item.cost || 0);
+          return sum + (isNaN(itemCost) ? 0 : itemCost);
+        }, 0);
+      }
+      
+      const totalBudget = room.projects?.budget || 100000;
+      
       budget: {
-        total_budget: room.projects?.budget || 100000,
-        spent: 0, // TODO: Calculate from budget_items
-        remaining: room.projects?.budget || 100000,
+        total_budget: totalBudget,
+        spent,
+        remaining: totalBudget - spent,
       },
       location: {
         city: room.projects?.client_city || room.projects?.location || 'Unknown',

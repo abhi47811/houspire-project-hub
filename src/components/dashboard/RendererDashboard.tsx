@@ -1,4 +1,4 @@
-import { useEffect, useState, forwardRef } from 'react';
+import { useEffect, useState, forwardRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,7 +70,7 @@ export const RendererDashboard = forwardRef<HTMLDivElement>(
       }
     }, [user]);
 
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = useCallback(async () => {
       if (!user) return;
 
       try {
@@ -104,7 +104,13 @@ export const RendererDashboard = forwardRef<HTMLDivElement>(
       } finally {
         setLoading(false);
       }
-    };
+    }, [user]);
+
+    useEffect(() => {
+      if (user) {
+        fetchDashboardData();
+      }
+    }, [user, fetchDashboardData]);
 
     const toggleTask = (taskId: string) => {
       setTasks(tasks.map(task => 

@@ -36,12 +36,23 @@ import {
 } from '@/services/features/exportService';
 import { toast } from '@/hooks/use-toast';
 
+interface Room {
+  id: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
+interface BudgetItem {
+  id: string;
+  [key: string]: unknown;
+}
+
 interface ExportOptionsComponentProps {
   projectData: {
     project_name: string;
-    rooms: any[];
+    rooms: Room[];
   };
-  budgetData?: any;
+  budgetData?: BudgetItem[];
   className?: string;
 }
 

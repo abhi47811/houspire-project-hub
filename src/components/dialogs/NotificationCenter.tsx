@@ -155,7 +155,7 @@ export function NotificationCenter() {
 
       return () => clearTimeout(timeout);
     }
-  }, [open, notifications]);
+  }, [open, notifications, unreadCount, markAsReadMutation]);
 
   const handleNotificationClick = (notification: Notification) => {
     if (notification.link) {

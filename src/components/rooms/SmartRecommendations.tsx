@@ -119,10 +119,21 @@ export function SmartRecommendations({
     generateFurniture.mutate(roomContext);
   };
 
-  const handleGenerateBudgetAlternatives = () => {
+  const handleGenerateBudgetAlternatives = async () => {
+    // Fetch actual budget items from the room
+    let budgetItems: any[] = [];
+    try {
+      const { data: room } = await import('@/integrations/supabase/client').then(m => 
+        m.supabase.from('rooms').select('budget_items').eq('id', roomId).single()
+      );
+      budgetItems = room?.budget_items || [];
+    } catch (error) {
+      console.error('Failed to fetch budget items:', error);
+    }
+    
     generateBudgetAlternatives.mutate({
       context: roomContext,
-      items: [], // TODO: Get actual budget items
+      items: budgetItems,
     });
   };
 

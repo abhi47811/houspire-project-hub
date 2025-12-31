@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,7 +45,7 @@ export function QualityViolationsPanel() {
     loadViolations();
   }, []);
 
-  const loadViolations = async () => {
+  const loadViolations = useCallback(async () => {
     setLoading(true);
     try {
       // Load unresolved violations
@@ -84,7 +84,11 @@ export function QualityViolationsPanel() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadViolations();
+  }, [loadViolations]);
 
   const resolveViolation = async (violationId: string) => {
     setResolvingId(violationId);
@@ -231,7 +235,7 @@ export function QualityViolationsPanel() {
                       <span className="font-medium">
                         {formatRuleCode(violation.rule_code)}
                       </span>
-                      <Badge variant={getSeverityColor(violation.severity) as any}>
+                      <Badge variant={getSeverityColor(violation.severity) as "default" | "destructive" | "outline" | "secondary"}>
                         {violation.severity}
                       </Badge>
                       {violation.auto_fixed && (
