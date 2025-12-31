@@ -378,10 +378,16 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: true, score: qualityScore }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error) {
-    console.error("Error:", error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : typeof error === 'string' 
+        ? error 
+        : JSON.stringify(error) || "Unknown error";
+    console.error("Score-render error:", errorMessage);
+    console.error("Full error object:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
