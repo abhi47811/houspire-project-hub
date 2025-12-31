@@ -850,3 +850,328 @@
   opacity: 1;
   transform: translateY(0);
 }
+
+/* ============================================
+   DARK MODE PREMIUM ENHANCEMENTS
+   ============================================ */
+
+@layer utilities {
+  /* Dark Mode Glass Effects - Enhanced */
+  .dark .glass-subtle {
+    @apply backdrop-blur-md bg-background/60 border-white/5;
+  }
+
+  .dark .glass-medium {
+    @apply backdrop-blur-lg bg-background/70 border-white/10;
+  }
+
+  .dark .glass-strong {
+    @apply backdrop-blur-xl bg-background/80 border-white/15;
+  }
+
+  .dark .glass-premium {
+    @apply backdrop-blur-2xl bg-gradient-to-br from-background/90 to-background/70;
+    @apply border border-white/20;
+    @apply shadow-2xl shadow-primary/5;
+  }
+
+  /* Dark Mode Gradient Backgrounds - Optimized */
+  .dark .bg-gradient-premium-1 {
+    background: linear-gradient(135deg, hsl(228, 30%, 15%) 0%, hsl(24, 74%, 25%) 100%);
+  }
+
+  .dark .bg-gradient-premium-2 {
+    background: linear-gradient(135deg, hsl(228, 30%, 12%) 0%, hsl(228, 30%, 18%) 100%);
+  }
+
+  .dark .bg-gradient-premium-3 {
+    background: linear-gradient(135deg, hsl(228, 30%, 15%) 0%, hsl(228, 25%, 22%) 100%);
+  }
+
+  /* Dark Mode Hover Effects */
+  .dark .hover-lift:hover {
+    @apply shadow-2xl shadow-primary/10;
+  }
+
+  .dark .hover-glow:hover {
+    box-shadow: 0 0 30px rgba(229, 133, 80, 0.3);
+  }
+
+  /* Dark Mode Card Enhancements */
+  .dark .card-premium {
+    @apply bg-card/95 backdrop-blur-sm;
+    @apply border border-white/10;
+    @apply shadow-xl shadow-black/20;
+  }
+
+  .dark .card-premium:hover {
+    @apply border-primary/30 shadow-2xl shadow-primary/10;
+  }
+
+  /* Dark Mode Text Gradients - Enhanced Contrast */
+  .dark .text-gradient-primary {
+    background: linear-gradient(135deg, hsl(24, 74%, 70%) 0%, hsl(24, 74%, 85%) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .dark .text-gradient-premium {
+    background: linear-gradient(135deg, hsl(40, 33%, 97%) 0%, hsl(24, 74%, 70%) 50%, hsl(40, 33%, 97%) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Dark Mode Button Glow */
+  .dark .btn-premium:hover {
+    box-shadow: 0 0 25px rgba(229, 133, 80, 0.4),
+                0 0 50px rgba(229, 133, 80, 0.2);
+  }
+
+  /* Dark Mode Borders - Softer */
+  .dark .border-premium {
+    @apply border-white/10;
+  }
+
+  .dark .border-premium-hover:hover {
+    @apply border-primary/40;
+  }
+
+  /* Dark Mode Shadows - Enhanced */
+  .dark .shadow-premium-sm {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  .dark .shadow-premium-md {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+
+  .dark .shadow-premium-lg {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  }
+
+  .dark .shadow-premium-xl {
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7);
+  }
+
+  /* Dark Mode Shine Effect */
+  .dark .shine-effect::after {
+    @apply bg-gradient-to-r from-transparent via-white/20 to-transparent;
+  }
+
+  /* Dark Mode Status Badges */
+  .dark .badge-premium {
+    @apply backdrop-blur-md bg-card/90 border-white/20;
+  }
+
+  /* Dark Mode Empty State */
+  .dark .empty-state-icon-bg {
+    @apply bg-gradient-to-br from-primary/20 to-primary/5;
+  }
+
+  /* Dark Mode FAB Enhancement */
+  .dark .fab-premium {
+    @apply bg-primary shadow-2xl shadow-primary/30;
+    @apply border border-primary/30;
+  }
+
+  .dark .fab-premium:hover {
+    box-shadow: 0 8px 32px rgba(229, 133, 80, 0.5),
+                0 0 40px rgba(229, 133, 80, 0.3);
+  }
+
+  /* Dark Mode Skeleton - Better Contrast */
+  .dark .skeleton-premium {
+    background: linear-gradient(
+      90deg,
+      hsl(228, 30%, 18%) 0%,
+      hsl(228, 30%, 22%) 50%,
+      hsl(228, 30%, 18%) 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  /* Dark Mode Login Hero - Special Treatment */
+  .dark .hero-gradient {
+    background: linear-gradient(135deg, 
+      hsl(228, 30%, 8%) 0%, 
+      hsl(228, 30%, 15%) 50%, 
+      hsl(24, 74%, 15%) 100%
+    );
+  }
+
+  /* Dark Mode Glassmorphism for Login Form */
+  .dark .login-glass {
+    @apply backdrop-blur-2xl bg-card/40;
+    @apply border border-white/10;
+    @apply shadow-2xl shadow-black/40;
+  }
+
+  /* Dark Mode Stats Cards - Enhanced Visibility */
+  .dark .stat-card-glass {
+    @apply backdrop-blur-lg bg-card/60;
+    @apply border border-white/10;
+  }
+
+  .dark .stat-card-glass:hover {
+    @apply bg-card/80 border-primary/30;
+    @apply shadow-2xl shadow-primary/10;
+  }
+
+  /* Dark Mode Project Cards - Premium Look */
+  .dark .project-card-header {
+    @apply bg-gradient-to-br from-primary/30 to-primary/10;
+    @apply border-b border-white/10;
+  }
+
+  .dark .project-card-body {
+    @apply bg-card/95 backdrop-blur-sm;
+  }
+
+  /* Dark Mode Floating Orbs - Visible */
+  .dark .floating-orb-1 {
+    @apply bg-primary/10;
+  }
+
+  .dark .floating-orb-2 {
+    @apply bg-accent/10;
+  }
+
+  /* Dark Mode Input Focus Rings */
+  .dark input:focus,
+  .dark textarea:focus,
+  .dark select:focus {
+    @apply ring-primary/50 border-primary/50;
+  }
+
+  /* Dark Mode Tabs - Enhanced */
+  .dark .tab-glass {
+    @apply backdrop-blur-md bg-card/60;
+  }
+
+  .dark [data-state="active"] {
+    @apply bg-primary text-primary-foreground shadow-lg shadow-primary/20;
+  }
+
+  /* Dark Mode Scrollbar */
+  .dark ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    @apply bg-primary/20;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary/40;
+  }
+
+  /* Dark Mode Dropdown/Select */
+  .dark [data-radix-select-viewport] {
+    @apply bg-card border border-white/10;
+  }
+
+  /* Dark Mode Tooltip */
+  .dark [data-radix-tooltip-content] {
+    @apply bg-card/95 backdrop-blur-sm border border-white/10;
+  }
+
+  /* Dark Mode Modal/Dialog */
+  .dark [data-radix-dialog-overlay] {
+    @apply bg-black/60 backdrop-blur-sm;
+  }
+
+  .dark [data-radix-dialog-content] {
+    @apply bg-card border border-white/10 shadow-2xl shadow-black/50;
+  }
+
+  /* Dark Mode Premium Animations - Optimized */
+  .dark .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      transparent 100%
+    );
+  }
+
+  /* Dark Mode Success/Warning/Error States */
+  .dark .success-glow {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+  }
+
+  .dark .warning-glow {
+    box-shadow: 0 0 20px rgba(251, 146, 60, 0.3);
+  }
+
+  .dark .error-glow {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  }
+}
+
+/* Dark Mode Login Page Special Enhancements */
+.dark .login-hero-bg {
+  background: linear-gradient(135deg, 
+    hsl(228, 30%, 10%) 0%, 
+    hsl(228, 30%, 15%) 25%,
+    hsl(24, 74%, 20%) 50%,
+    hsl(228, 30%, 15%) 75%,
+    hsl(228, 30%, 10%) 100%
+  );
+  background-size: 400% 400%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+/* Dark Mode Feature Cards on Login */
+.dark .feature-card-glass {
+  @apply backdrop-blur-md bg-white/5 border-white/10;
+}
+
+.dark .feature-card-glass:hover {
+  @apply bg-white/10 border-white/20;
+}
+
+/* Dark Mode Premium Badge Pulse */
+.dark .badge-pulse {
+  animation: pulse-glow-dark 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-glow-dark {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(229, 133, 80, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(229, 133, 80, 0);
+  }
+}
+
+/* Dark Mode High Contrast Support */
+@media (prefers-contrast: high) {
+  .dark .glass-subtle,
+  .dark .glass-medium,
+  .dark .glass-strong {
+    @apply bg-card border-white/30;
+  }
+
+  .dark .text-gradient-primary,
+  .dark .text-gradient-premium {
+    -webkit-text-fill-color: hsl(24, 74%, 70%);
+  }
+}
+
+/* Dark Mode Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .dark .animate-gradient,
+  .dark .animate-float,
+  .dark .animate-shimmer {
+    animation: none;
+  }
+
+  .dark .hover-lift,
+  .dark .hover-glow,
+  .dark .hover-scale {
+    transition: none;
+  }
+}
+
