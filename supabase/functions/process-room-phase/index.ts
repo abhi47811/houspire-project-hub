@@ -384,21 +384,38 @@ CRITICAL: Do NOT add windows or doors. Only add treatments to windows that alrea
   return elements;
 }
 
-// Virtual Staging Lock Prompt - enforces photo-editing behavior
+// Virtual Staging Lock Prompt - enforces photo-editing behavior with STRICT preservation
 function buildVirtualStagingLockPrompt(doorCount: number, windowCount: number): string {
   return `
-=== VIRTUAL STAGING INSTRUCTIONS (NON-NEGOTIABLE) ===
+=== ABSOLUTE VIRTUAL STAGING CONSTRAINTS (VIOLATION = REJECTION) ===
 
-You are EDITING this existing photograph, NOT generating a new room.
+⚠️ CRITICAL: You are PHOTO-EDITING an existing room photograph. NOT generating a new image.
 
-ABSOLUTE RULES:
-1. CAMERA: Keep the EXACT same camera position, angle, perspective, focal length, and field of view. Do NOT rotate, pan, zoom, or shift the viewpoint.
-2. ARCHITECTURE: Do NOT add, remove, or move any doors, windows, or openings. The room has exactly ${doorCount} door(s) and ${windowCount} window(s). Keep them EXACTLY as shown.
-3. WALLS: Do NOT add windows/doors/openings on walls that are visible OR not visible. Preserve all wall surfaces.
-4. GEOMETRY: Keep all wall angles, ceiling height, floor plane, and room proportions IDENTICAL.
-5. ONLY ADD: Furniture, decor, rugs, plants, lighting fixtures, and soft furnishings that fit the style. These MUST respect the existing floor/wall planes.
+🚫 FORBIDDEN ACTIONS (WILL CAUSE IMMEDIATE REJECTION):
+1. CAMERA CHANGE: Moving, rotating, panning, zooming, or shifting the camera viewpoint in ANY way
+2. ADDING OPENINGS: Creating ANY new windows, doors, arches, or openings that don't exist in the original
+3. REMOVING OPENINGS: Deleting or covering ANY existing windows or doors  
+4. MOVING OPENINGS: Relocating ANY windows or doors to different positions
+5. WALL CHANGES: Adding windows to walls that have none, or modifying wall surfaces
+6. PERSPECTIVE SHIFT: Changing the viewing angle, focal length, or field of view
 
-This is VIRTUAL STAGING - take the empty room photo and add furniture/decor while preserving 100% of the architectural structure and camera viewpoint.
+📐 EXACT PRESERVATION REQUIRED:
+- Camera Position: IDENTICAL to input image - same exact viewpoint
+- Camera Angle: IDENTICAL - same tilt, pan, rotation
+- Doors: Exactly ${doorCount} door(s) - same positions, same walls, same sizes
+- Windows: Exactly ${windowCount} window(s) - same positions, same walls, same sizes  
+- Wall Geometry: All angles, corners, and surfaces UNCHANGED
+- Ceiling Height: IDENTICAL
+- Floor Plane: IDENTICAL perspective and position
+
+✅ ALLOWED ACTIONS (ONLY THESE):
+- Add furniture that sits on the existing floor plane
+- Add rugs, plants, decor, artwork on existing walls
+- Add lighting fixtures (ceiling lights, lamps, sconces)
+- Add soft furnishings (curtains on EXISTING windows only, cushions, throws)
+- Add styling elements and accessories
+
+🔒 THINK OF THIS AS: Placing virtual furniture into a real photograph. The room structure is LOCKED and IMMUTABLE.
 
 === END STAGING LOCK ===
 `;
@@ -634,13 +651,25 @@ async function generateRender(
   // Build the full generation prompt with staging lock at the TOP
   let fullPrompt = stagingLockPrompt + '\n\n' + prompt;
   
-  // If this is a retry, add extra enforcement
+  // If this is a retry, add VERY strong enforcement
   if (retryContext) {
     fullPrompt = `
-CRITICAL RETRY - PREVIOUS ATTEMPT FAILED:
-${retryContext}
+🚨🚨🚨 CRITICAL FAILURE - PREVIOUS ATTEMPT REJECTED 🚨🚨🚨
 
-YOU MUST FIX THIS. Do NOT change camera angle. Do NOT add/remove windows or doors.
+REASON FOR REJECTION: ${retryContext}
+
+THIS IS A RETRY. THE PREVIOUS IMAGE WAS REJECTED BECAUSE IT VIOLATED ARCHITECTURAL PRESERVATION RULES.
+
+YOU MUST:
+1. Keep the EXACT SAME camera angle as the input photo - DO NOT MOVE THE CAMERA
+2. Keep ALL doors in their EXACT original positions - do NOT add or remove doors
+3. Keep ALL windows in their EXACT original positions - do NOT add or remove windows
+4. Do NOT add ANY new windows or doors - this is the #1 reason for rejection
+5. Do NOT change the viewing perspective in ANY way
+
+The input photo shows a specific room from a specific angle. OUTPUT MUST show the SAME room from the SAME angle, with ONLY furniture/decor added.
+
+FAILURE TO COMPLY = ANOTHER REJECTION
 
 ` + fullPrompt;
   }
@@ -661,11 +690,18 @@ YOU MUST FIX THIS. Do NOT change camera angle. Do NOT add/remove windows or door
           content: [
             {
               type: "text",
-              text: `VIRTUAL STAGING TASK: Edit this empty room photograph by adding furniture and decor. 
+              text: `🔒 VIRTUAL STAGING PHOTO-EDIT TASK 🔒
+
+You are editing this empty room photograph. Add furniture and decor ONLY.
 
 ${fullPrompt}
 
-FINAL REMINDER: This is photo editing. Keep the EXACT camera angle and all architectural elements (doors, windows, walls) unchanged. Only add furniture/decor.`
+⚠️ FINAL CRITICAL REMINDER:
+- This is PHOTO EDITING, not image generation
+- Camera angle: LOCKED - must match input exactly  
+- Doors/Windows: LOCKED - same count, same positions
+- You are placing virtual furniture into a REAL photograph
+- The room structure is IMMUTABLE`
             },
             { type: "image_url", image_url: { url: cleanedImageUrl } }
           ]
