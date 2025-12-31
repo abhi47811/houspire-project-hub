@@ -16,6 +16,140 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const REPLICATE_API_KEY = Deno.env.get("REPLICATE_API_KEY");
 
+// ============= STRUCTURE-PRESERVING GENERATION (CONTROLNET) =============
+
+// Generate using Replicate's interior-design ControlNet model for structure preservation
+async function generateWithControlNet(
+  cleanedImageUrl: string,
+  designPrompt: string,
+  promptStrength: number = 0.5 // Lower = more structure preserved (0.3-0.6 recommended)
+): Promise<{ imageUrl: string; latency: number; method: string }> {
+  if (!REPLICATE_API_KEY) {
+    throw new Error("REPLICATE_API_KEY not configured - cannot use ControlNet generation");
+  }
+  
+  const startTime = Date.now();
+  console.log('🎨 [ControlNet] Starting structure-preserving generation...');
+  console.log('  prompt_strength:', promptStrength);
+  console.log('  prompt:', designPrompt.slice(0, 200));
+  
+  // Create prediction using adirik/interior-design model
+  const createResponse = await fetch("https://api.replicate.com/v1/predictions", {
+    method: "POST",
+    headers: {
+      Authorization: `Token ${REPLICATE_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      version: "76604baddc85b1b4616e1c6475eca080da339c8875bd4996705440484a6eac38",
+      input: {
+        image: cleanedImageUrl,
+        prompt: designPrompt,
+        negative_prompt: "lowres, watermark, blurry, deformed, different room, different angle, different perspective, moved doors, moved windows, mirrored room, flipped, rotated view, new windows, new doors, extra doors, extra windows, removed doors, removed windows, changed walls, different camera angle, different viewpoint",
+        guidance_scale: 15,
+        prompt_strength: promptStrength,
+        num_inference_steps: 50
+      }
+    })
+  });
+  
+  if (!createResponse.ok) {
+    const errorText = await createResponse.text();
+    console.error('[ControlNet] Create prediction failed:', errorText);
+    throw new Error(`ControlNet create failed: ${errorText}`);
+  }
+  
+  const prediction = await createResponse.json();
+  console.log('[ControlNet] Prediction created:', prediction.id);
+  
+  // Poll for completion (max 120 seconds)
+  const maxWait = 120000;
+  const pollInterval = 2000;
+  let elapsed = 0;
+  
+  while (elapsed < maxWait) {
+    await new Promise(r => setTimeout(r, pollInterval));
+    elapsed += pollInterval;
+    
+    const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+      headers: { Authorization: `Token ${REPLICATE_API_KEY}` }
+    });
+    
+    const status = await statusResponse.json();
+    console.log(`[ControlNet] Status: ${status.status} (${elapsed/1000}s)`);
+    
+    if (status.status === 'succeeded') {
+      const outputUrl = status.output?.[0] || status.output;
+      if (!outputUrl) {
+        throw new Error('ControlNet succeeded but no output image');
+      }
+      
+      const latency = Date.now() - startTime;
+      console.log(`✅ [ControlNet] Generation complete in ${latency}ms`);
+      
+      return {
+        imageUrl: outputUrl,
+        latency,
+        method: 'controlnet'
+      };
+    }
+    
+    if (status.status === 'failed' || status.status === 'canceled') {
+      throw new Error(`ControlNet ${status.status}: ${status.error || 'Unknown error'}`);
+    }
+  }
+  
+  throw new Error('ControlNet generation timed out after 120 seconds');
+}
+
+// Build a furniture-only prompt (no architectural instructions - ControlNet handles structure)
+function buildFurnitureOnlyPrompt(smartDefaultData: any, roomType: string, style: string): string {
+  let prompt = `Professional interior design photo, ${style} style ${roomType}. `;
+  
+  if (smartDefaultData) {
+    const specs = Array.isArray(smartDefaultData.specifications) ? smartDefaultData.specifications : [];
+    
+    // Get furniture items only
+    const furnitureItems = specs.filter((s: any) => 
+      ['SEATING', 'FURNITURE', 'STORAGE', 'SURFACES', 'SOFA', 'COFFEE TABLE', 'BED', 'WARDROBE', 'TABLE', 'CHAIR'].includes(s.CATEGORY?.toUpperCase())
+    ).map((s: any) => {
+      let item = s.ITEM || s.item || '';
+      const material = s.MATERIAL || s.material;
+      const color = s.COLOR || s.color;
+      if (material) item += ` (${material})`;
+      if (color) item += ` in ${color}`;
+      return item;
+    }).filter(Boolean);
+    
+    if (furnitureItems.length > 0) {
+      prompt += `Furniture: ${furnitureItems.slice(0, 5).join(', ')}. `;
+    }
+    
+    // Get decor items
+    const decorItems = specs.filter((s: any) => 
+      ['DECOR', 'ACCESSORIES', 'LIGHTING', 'TEXTILES', 'PLANTS', 'RUG', 'CURTAINS'].includes(s.CATEGORY?.toUpperCase())
+    ).map((s: any) => s.ITEM || s.item).filter(Boolean);
+    
+    if (decorItems.length > 0) {
+      prompt += `Decor: ${decorItems.slice(0, 5).join(', ')}. `;
+    }
+  } else {
+    // Generic furniture prompt based on room type
+    const roomFurniture: Record<string, string> = {
+      'living_room': 'Sofa, coffee table, armchairs, floor lamp, area rug, potted plants, wall art',
+      'bedroom': 'Bed with headboard, nightstands, dresser, table lamps, area rug, curtains',
+      'kitchen': 'Dining table, chairs, pendant lights, decorative accessories',
+      'bathroom': 'Vanity accessories, towels, plants, decorative elements',
+      'dining_room': 'Dining table, chairs, chandelier, sideboard, table setting',
+    };
+    prompt += roomFurniture[roomType] || 'Stylish furniture, decorative accessories, plants, proper lighting. ';
+  }
+  
+  prompt += 'High quality, professional staging, magazine worthy, realistic lighting, photorealistic.';
+  
+  return prompt;
+}
+
 // Create admin client for database operations
 function getAdminClient() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -1068,7 +1202,7 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
       case "generation": {
         const basePrompt = job.payload?.prompt || "";
-        const MAX_RETRIES = 1; // Max retry attempts for failed preservation
+        const MAX_STRUCTURE_RETRIES = 3; // More retries with progressive strength reduction
         
         // Fetch room_analysis for door/window counts (critical for staging lock)
         let doorCount = 0;
@@ -1104,25 +1238,6 @@ async function processJob(supabase: any, job: any): Promise<void> {
           }
         }
 
-        // Build enriched prompt with smart default details + conditional essential elements
-        const smartDefaultDetails = buildSmartDefaultPromptDetails(smartDefaultData);
-        const essentialElements = buildEssentialElements(windowCount > 0);
-        const designPrompt = basePrompt + smartDefaultDetails + essentialElements;
-        
-        // Build virtual staging lock prompt with actual door/window counts
-        const stagingLockPrompt = buildVirtualStagingLockPrompt(doorCount, windowCount);
-
-        console.log('=== GENERATION PROMPT DETAILS ===');
-        console.log('Smart default used:', !!smartDefaultData);
-        console.log('Style:', smartDefaultData?.style || room?.selected_style || 'none');
-        console.log('Room type:', smartDefaultData?.room_type || room?.room_type);
-        console.log('Door count from analysis:', doorCount);
-        console.log('Window count from analysis:', windowCount);
-        console.log('Window treatments included:', windowCount > 0);
-        console.log('Design prompt length:', designPrompt.length);
-        console.log('Staging lock included: YES');
-        console.log('=================================');
-        
         // Get cleaned image
         const cleanedImage = room?.room_images?.find((img: any) => 
           img.image_type === "cleaned" && img.phase === 3
@@ -1133,44 +1248,118 @@ async function processJob(supabase: any, job: any): Promise<void> {
         }
 
         const cleanedUrl = await resolveRoomImageUrl(supabase, cleanedImage.storage_path);
+        
+        const roomType = room?.room_type || smartDefaultData?.room_type || 'living_room';
+        const style = room?.selected_style || smartDefaultData?.style || 'modern';
 
-        console.log('🚀 Starting render generation with virtual staging lock:', {
+        console.log('🚀 Starting structure-preserving render generation:', {
           roomId: job.room_id,
           projectId: job.project_id,
-          style: room?.selected_style || smartDefaultData?.style || 'none',
-          roomType: room?.room_type || smartDefaultData?.room_type,
+          style,
+          roomType,
           doorCount,
           windowCount,
           smartDefaultUsed: !!smartDefaultData,
+          method: REPLICATE_API_KEY ? 'ControlNet (primary)' : 'Gemini (fallback)',
           timestamp: new Date().toISOString()
         });
 
-        // === GENERATE → SCORE → RETRY LOOP ===
+        // === STRUCTURE-PRESERVING GENERATION WITH PROGRESSIVE STRENGTH ===
         let attemptCount = 0;
         let finalRenderResult: any = null;
-        let retryContext: string | undefined = undefined;
         
-        while (attemptCount <= MAX_RETRIES) {
+        // Progressive prompt_strength: start at 0.5, reduce on each retry for stricter preservation
+        const strengthLevels = [0.5, 0.4, 0.3, 0.25];
+        
+        while (attemptCount < MAX_STRUCTURE_RETRIES) {
           attemptCount++;
-          console.log(`📸 Generation attempt ${attemptCount}/${MAX_RETRIES + 1}`);
+          const currentStrength = strengthLevels[Math.min(attemptCount - 1, strengthLevels.length - 1)];
           
-          const genResult = await generateWithRetry(
-            () => generateRender(cleanedUrl, designPrompt, stagingLockPrompt, retryContext),
-            { operation: 'generateRender', roomId: job.room_id, projectId: job.project_id }
-          );
+          console.log(`📸 Generation attempt ${attemptCount}/${MAX_STRUCTURE_RETRIES} (prompt_strength: ${currentStrength})`);
+          
+          let genResult: { imageUrl: string; latency: number; method: string; isBase64?: boolean };
+          
+          // Try ControlNet first (structure-preserving), fall back to Gemini
+          if (REPLICATE_API_KEY) {
+            try {
+              // Build furniture-only prompt for ControlNet (no architectural instructions)
+              const furniturePrompt = buildFurnitureOnlyPrompt(smartDefaultData, roomType, style);
+              
+              console.log('🎨 Using ControlNet (structure-preserving) generation');
+              console.log('  Furniture prompt:', furniturePrompt.slice(0, 150));
+              
+              genResult = await generateWithRetry(
+                () => generateWithControlNet(cleanedUrl, furniturePrompt, currentStrength),
+                { operation: 'generateWithControlNet', roomId: job.room_id, projectId: job.project_id },
+                1 // Only 1 retry for each strength level
+              );
+              genResult.isBase64 = false; // ControlNet returns URL
+              
+            } catch (controlNetError) {
+              console.warn('⚠️ ControlNet failed, falling back to Gemini:', controlNetError);
+              
+              // Fallback to Gemini with strict prompts
+              const essentialElements = buildEssentialElements(windowCount > 0);
+              const smartDefaultDetails = buildSmartDefaultPromptDetails(smartDefaultData);
+              const designPrompt = basePrompt + smartDefaultDetails + essentialElements;
+              const stagingLockPrompt = buildVirtualStagingLockPrompt(doorCount, windowCount);
+              
+              const geminiResult = await generateWithRetry(
+                () => generateRender(cleanedUrl, designPrompt, stagingLockPrompt),
+                { operation: 'generateRender', roomId: job.room_id, projectId: job.project_id }
+              );
+              
+              genResult = {
+                imageUrl: geminiResult.result.imageUrl,
+                latency: geminiResult.latency,
+                method: 'gemini-fallback',
+                isBase64: true
+              };
+            }
+          } else {
+            // No Replicate key - use Gemini directly
+            console.log('⚠️ No REPLICATE_API_KEY - using Gemini generation');
+            
+            const essentialElements = buildEssentialElements(windowCount > 0);
+            const smartDefaultDetails = buildSmartDefaultPromptDetails(smartDefaultData);
+            const designPrompt = basePrompt + smartDefaultDetails + essentialElements;
+            const stagingLockPrompt = buildVirtualStagingLockPrompt(doorCount, windowCount);
+            
+            const geminiResult = await generateWithRetry(
+              () => generateRender(cleanedUrl, designPrompt, stagingLockPrompt),
+              { operation: 'generateRender', roomId: job.room_id, projectId: job.project_id }
+            );
+            
+            genResult = {
+              imageUrl: geminiResult.result.imageUrl,
+              latency: geminiResult.latency,
+              method: 'gemini',
+              isBase64: true
+            };
+          }
 
-          if (!genResult.result.imageUrl) {
+          if (!genResult.imageUrl) {
             throw new Error("No image generated");
           }
 
           // Save generated image
           const renderImagePath = `${job.project_id}/${job.room_id}/render_${Date.now()}.png`;
-          const base64Data = genResult.result.imageUrl.split(",")[1];
-          const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+          
+          let imageBlob: Blob;
+          if (genResult.isBase64) {
+            // Handle base64 from Gemini
+            const base64Data = genResult.imageUrl.split(",")[1] || genResult.imageUrl;
+            const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+            imageBlob = new Blob([binaryData], { type: "image/png" });
+          } else {
+            // Download from URL (ControlNet)
+            const imageResponse = await fetch(genResult.imageUrl);
+            imageBlob = await imageResponse.blob();
+          }
           
           await supabase.storage
             .from("room-images")
-            .upload(renderImagePath, binaryData, { contentType: "image/png" });
+            .upload(renderImagePath, imageBlob, { contentType: "image/png" });
 
           // Save to room_images
           await supabase.from("room_images").insert({
@@ -1207,21 +1396,25 @@ async function processJob(supabase: any, job: any): Promise<void> {
               room_id: job.room_id,
               image_url: renderImageUrl,
               storage_path: renderImagePath,
-              prompt_used: designPrompt,
-              model_used: "gemini-3-pro-image-preview",
-              provider: "lovable-ai",
+              prompt_used: genResult.method.includes('controlnet') 
+                ? `[ControlNet strength=${currentStrength}] ${buildFurnitureOnlyPrompt(smartDefaultData, roomType, style)}`
+                : basePrompt,
+              model_used: genResult.method.includes('controlnet') ? "replicate/interior-design" : "gemini-3-pro-image-preview",
+              provider: genResult.method.includes('controlnet') ? "replicate" : "lovable-ai",
               generation_time_ms: genResult.latency,
               approval_status: "pending",
               quality_score: null,
               version_number: newVersionNumber,
               parent_render_id: parentRenderId,
               quality_details: {
-                style: room?.selected_style || null,
-                room_type: room?.room_type || null,
+                style,
+                room_type: roomType,
                 smart_default_used: room?.smart_default_id !== null,
                 door_count_expected: doorCount,
                 window_count_expected: windowCount,
                 attempt_number: attemptCount,
+                prompt_strength: currentStrength,
+                generation_method: genResult.method,
                 phase: 5,
                 generated_at: new Date().toISOString(),
               },
@@ -1231,54 +1424,83 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
           if (renderInsertError) {
             console.error("❌ Failed to insert render record:", renderInsertError);
-          } else {
-            console.log(`✅ Render saved: id=${renderRecord?.id}, version=${newVersionNumber}, attempt=${attemptCount}`);
+            continue; // Try next attempt
+          }
+          
+          console.log(`✅ Render saved: id=${renderRecord?.id}, version=${newVersionNumber}, attempt=${attemptCount}, method=${genResult.method}`);
+          
+          // === SCORE AGAINST REFERENCE ===
+          const scoreResult = await scoreRenderAgainstReference(
+            supabase,
+            renderImageUrl,
+            cleanedUrl,
+            renderRecord.id
+          );
+          
+          console.log(`🎯 Score result: arch=${scoreResult.architecturalPreservation}, passed=${scoreResult.passed}, method=${genResult.method}`);
+          
+          if (scoreResult.passed) {
+            // Success - structure preserved!
+            finalRenderResult = { 
+              renderImagePath, 
+              renderId: renderRecord.id, 
+              attemptCount,
+              method: genResult.method,
+              promptStrength: currentStrength
+            };
             
-            // === SCORE AGAINST REFERENCE ===
-            const scoreResult = await scoreRenderAgainstReference(
+            console.log(`✅ Structure preservation PASSED on attempt ${attemptCount} with strength ${currentStrength}`);
+            
+            // Run prompt quality checks
+            const violations = await runQualityChecks(
               supabase,
-              renderImageUrl,
-              cleanedUrl,
-              renderRecord.id
+              buildFurnitureOnlyPrompt(smartDefaultData, roomType, style),
+              job.room_id,
+              renderRecord.id,
+              'generation'
             );
             
-            console.log(`🎯 Score result: arch=${scoreResult.architecturalPreservation}, passed=${scoreResult.passed}`);
+            if (violations.length > 0) {
+              console.warn(`⚠️ Quality violations: ${violations.map(v => v.type).join(', ')}`);
+            }
             
-            if (scoreResult.passed || attemptCount > MAX_RETRIES) {
-              // Success or out of retries - use this render
-              finalRenderResult = { renderImagePath, renderId: renderRecord.id, attemptCount };
+            break; // Exit retry loop - success!
+            
+          } else {
+            // Failed validation
+            console.log(`❌ Attempt ${attemptCount} failed validation: ${scoreResult.failureReasons.join(', ')}`);
+            
+            // Mark this render as rejected
+            await supabase
+              .from("renders")
+              .update({ 
+                approval_status: 'rejected',
+                rejection_reason: `Auto-rejected (attempt ${attemptCount}, strength ${currentStrength}): ${scoreResult.failureReasons.join(', ')}`,
+              })
+              .eq("id", renderRecord.id);
+            
+            if (attemptCount >= MAX_STRUCTURE_RETRIES) {
+              // Max retries exhausted - use last render with warning
+              console.warn(`⚠️ Max retries (${MAX_STRUCTURE_RETRIES}) reached. Using best available render.`);
+              finalRenderResult = { 
+                renderImagePath, 
+                renderId: renderRecord.id, 
+                attemptCount,
+                method: genResult.method,
+                promptStrength: currentStrength,
+                warning: `Structure validation failed after ${MAX_STRUCTURE_RETRIES} attempts: ${scoreResult.failureReasons.join(', ')}`
+              };
               
-              if (!scoreResult.passed && attemptCount > MAX_RETRIES) {
-                console.warn(`⚠️ Max retries reached. Using best available render despite ${scoreResult.failureReasons.join(', ')}`);
-              }
-              
-              // Run prompt quality checks
-              const violations = await runQualityChecks(
-                supabase,
-                designPrompt,
-                job.room_id,
-                renderRecord.id,
-                'generation'
-              );
-              
-              if (violations.length > 0) {
-                console.warn(`⚠️ Quality violations: ${violations.map(v => v.type).join(', ')}`);
-              }
-              
-              break; // Exit retry loop
-            } else {
-              // Failed validation - prepare for retry
-              console.log(`❌ Attempt ${attemptCount} failed validation. Retrying...`);
-              retryContext = `Failures: ${scoreResult.failureReasons.join(', ')}. Architectural preservation score was only ${scoreResult.architecturalPreservation}/100.`;
-              
-              // Mark this render as rejected
+              // Update render status to indicate it needs manual review
               await supabase
                 .from("renders")
                 .update({ 
-                  approval_status: 'rejected',
-                  rejection_reason: `Auto-rejected: ${scoreResult.failureReasons.join(', ')}`,
+                  approval_status: 'pending',
+                  rejection_reason: `⚠️ Auto-validation failed after ${MAX_STRUCTURE_RETRIES} attempts. Needs manual review: ${scoreResult.failureReasons.join(', ')}`,
                 })
                 .eq("id", renderRecord.id);
+            } else {
+              console.log(`🔄 Retrying with stricter preservation (strength: ${strengthLevels[attemptCount]})`);
             }
           }
         }
@@ -1296,12 +1518,17 @@ async function processJob(supabase: any, job: any): Promise<void> {
         await logApiCall(supabase, {
           projectId: job.project_id,
           roomId: job.room_id,
-          service: "lovable-ai",
+          service: finalRenderResult.method?.includes('controlnet') ? "replicate" : "lovable-ai",
           endpoint: "generateRender",
-          model: "gemini-3-pro-image-preview",
-          costUsd: 0.04 * finalRenderResult.attemptCount, // Cost per attempt
+          model: finalRenderResult.method?.includes('controlnet') ? "interior-design" : "gemini-3-pro-image-preview",
+          costUsd: finalRenderResult.method?.includes('controlnet') ? 0.02 * finalRenderResult.attemptCount : 0.04 * finalRenderResult.attemptCount,
           status: "success",
-          metadata: { attempts: finalRenderResult.attemptCount }
+          metadata: { 
+            attempts: finalRenderResult.attemptCount,
+            method: finalRenderResult.method,
+            promptStrength: finalRenderResult.promptStrength,
+            warning: finalRenderResult.warning
+          }
         });
 
         result = finalRenderResult;
