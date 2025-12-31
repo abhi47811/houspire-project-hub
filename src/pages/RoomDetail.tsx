@@ -294,14 +294,29 @@ export default function RoomDetail() {
           </Button>
         </Link>
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <h3 className="text-lg font-semibold">Room not found</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              The room you're looking for doesn't exist or you don't have access.
-            </p>
-            <Link to={`/projects/${projectId}`}>
-              <Button className="mt-4">Back to Project</Button>
-            </Link>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-4">
+            <AlertCircle className="h-16 w-16 text-muted-foreground" />
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold">Room not found</h3>
+              <p className="text-sm text-muted-foreground max-w-md">
+                The room you're looking for doesn't exist or you don't have access to it.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 mt-4">
+              <Link to={`/projects/${projectId}`}>
+                <Button>Back to Project</Button>
+              </Link>
+              <Link to="/projects">
+                <Button variant="outline">View All Projects</Button>
+              </Link>
+            </div>
+            {roomId && (
+              <div className="mt-4 p-3 bg-muted rounded-lg max-w-md w-full">
+                <p className="text-xs text-muted-foreground break-all">
+                  <span className="font-medium">Attempted Room ID:</span> {roomId}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
