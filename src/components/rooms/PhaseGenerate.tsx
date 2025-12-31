@@ -409,7 +409,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         });
         
         try {
-          score = await scoreRender(imageUrl);
+          score = await scoreRender(imageUrl, latestRender.id);
           
           // Update render with quality score
           await supabase
@@ -752,14 +752,15 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   };
 
   // Score render using AI quality assessment
-  const scoreRender = async (imageUrl: string): Promise<number> => {
+  const scoreRender = async (imageUrl: string, renderId?: string): Promise<number> => {
     try {
       setIsScoringRender(true);
-      console.log('🎯 Scoring render with AI...');
+      console.log('🎯 Scoring render with AI...', { hasRenderId: !!renderId });
 
       const { data, error } = await supabase.functions.invoke('score-render', {
         body: {
           imageUrl,
+          renderId: renderId || currentRender?.id || null,
           referenceImageUrl: cleanedImage?.signedUrl || null,
         },
       });
@@ -774,7 +775,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
 
       // Edge function returns { success: true, score: { overall: number, breakdown: {...}, ... } }
       const score = scoreObj?.overall || 85;
-      console.log('✅ Render scored:', score);
+      console.log('✅ Render scored:', score, 'arch:', scoreObj?.breakdown?.architectural_preservation);
       return score;
     } catch (err) {
       console.error('Failed to score render:', err);
