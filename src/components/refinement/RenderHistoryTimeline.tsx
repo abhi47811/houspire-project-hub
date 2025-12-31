@@ -1,8 +1,7 @@
 /**
  * F-063: Render History Timeline Component
  * 
- * Visual timeline of all render versions with quick actions
- * and refinement request tracking.
+ * Visual timeline of all render versions with quick actions.
  */
 
 import { useState } from 'react';
@@ -54,24 +53,6 @@ export function RenderHistoryTimeline({
       onCompareVersions(selectedVersions[0], selectedVersions[1]);
       setSelectedVersions([]);
     }
-  };
-
-  const getRefinementBadge = (version: RenderVersion) => {
-    if (!version.refinement_request) return null;
-
-    const { status, type } = version.refinement_request;
-    const statusColors = {
-      pending: 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20',
-      in_progress: 'bg-blue-500/10 text-blue-700 border-blue-500/20',
-      completed: 'bg-green-500/10 text-green-700 border-green-500/20',
-      rejected: 'bg-red-500/10 text-red-700 border-red-500/20',
-    };
-
-    return (
-      <Badge variant="outline" className={cn('text-[10px] h-4 px-1', statusColors[status])}>
-        {type.replace('_', ' ')}
-      </Badge>
-    );
   };
 
   return (
@@ -126,7 +107,7 @@ export function RenderHistoryTimeline({
                     {/* Thumbnail */}
                     <div className="relative w-20 h-20 rounded overflow-hidden bg-muted shrink-0">
                       <img
-                        src={version.thumbnail_url || version.image_url}
+                        src={version.thumbnail_url || version.render_url}
                         alt={`Version ${version.version_number}`}
                         className="w-full h-full object-cover"
                       />
@@ -155,7 +136,6 @@ export function RenderHistoryTimeline({
                             Refinement
                           </Badge>
                         )}
-                        {getRefinementBadge(version)}
                       </div>
 
                       {version.quality_score && (
@@ -164,9 +144,9 @@ export function RenderHistoryTimeline({
                         </div>
                       )}
 
-                      {version.refinement_request && (
+                      {version.change_summary && (
                         <div className="text-xs text-muted-foreground line-clamp-1">
-                          {version.refinement_request.description}
+                          {version.change_summary}
                         </div>
                       )}
 

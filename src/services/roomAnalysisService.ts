@@ -2,6 +2,7 @@
 // Auto-detects doors, windows, dimensions, and architectural features
 
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 export interface RoomAnalysisResult {
   doors: number;
@@ -41,6 +42,26 @@ export interface RoomAnalysisResult {
   wallType?: string;
   ceilingType?: string;
   suggestions?: string[];
+}
+
+// Type guard for position arrays
+interface PositionData {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: string;
+}
+
+function isPositionArray(data: Json | null): data is PositionData[] {
+  if (!Array.isArray(data)) return false;
+  return data.every(
+    (item) =>
+      typeof item === 'object' &&
+      item !== null &&
+      'x' in item &&
+      'y' in item
+  );
 }
 
 /**
@@ -103,10 +124,6 @@ export async function saveRoomAnalysis(
     const { error: updateError } = await supabase
       .from('rooms')
       .update({
-        doors: analysis.doors,
-        windows: analysis.windows,
-        door_positions: analysis.doorPositions,
-        window_positions: analysis.windowPositions,
         length_feet: analysis.dimensions?.estimatedLength,
         width_feet: analysis.dimensions?.estimatedWidth,
         height_feet: analysis.dimensions?.estimatedHeight,
@@ -115,23 +132,45 @@ export async function saveRoomAnalysis(
 
     if (updateError) throw updateError;
 
-    // Create room_analysis record
-    const { error: analysisError } = await supabase.from('room_analysis').insert({
+    // Check if room_analysis record exists
+    const { data: existing } = await supabase
+      .from('room_analysis')
+      .select('id')
+      .eq('room_id', roomId)
+      .maybeSingle();
+
+    const analysisData = {
       room_id: roomId,
       door_count: analysis.doors,
       window_count: analysis.windows,
-      door_positions: analysis.doorPositions,
-      window_positions: analysis.windowPositions,
-      structural_elements: analysis.structuralElements,
-      lighting_analysis: analysis.lighting,
-      floor_type: analysis.floorType,
-      wall_type: analysis.wallType,
-      ceiling_type: analysis.ceilingType,
-      ai_suggestions: analysis.suggestions,
-      analysis_confidence: analysis.dimensions?.confidence || 0.7,
-    });
+      door_positions: analysis.doorPositions as unknown as Json,
+      window_positions: analysis.windowPositions as unknown as Json,
+      detected_length_feet: analysis.dimensions?.estimatedLength,
+      detected_width_feet: analysis.dimensions?.estimatedWidth,
+      detected_height_feet: analysis.dimensions?.estimatedHeight,
+      measurement_confidence: analysis.dimensions?.confidence || 0.7,
+      other_features: {
+        structuralElements: analysis.structuralElements,
+        lighting: analysis.lighting,
+        floorType: analysis.floorType,
+        wallType: analysis.wallType,
+        ceilingType: analysis.ceilingType,
+        suggestions: analysis.suggestions,
+      } as unknown as Json,
+    };
 
-    if (analysisError) throw analysisError;
+    if (existing) {
+      // Update existing record
+      const { error } = await supabase
+        .from('room_analysis')
+        .update(analysisData)
+        .eq('room_id', roomId);
+      if (error) throw error;
+    } else {
+      // Insert new record
+      const { error } = await supabase.from('room_analysis').insert(analysisData);
+      if (error) throw error;
+    }
 
     console.log('✅ Room analysis saved successfully');
     return true;
@@ -157,17 +196,35 @@ export async function getRoomAnalysis(roomId: string): Promise<RoomAnalysisResul
     if (error) throw error;
     if (!data) return null;
 
+    // Parse position data with type safety
+    const doorPositions = isPositionArray(data.door_positions) 
+      ? data.door_positions 
+      : [];
+    const windowPositions = isPositionArray(data.window_positions) 
+      ? data.window_positions 
+      : [];
+
+    // Parse other_features JSON
+    const otherFeatures = (data.other_features || {}) as Record<string, any>;
+
     return {
-      doors: data.door_count,
-      windows: data.window_count,
-      doorPositions: data.door_positions || [],
-      windowPositions: data.window_positions || [],
-      structuralElements: data.structural_elements,
-      lighting: data.lighting_analysis,
-      floorType: data.floor_type,
-      wallType: data.wall_type,
-      ceilingType: data.ceiling_type,
-      suggestions: data.ai_suggestions,
+      doors: data.door_count || 0,
+      windows: data.window_count || 0,
+      doorPositions,
+      windowPositions,
+      dimensions: data.detected_length_feet ? {
+        estimatedLength: data.detected_length_feet,
+        estimatedWidth: data.detected_width_feet || 0,
+        estimatedHeight: data.detected_height_feet || 9,
+        unit: 'feet',
+        confidence: data.measurement_confidence || 0.7,
+      } : undefined,
+      structuralElements: otherFeatures.structuralElements,
+      lighting: otherFeatures.lighting,
+      floorType: otherFeatures.floorType,
+      wallType: otherFeatures.wallType,
+      ceilingType: otherFeatures.ceilingType,
+      suggestions: otherFeatures.suggestions,
     };
   } catch (error: any) {
     console.error('❌ Failed to get room analysis:', error);

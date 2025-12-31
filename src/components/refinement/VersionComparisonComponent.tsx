@@ -5,7 +5,6 @@
  * detailed difference analysis and visual comparison.
  */
 
-import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +13,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   GitCompare,
   Check,
-  X,
   Star,
   ArrowRight,
   Info,
@@ -22,10 +20,21 @@ import {
   TrendingDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { VersionComparison } from '@/services/features/refinementService';
+import type { RenderVersion } from '@/services/features/refinementService';
+
+// Local interface for comparison result
+interface VersionComparisonResult {
+  version_a: RenderVersion & { is_favorite?: boolean; style_id?: string };
+  version_b: RenderVersion & { is_favorite?: boolean; style_id?: string };
+  differences: {
+    style_changed: boolean;
+    quality_difference: number;
+    param_differences: string[];
+  };
+}
 
 interface VersionComparisonComponentProps {
-  comparison: VersionComparison;
+  comparison: VersionComparisonResult;
   onSelectVersion?: (versionId: string) => void;
   className?: string;
 }
@@ -80,7 +89,7 @@ export function VersionComparisonComponent({
             </div>
             <div className="aspect-video bg-muted rounded-lg overflow-hidden">
               <img
-                src={version_a.thumbnail_url || version_a.image_url}
+                src={version_a.thumbnail_url || version_a.render_url}
                 alt={`Version ${version_a.version_number}`}
                 className="w-full h-full object-cover"
               />
@@ -110,7 +119,7 @@ export function VersionComparisonComponent({
             </div>
             <div className="aspect-video bg-muted rounded-lg overflow-hidden">
               <img
-                src={version_b.thumbnail_url || version_b.image_url}
+                src={version_b.thumbnail_url || version_b.render_url}
                 alt={`Version ${version_b.version_number}`}
                 className="w-full h-full object-cover"
               />
@@ -138,9 +147,9 @@ export function VersionComparisonComponent({
               <AlertDescription className="text-xs">
                 <div className="font-medium mb-1">Style Changed</div>
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <span>{version_a.style_id}</span>
+                  <span>{version_a.style_id || 'Unknown'}</span>
                   <ArrowRight className="w-3 h-3" />
-                  <span>{version_b.style_id}</span>
+                  <span>{version_b.style_id || 'Unknown'}</span>
                 </div>
               </AlertDescription>
             </Alert>
