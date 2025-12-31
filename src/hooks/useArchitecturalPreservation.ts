@@ -116,30 +116,14 @@ export function useArchitecturalPreservation(roomId?: string) {
       if (result.warnings.length > 0) {
         toast({
           title: 'Preservation Warnings',
-          description: (
-            <div className="space-y-1">
-              {result.warnings.map((warning, idx) => (
-                <div key={idx} className="text-sm">
-                  • {warning}
-                </div>
-              ))}
-            </div>
-          ),
+          description: result.warnings.map((w) => `• ${w}`).join('\n'),
         });
       }
 
       if (result.errors.length > 0) {
         toast({
           title: 'Preservation Errors',
-          description: (
-            <div className="space-y-1">
-              {result.errors.map((error, idx) => (
-                <div key={idx} className="text-sm">
-                  • {error}
-                </div>
-              ))}
-            </div>
-          ),
+          description: result.errors.map((e) => `• ${e}`).join('\n'),
           variant: 'destructive',
         });
       }

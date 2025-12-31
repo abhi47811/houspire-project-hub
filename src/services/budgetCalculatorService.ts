@@ -214,7 +214,7 @@ export function calculateRoomBudget(
 export function calculateProjectBudget(rooms: Array<{
   roomType: string;
   area: number;
-}>>, city: string, tier: 'basic' | 'standard' | 'premium' | 'luxury'): {
+}>, city: string, tier: 'basic' | 'standard' | 'premium' | 'luxury'): {
   roomBudgets: BudgetEstimate[];
   total: number;
   totalBeforeGST: number;

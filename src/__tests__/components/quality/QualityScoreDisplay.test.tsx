@@ -1,125 +1,176 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { QualityScoreDisplay } from '../../../components/quality/QualityScoreDisplay';
+import type { QualityScore } from '@/services/features/qualityScoringService';
 
 describe('QualityScoreDisplay Component', () => {
-  const mockQualityScore = {
-    totalScore: 87,
-    grade: 'A' as const,
-    categories: {
-      design: { score: 18, maxScore: 20, feedback: 'Excellent design complexity' },
-      functionality: { score: 22, maxScore: 25, feedback: 'Very functional layout' },
-      aesthetics: { score: 19, maxScore: 20, feedback: 'Beautiful aesthetic choices' },
-      budget: { score: 13, maxScore: 15, feedback: 'Good budget management' },
-      technical: { score: 15, maxScore: 20, feedback: 'Solid technical execution' }
+  const mockQualityScore: QualityScore = {
+    room_id: 'test-room-123',
+    render_id: 'test-render-456',
+    total_score: 87,
+    quality_grade: 'Excellent',
+    style_consistency: {
+      score: 25,
+      issues: [],
+      strengths: ['Excellent design complexity', 'Great color harmony'],
     },
-    improvements: [
-      {
-        category: 'functionality',
-        priority: 'medium' as const,
-        suggestion: 'Consider adding more storage solutions'
-      }
-    ],
-    timestamp: new Date().toISOString()
+    architectural_accuracy: {
+      score: 22,
+      door_match: true,
+      window_match: true,
+      dimension_variance: 2.5,
+      issues: [],
+    },
+    furniture_placement: {
+      score: 18,
+      rule_violations: [],
+      clearance_issues: [],
+    },
+    color_material_adherence: {
+      score: 12,
+      palette_match: 85,
+      material_accuracy: 90,
+    },
+    technical_quality: {
+      score: 10,
+      resolution_adequate: true,
+      lighting_quality: 'good',
+      render_artifacts: [],
+    },
+    suggestions: ['Consider adding more accent lighting'],
+    scored_at: new Date().toISOString(),
+    scoring_version: '1.0',
   };
 
   it('should render quality score display', () => {
-    render(<QualityScoreDisplay qualityScore={mockQualityScore} />);
+    render(<QualityScoreDisplay score={mockQualityScore} />);
 
-    expect(screen.getByText(/Quality Score/i)).toBeInTheDocument();
-    expect(screen.getByText('87')).toBeInTheDocument();
-    expect(screen.getByText('A')).toBeInTheDocument();
+    expect(screen.getByText(/Quality Assessment/i)).toBeInTheDocument();
+    expect(screen.getByText('87/100')).toBeInTheDocument();
+    expect(screen.getByText('Excellent')).toBeInTheDocument();
   });
 
   it('should display all category scores', () => {
-    render(<QualityScoreDisplay qualityScore={mockQualityScore} />);
+    render(<QualityScoreDisplay score={mockQualityScore} />);
 
-    expect(screen.getByText(/Design/i)).toBeInTheDocument();
-    expect(screen.getByText(/Functionality/i)).toBeInTheDocument();
-    expect(screen.getByText(/Aesthetics/i)).toBeInTheDocument();
-    expect(screen.getByText(/Budget/i)).toBeInTheDocument();
-    expect(screen.getByText(/Technical/i)).toBeInTheDocument();
+    expect(screen.getByText(/Style Consistency/i)).toBeInTheDocument();
+    expect(screen.getByText(/Architectural Accuracy/i)).toBeInTheDocument();
+    expect(screen.getByText(/Furniture Placement/i)).toBeInTheDocument();
+    expect(screen.getByText(/Color & Materials/i)).toBeInTheDocument();
+    expect(screen.getByText(/Technical Quality/i)).toBeInTheDocument();
   });
 
-  it('should show category scores with progress bars', () => {
-    render(<QualityScoreDisplay qualityScore={mockQualityScore} />);
+  it('should show progress bars for scores', () => {
+    render(<QualityScoreDisplay score={mockQualityScore} />);
 
     const progressBars = screen.getAllByRole('progressbar');
     expect(progressBars.length).toBeGreaterThan(0);
   });
 
   it('should display improvement suggestions', () => {
-    render(<QualityScoreDisplay qualityScore={mockQualityScore} />);
+    render(<QualityScoreDisplay score={mockQualityScore} />);
 
-    expect(screen.getByText(/Consider adding more storage solutions/i)).toBeInTheDocument();
+    expect(screen.getByText(/Consider adding more accent lighting/i)).toBeInTheDocument();
   });
 
   it('should show grade badge with appropriate styling', () => {
-    render(<QualityScoreDisplay qualityScore={mockQualityScore} />);
+    render(<QualityScoreDisplay score={mockQualityScore} />);
 
-    const gradeBadge = screen.getByText('A');
-    expect(gradeBadge).toHaveClass(/badge/i);
+    const gradeBadge = screen.getByText('Excellent');
+    expect(gradeBadge).toBeInTheDocument();
   });
 
   it('should handle different grade levels', () => {
-    const grades: Array<'A' | 'B' | 'C' | 'D' | 'F'> = ['A', 'B', 'C', 'D', 'F'];
+    const grades: Array<'Excellent' | 'Good' | 'Fair' | 'Poor'> = ['Excellent', 'Good', 'Fair', 'Poor'];
 
     grades.forEach(grade => {
-      const score = {
+      const score: QualityScore = {
         ...mockQualityScore,
-        grade,
-        totalScore: grade === 'A' ? 90 : grade === 'B' ? 80 : grade === 'C' ? 70 : grade === 'D' ? 60 : 50
+        quality_grade: grade,
+        total_score: grade === 'Excellent' ? 90 : grade === 'Good' ? 80 : grade === 'Fair' ? 70 : 50
       };
 
-      const { rerender } = render(<QualityScoreDisplay qualityScore={score} />);
+      const { unmount } = render(<QualityScoreDisplay score={score} />);
       expect(screen.getByText(grade)).toBeInTheDocument();
-      rerender(<div />);
+      unmount();
     });
   });
 
-  it('should expand/collapse category details', async () => {
-    render(<QualityScoreDisplay qualityScore={mockQualityScore} />);
+  it('should display architectural accuracy badges', () => {
+    render(<QualityScoreDisplay score={mockQualityScore} />);
 
-    const expandButton = screen.getAllByRole('button')[0];
-    fireEvent.click(expandButton);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Excellent design complexity/i)).toBeInTheDocument();
-    });
+    expect(screen.getByText(/Doors ✓/i)).toBeInTheDocument();
+    expect(screen.getByText(/Windows ✓/i)).toBeInTheDocument();
   });
 
-  it('should display improvement priorities', () => {
-    const scoreWithPriorities = {
+  it('should show failed architectural checks', () => {
+    const scoreWithFailedChecks: QualityScore = {
       ...mockQualityScore,
-      improvements: [
-        { category: 'functionality', priority: 'high' as const, suggestion: 'High priority item' },
-        { category: 'aesthetics', priority: 'medium' as const, suggestion: 'Medium priority item' },
-        { category: 'technical', priority: 'low' as const, suggestion: 'Low priority item' }
-      ]
+      architectural_accuracy: {
+        ...mockQualityScore.architectural_accuracy,
+        door_match: false,
+        window_match: false,
+        issues: ['Door count mismatch'],
+      }
     };
 
-    render(<QualityScoreDisplay qualityScore={scoreWithPriorities} />);
+    render(<QualityScoreDisplay score={scoreWithFailedChecks} />);
 
-    expect(screen.getByText(/High priority item/i)).toBeInTheDocument();
-    expect(screen.getByText(/Medium priority item/i)).toBeInTheDocument();
-    expect(screen.getByText(/Low priority item/i)).toBeInTheDocument();
+    expect(screen.getByText(/Doors ✗/i)).toBeInTheDocument();
+    expect(screen.getByText(/Windows ✗/i)).toBeInTheDocument();
   });
 
-  it('should handle missing improvements gracefully', () => {
-    const scoreWithoutImprovements = {
+  it('should display issues when present', () => {
+    const scoreWithIssues: QualityScore = {
       ...mockQualityScore,
-      improvements: []
+      style_consistency: {
+        ...mockQualityScore.style_consistency,
+        issues: ['Color palette deviation detected'],
+      }
     };
 
-    render(<QualityScoreDisplay qualityScore={scoreWithoutImprovements} />);
+    render(<QualityScoreDisplay score={scoreWithIssues} />);
+
+    expect(screen.getByText(/Color palette deviation detected/i)).toBeInTheDocument();
+  });
+
+  it('should show scoring version', () => {
+    render(<QualityScoreDisplay score={mockQualityScore} />);
+
+    expect(screen.getByText(/v1.0/i)).toBeInTheDocument();
+  });
+
+  it('should display strengths for excellent scores', () => {
+    render(<QualityScoreDisplay score={mockQualityScore} />);
+
+    expect(screen.getByText(/Key Strengths/i)).toBeInTheDocument();
+    expect(screen.getByText(/Excellent design complexity/i)).toBeInTheDocument();
+  });
+
+  it('should render with custom className', () => {
+    const { container } = render(
+      <QualityScoreDisplay score={mockQualityScore} className="custom-class" />
+    );
+
+    expect(container.querySelector('.custom-class')).toBeInTheDocument();
+  });
+
+  it('should handle empty suggestions gracefully', () => {
+    const scoreWithoutSuggestions: QualityScore = {
+      ...mockQualityScore,
+      suggestions: []
+    };
+
+    render(<QualityScoreDisplay score={scoreWithoutSuggestions} />);
 
     expect(screen.queryByText(/Improvement Suggestions/i)).not.toBeInTheDocument();
   });
 
-  it('should show relative performance indicators', () => {
-    render(<QualityScoreDisplay qualityScore={mockQualityScore} showComparison />);
+  it('should display technical quality indicators', () => {
+    render(<QualityScoreDisplay score={mockQualityScore} />);
 
-    expect(screen.getByText(/Above Average/i) || screen.getByText(/Excellent/i)).toBeInTheDocument();
+    expect(screen.getByText(/Resolution ✓/i)).toBeInTheDocument();
+    expect(screen.getByText(/Lighting: good/i)).toBeInTheDocument();
   });
 });

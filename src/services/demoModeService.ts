@@ -1,107 +1,13 @@
-# 🔑 API KEYS SETUP GUIDE - HOUSPIRE
+// Demo Mode Service - Provides mock AI responses for testing without API keys
 
-**Critical:** These API keys are required for the app to function properly.
+export const DEMO_MODE = false; // Set to true to enable demo mode without API keys
 
----
-
-## 📋 Required API Keys
-
-### 1. **Supabase** (✅ Already Configured)
-- **Status:** ✅ Working
-- **Keys Found:**
-  - VITE_SUPABASE_URL
-  - VITE_SUPABASE_PUBLISHABLE_KEY
-  - VITE_SUPABASE_PROJECT_ID
-
-### 2. **AI Generation Services** (❌ Missing - Required)
-
-#### **Option A: OpenRouter (Recommended)**
-- **Purpose:** AI image generation, vision analysis
-- **Cost:** Pay-as-you-go, ~$0.10-0.50 per image
-- **Sign up:** https://openrouter.ai/
-- **Get API Key:** Dashboard → API Keys → Create New Key
-- **Required for:**
-  - Room render generation
-  - AI room analysis (door/window detection)
-  - Image cleaning
-
-#### **Option B: Lovable AI**
-- **Purpose:** Alternative AI provider
-- **Cost:** Varies by plan
-- **Sign up:** https://lovable.dev/
-- **Get API Key:** Account settings → API
-- **Required for:**
-  - High-quality render generation
-  - Style transfer
-
----
-
-## ⚙️ Configuration Steps
-
-### Step 1: Get OpenRouter API Key
-
-1. Go to https://openrouter.ai/
-2. Sign up for an account
-3. Navigate to: **Keys** section
-4. Click **Create New Key**
-5. Copy the key (starts with `sk-or-...`)
-
-### Step 2: Add Credits (Minimum $5 recommended)
-
-1. Go to: **Billing** section
-2. Add $5-10 to start
-3. This covers ~20-50 renders
-
-### Step 3: Configure Environment Variables
-
-#### **For Local Development:**
-
-Create/update `.env.local`:
-```bash
-# Supabase (Already configured)
-VITE_SUPABASE_PROJECT_ID="nvnxptkgksuhfcpmungq"
-VITE_SUPABASE_PUBLISHABLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-VITE_SUPABASE_URL="https://nvnxptkgksuhfcpmungq.supabase.co"
-
-# OpenRouter (Add this)
-OPENROUTER_API_KEY="sk-or-v1-your-api-key-here"
-
-# Lovable (Optional)
-LOVABLE_API_KEY="your-lovable-api-key-here"
-```
-
-#### **For Supabase Edge Functions:**
-
-1. Go to Supabase Dashboard: https://supabase.com/dashboard
-2. Select your project: `nvnxptkgksuhfcpmungq`
-3. Navigate to: **Edge Functions** → **Settings**
-4. Add these secrets:
-
-```bash
-OPENROUTER_API_KEY = sk-or-v1-your-api-key-here
-LOVABLE_API_KEY = your-lovable-api-key-here (optional)
-SUPABASE_URL = https://nvnxptkgksuhfcpmungq.supabase.co
-SUPABASE_SERVICE_ROLE_KEY = your-service-role-key-from-settings
-```
-
-To get Service Role Key:
-- Supabase Dashboard → Settings → API
-- Copy the **service_role** key (keep it secret!)
-
----
-
-## 🔧 Alternative: Use Mock/Demo Mode
-
-If you want to test without API keys, we can create a demo mode:
-
-<function_calls>
-<invoke name="Write">
-<parameter name="content">// Demo Mode - Mock AI Services
-// Use this for testing without API keys
-
-export const DEMO_MODE = true; // Set to false when you have API keys
-
-export async function mockGenerateRender(roomData: any) {
+export async function mockGenerateRender(roomData: {
+  doors?: number;
+  windows?: number;
+  roomType?: string;
+  style?: string;
+}) {
   console.log('🎭 DEMO MODE: Using mock render generation');
   
   // Simulate API delay
@@ -122,7 +28,7 @@ export async function mockGenerateRender(roomData: any) {
 }
 
 export async function mockAnalyzeRoom(imageUrl: string) {
-  console.log('🎭 DEMO MODE: Using mock room analysis');
+  console.log('🎭 DEMO MODE: Using mock room analysis for', imageUrl);
   
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 1500));
@@ -159,7 +65,7 @@ export async function mockAnalyzeRoom(imageUrl: string) {
 }
 
 export async function mockCleanImage(imageUrl: string) {
-  console.log('🎭 DEMO MODE: Using mock image cleaning');
+  console.log('🎭 DEMO MODE: Using mock image cleaning for', imageUrl);
   
   await new Promise(resolve => setTimeout(resolve, 1500));
   
@@ -168,5 +74,32 @@ export async function mockCleanImage(imageUrl: string) {
     success: true,
     cleanedUrl: imageUrl,
     message: 'Mock cleaning complete (Demo Mode)',
+  };
+}
+
+export async function mockGenerateRecommendations(roomType: string, style?: string) {
+  console.log('🎭 DEMO MODE: Using mock recommendations for', roomType);
+  
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  return {
+    success: true,
+    recommendations: [
+      {
+        style: style || 'Modern Minimalist',
+        confidence: 0.85,
+        description: 'Clean lines with neutral tones work well for this space',
+      },
+      {
+        style: 'Contemporary Indian',
+        confidence: 0.75,
+        description: 'Blend of traditional elements with modern functionality',
+      },
+      {
+        style: 'Scandinavian',
+        confidence: 0.70,
+        description: 'Light woods and cozy textiles create a warm atmosphere',
+      },
+    ],
   };
 }

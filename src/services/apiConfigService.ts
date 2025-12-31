@@ -1,5 +1,5 @@
 // API Configuration and Setup Check
-// Verifies API keys are configured and provides helpful error messages
+// For Lovable Cloud projects, LOVABLE_API_KEY is automatically available as a backend secret
 
 export interface ApiConfig {
   supabase: {
@@ -9,18 +9,30 @@ export interface ApiConfig {
   };
   openRouter: {
     configured: boolean;
-    key?: string;
   };
   lovable: {
     configured: boolean;
-    key?: string;
   };
+  isCloudProject: boolean;
+}
+
+/**
+ * Check if this is a Lovable Cloud project
+ * Cloud projects have VITE_SUPABASE_URL automatically configured
+ */
+function isLovableCloudProject(): boolean {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  // If we have a Supabase URL, this is a Cloud project with backend access
+  return !!supabaseUrl;
 }
 
 /**
  * Check API configuration status
+ * For Cloud projects, AI is always available via LOVABLE_API_KEY (backend secret)
  */
 export function checkApiConfig(): ApiConfig {
+  const isCloud = isLovableCloudProject();
+  
   return {
     supabase: {
       configured: !!(
@@ -30,14 +42,15 @@ export function checkApiConfig(): ApiConfig {
       url: import.meta.env.VITE_SUPABASE_URL,
       anonKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
     },
+    // OpenRouter is configured if explicitly set, or always available via Cloud
     openRouter: {
-      configured: !!import.meta.env.VITE_OPENROUTER_API_KEY,
-      key: import.meta.env.VITE_OPENROUTER_API_KEY,
+      configured: isCloud, // Cloud projects can use edge functions with OPENROUTER_API_KEY
     },
+    // Lovable AI is always available in Cloud projects
     lovable: {
-      configured: !!import.meta.env.VITE_LOVABLE_API_KEY,
-      key: import.meta.env.VITE_LOVABLE_API_KEY,
+      configured: isCloud, // LOVABLE_API_KEY is auto-provisioned for Cloud projects
     },
+    isCloudProject: isCloud,
   };
 }
 
@@ -51,8 +64,10 @@ export function getMissingApiKeys(): string[] {
   if (!config.supabase.configured) {
     missing.push('Supabase (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY)');
   }
-  if (!config.openRouter.configured) {
-    missing.push('OpenRouter (VITE_OPENROUTER_API_KEY)');
+  
+  // For Cloud projects, no API keys are missing since they're auto-provisioned
+  if (!config.isCloudProject && !config.openRouter.configured && !config.lovable.configured) {
+    missing.push('OpenRouter or Lovable AI key required for AI features');
   }
 
   return missing;
@@ -68,16 +83,23 @@ export function canAppFunction(): boolean {
 
 /**
  * Check if AI features are available
+ * For Cloud projects, AI is always available via edge functions
  */
 export function canUseAiFeatures(): boolean {
   const config = checkApiConfig();
-  return config.openRouter.configured || config.lovable.configured;
+  return config.isCloudProject || config.openRouter.configured || config.lovable.configured;
 }
 
 /**
  * Get setup instructions
  */
 export function getSetupInstructions(): string {
+  const config = checkApiConfig();
+  
+  if (config.isCloudProject) {
+    return '✅ Lovable Cloud project - AI features are automatically available!';
+  }
+
   const missing = getMissingApiKeys();
 
   if (missing.length === 0) {
@@ -86,27 +108,22 @@ export function getSetupInstructions(): string {
 
   let instructions = '⚠️ Missing API Keys:\n\n';
 
-  if (missing.includes('OpenRouter (VITE_OPENROUTER_API_KEY)')) {
-    instructions += `
-🔑 OpenRouter API Key Required:
+  instructions += `
+🔑 To enable AI features, connect to Lovable Cloud or add API keys:
 
+Option 1: Use Lovable Cloud (Recommended)
+- AI features are automatically available
+- No API key configuration needed
+
+Option 2: Add OpenRouter API Key
 1. Go to https://openrouter.ai/
 2. Sign up for an account
 3. Create an API key
-4. Add to .env.local:
-   VITE_OPENROUTER_API_KEY=sk-or-v1-your-key-here
-
-5. Restart the dev server
-
-Without OpenRouter:
-- ❌ Cannot generate renders
-- ❌ Cannot analyze rooms
-- ❌ Cannot clean images
-- ✅ Can still browse and manage projects
+4. Add as Supabase Edge Function secret:
+   OPENROUTER_API_KEY=sk-or-v1-your-key-here
 
 Cost: ~$0.10-0.50 per render (pay-as-you-go)
 `;
-  }
 
   return instructions;
 }
@@ -117,6 +134,11 @@ Cost: ~$0.10-0.50 per render (pay-as-you-go)
 export function displaySetupWarning() {
   const config = checkApiConfig();
 
+  if (config.isCloudProject) {
+    console.log('✅ Lovable Cloud project - AI features available via edge functions');
+    return;
+  }
+
   if (!config.openRouter.configured && !config.lovable.configured) {
     console.warn(`
 ╔═══════════════════════════════════════════════════════════╗
@@ -125,15 +147,13 @@ export function displaySetupWarning() {
 
 AI features will NOT work without API keys.
 
+Connect to Lovable Cloud for automatic AI access, or:
+
 Required: OpenRouter API Key
 Get it at: https://openrouter.ai/
 
-Add to .env.local:
-VITE_OPENROUTER_API_KEY=sk-or-v1-your-key-here
-
-Then restart: npm run dev
-
-See docs/API_SETUP_GUIDE.md for details.
+Add as Supabase Edge Function secret:
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
 
 ═══════════════════════════════════════════════════════════
     `);
@@ -145,8 +165,8 @@ See docs/API_SETUP_GUIDE.md for details.
 /**
  * Get user-friendly error message for API failures
  */
-export function getApiErrorMessage(error: any): string {
-  const errorMessage = error?.message || String(error);
+export function getApiErrorMessage(error: unknown): string {
+  const errorMessage = error instanceof Error ? error.message : String(error);
 
   // Check for common API key issues
   if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
@@ -154,7 +174,7 @@ export function getApiErrorMessage(error: any): string {
   }
 
   if (errorMessage.includes('402') || errorMessage.includes('payment')) {
-    return 'Insufficient credits. Please add credits to your OpenRouter account.';
+    return 'Insufficient credits. Please add credits to your account.';
   }
 
   if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
