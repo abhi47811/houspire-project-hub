@@ -769,7 +769,7 @@ async function runQualityChecks(
   return violations;
 }
 
-// Call AI for render generation with virtual staging lock
+// Call AI for render generation with STRICT base image structure lock
 async function generateRender(
   cleanedImageUrl: string, 
   prompt: string, 
@@ -778,41 +778,78 @@ async function generateRender(
 ): Promise<any> {
   const startTime = Date.now();
   
-  console.log('generateRender called with Gemini 3 Pro Image...');
-  console.log('prompt length:', prompt?.length);
-  console.log('stagingLockPrompt included: YES');
-  console.log('cleanedImageUrl:', cleanedImageUrl?.slice(0, 100));
+  console.log('🎨 generateRender: Using Gemini 3 Pro Image (PRIMARY)');
+  console.log('cleanedImageUrl (BASE IMAGE):', cleanedImageUrl?.slice(0, 100));
   if (retryContext) {
-    console.log('RETRY CONTEXT:', retryContext);
+    console.log('⚠️ RETRY CONTEXT:', retryContext);
   }
   
-  // Build the full generation prompt with staging lock at the TOP
-  let fullPrompt = stagingLockPrompt + '\n\n' + prompt;
+  // NON-NEGOTIABLE base image lock - this goes FIRST
+  const baseImageLock = `
+═══════════════════════════════════════════════════════════════
+🔒🔒🔒 NON-NEGOTIABLE BASE IMAGE RULES 🔒🔒🔒
+═══════════════════════════════════════════════════════════════
+
+⚠️ YOU ARE EDITING THE PROVIDED PHOTOGRAPH - NOT GENERATING A NEW IMAGE ⚠️
+
+THE CLEAN IMAGE BELOW IS YOUR LOCKED REFERENCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Camera position: MUST BE IDENTICAL to clean image
+✅ Camera angle: MUST BE IDENTICAL to clean image  
+✅ Every door: EXACT same wall, EXACT same position as clean image
+✅ Every window: EXACT same wall, EXACT same position as clean image
+✅ Room geometry: MUST BE IDENTICAL to clean image
+✅ Floor perspective lines: MUST BE IDENTICAL to clean image
+✅ Wall positions: MUST BE IDENTICAL to clean image
+✅ Ceiling lines: MUST BE IDENTICAL to clean image
+
+🚫 VIOLATIONS THAT CAUSE IMMEDIATE REJECTION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+❌ Moving the camera position
+❌ Changing the camera angle
+❌ Adding or removing doors
+❌ Moving doors to different walls
+❌ Adding or removing windows
+❌ Moving windows to different walls
+❌ Changing room proportions
+❌ Altering perspective lines
+❌ Mirroring or flipping the room
+
+YOUR ONLY TASK: Add furniture and decor to THIS EXACT photograph.
+The room structure is FROZEN and IMMUTABLE.
+═══════════════════════════════════════════════════════════════
+`;
+
+  // Build the full prompt
+  let fullPrompt = baseImageLock + '\n\n' + stagingLockPrompt + '\n\n' + prompt;
   
-  // If this is a retry, add VERY strong enforcement
+  // If retry, add even stronger enforcement with specific failure reason
   if (retryContext) {
     fullPrompt = `
-🚨🚨🚨 CRITICAL FAILURE - PREVIOUS ATTEMPT REJECTED 🚨🚨🚨
+⛔⛔⛔ CRITICAL: PREVIOUS RENDER REJECTED ⛔⛔⛔
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-REASON FOR REJECTION: ${retryContext}
+REJECTION REASON: ${retryContext}
 
-THIS IS A RETRY. THE PREVIOUS IMAGE WAS REJECTED BECAUSE IT VIOLATED ARCHITECTURAL PRESERVATION RULES.
+THIS IS ATTEMPT #2+. THE PREVIOUS OUTPUT WAS REJECTED.
 
-YOU MUST:
-1. Keep the EXACT SAME camera angle as the input photo - DO NOT MOVE THE CAMERA
-2. Keep ALL doors in their EXACT original positions - do NOT add or remove doors
-3. Keep ALL windows in their EXACT original positions - do NOT add or remove windows
-4. Do NOT add ANY new windows or doors - this is the #1 reason for rejection
-5. Do NOT change the viewing perspective in ANY way
+MANDATORY CORRECTIONS:
+1. Look at the BASE IMAGE below - this is your ONLY reference for room structure
+2. Camera angle must be PIXEL-PERFECT match to base image
+3. Doors must be on SAME WALLS as base image (count them!)
+4. Windows must be on SAME WALLS as base image (count them!)
+5. DO NOT reimagine the room - COPY THE STRUCTURE EXACTLY
 
-The input photo shows a specific room from a specific angle. OUTPUT MUST show the SAME room from the SAME angle, with ONLY furniture/decor added.
+If the base image shows a door on the LEFT wall → output MUST have door on LEFT wall
+If the base image shows a window on the BACK wall → output MUST have window on BACK wall
 
-FAILURE TO COMPLY = ANOTHER REJECTION
+YOU ARE PHOTO-EDITING, NOT GENERATING.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ` + fullPrompt;
   }
   
-  console.log('Full prompt preview:', fullPrompt.slice(0, 600));
+  console.log('Full prompt preview (first 800 chars):', fullPrompt.slice(0, 800));
   
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -828,18 +865,25 @@ FAILURE TO COMPLY = ANOTHER REJECTION
           content: [
             {
               type: "text",
-              text: `🔒 VIRTUAL STAGING PHOTO-EDIT TASK 🔒
+              text: `🔒 PHOTO EDITING TASK - NOT IMAGE GENERATION 🔒
 
-You are editing this empty room photograph. Add furniture and decor ONLY.
+The image below is your LOCKED BASE. You are placing furniture INTO this photograph.
+
+CRITICAL: Copy the EXACT room structure. Same camera. Same walls. Same doors. Same windows.
 
 ${fullPrompt}
 
-⚠️ FINAL CRITICAL REMINDER:
-- This is PHOTO EDITING, not image generation
-- Camera angle: LOCKED - must match input exactly  
-- Doors/Windows: LOCKED - same count, same positions
-- You are placing virtual furniture into a REAL photograph
-- The room structure is IMMUTABLE`
+═══════════════════════════════════════════════════════════════
+FINAL CHECK BEFORE OUTPUT:
+━━━━━━━━━━━━━━━━━━━━━━━━
+□ Camera angle matches base image exactly?
+□ All doors on same walls as base image?
+□ All windows on same walls as base image?
+□ Room geometry unchanged?
+□ Only furniture/decor added?
+
+If ANY checkbox fails → DO NOT OUTPUT → Re-examine base image
+═══════════════════════════════════════════════════════════════`
             },
             { type: "image_url", image_url: { url: cleanedImageUrl } }
           ]
@@ -853,21 +897,21 @@ ${fullPrompt}
 
   if (!response.ok) {
     const error = await response.text();
-    console.error('Generate AI error response:', error);
-    throw new Error(`Generate AI error: ${error}`);
+    console.error('Gemini error response:', error);
+    throw new Error(`Gemini generation error: ${error}`);
   }
 
   const data = await response.json();
-  console.log('Generate AI response received, checking for images...');
+  console.log('✅ Gemini response received');
   
   const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
   
   if (!imageUrl) {
-    console.error('No image URL in response:', JSON.stringify(data).slice(0, 500));
-    throw new Error("No image generated - AI response did not contain an image");
+    console.error('No image in Gemini response:', JSON.stringify(data).slice(0, 500));
+    throw new Error("Gemini did not return an image");
   }
 
-  console.log('Image generated successfully, length:', imageUrl.length);
+  console.log('✅ Gemini image generated, base64 length:', imageUrl.length);
 
   return {
     result: { imageUrl },
@@ -1268,69 +1312,36 @@ async function processJob(supabase: any, job: any): Promise<void> {
           timestamp: new Date().toISOString()
         });
 
-        // === STRUCTURE-PRESERVING GENERATION WITH PROGRESSIVE STRENGTH ===
+        // === GEMINI-FIRST GENERATION (Higher Quality) ===
+        // ControlNet is only used as fallback if Gemini completely fails
         let attemptCount = 0;
         let finalRenderResult: any = null;
+        let lastRetryContext: string | undefined = undefined;
         
-        // Progressive prompt_strength: start at 0.5, reduce on each retry for stricter preservation
-        const strengthLevels = [0.5, 0.4, 0.3, 0.25];
+        console.log('🎨 Using GEMINI as PRIMARY generator (best quality)');
+        console.log('📏 Clean image is the LOCKED BASE for structure');
         
         while (attemptCount < MAX_STRUCTURE_RETRIES) {
           attemptCount++;
-          const currentStrength = strengthLevels[Math.min(attemptCount - 1, strengthLevels.length - 1)];
           
-          console.log(`📸 Generation attempt ${attemptCount}/${MAX_STRUCTURE_RETRIES} (prompt_strength: ${currentStrength})`);
+          console.log(`📸 Generation attempt ${attemptCount}/${MAX_STRUCTURE_RETRIES}`);
           
           let genResult: { imageUrl: string; latency: number; method: string; isBase64?: boolean };
           
-          // Try ControlNet first (structure-preserving), fall back to Gemini
-          if (REPLICATE_API_KEY) {
-            try {
-              // Build furniture-only prompt for ControlNet (no architectural instructions)
-              const furniturePrompt = buildFurnitureOnlyPrompt(smartDefaultData, roomType, style);
-              
-              console.log('🎨 Using ControlNet (structure-preserving) generation');
-              console.log('  Furniture prompt:', furniturePrompt.slice(0, 150));
-              
-              genResult = await generateWithRetry(
-                () => generateWithControlNet(cleanedUrl, furniturePrompt, currentStrength),
-                { operation: 'generateWithControlNet', roomId: job.room_id, projectId: job.project_id },
-                1 // Only 1 retry for each strength level
-              );
-              genResult.isBase64 = false; // ControlNet returns URL
-              
-            } catch (controlNetError) {
-              console.warn('⚠️ ControlNet failed, falling back to Gemini:', controlNetError);
-              
-              // Fallback to Gemini with strict prompts
-              const essentialElements = buildEssentialElements(windowCount > 0);
-              const smartDefaultDetails = buildSmartDefaultPromptDetails(smartDefaultData);
-              const designPrompt = basePrompt + smartDefaultDetails + essentialElements;
-              const stagingLockPrompt = buildVirtualStagingLockPrompt(doorCount, windowCount);
-              
-              const geminiResult = await generateWithRetry(
-                () => generateRender(cleanedUrl, designPrompt, stagingLockPrompt),
-                { operation: 'generateRender', roomId: job.room_id, projectId: job.project_id }
-              );
-              
-              genResult = {
-                imageUrl: geminiResult.result.imageUrl,
-                latency: geminiResult.latency,
-                method: 'gemini-fallback',
-                isBase64: true
-              };
-            }
-          } else {
-            // No Replicate key - use Gemini directly
-            console.log('⚠️ No REPLICATE_API_KEY - using Gemini generation');
-            
-            const essentialElements = buildEssentialElements(windowCount > 0);
-            const smartDefaultDetails = buildSmartDefaultPromptDetails(smartDefaultData);
-            const designPrompt = basePrompt + smartDefaultDetails + essentialElements;
-            const stagingLockPrompt = buildVirtualStagingLockPrompt(doorCount, windowCount);
+          // Build prompts
+          const essentialElements = buildEssentialElements(windowCount > 0);
+          const smartDefaultDetails = buildSmartDefaultPromptDetails(smartDefaultData);
+          const designPrompt = basePrompt + smartDefaultDetails + essentialElements;
+          const stagingLockPrompt = buildVirtualStagingLockPrompt(doorCount, windowCount);
+          
+          try {
+            // PRIMARY: Gemini 3 Pro Image (best quality, use clean image as base)
+            console.log('🎨 Using Gemini 3 Pro Image (primary - high quality)');
+            console.log('  Design prompt:', designPrompt.slice(0, 150));
+            console.log('  Retry context:', lastRetryContext ? 'YES' : 'NO');
             
             const geminiResult = await generateWithRetry(
-              () => generateRender(cleanedUrl, designPrompt, stagingLockPrompt),
+              () => generateRender(cleanedUrl, designPrompt, stagingLockPrompt, lastRetryContext),
               { operation: 'generateRender', roomId: job.room_id, projectId: job.project_id }
             );
             
@@ -1340,6 +1351,30 @@ async function processJob(supabase: any, job: any): Promise<void> {
               method: 'gemini',
               isBase64: true
             };
+            
+          } catch (geminiError) {
+            console.warn('⚠️ Gemini failed, trying ControlNet fallback:', geminiError);
+            
+            // FALLBACK: ControlNet (only if Gemini fails completely)
+            if (REPLICATE_API_KEY) {
+              try {
+                const furniturePrompt = buildFurnitureOnlyPrompt(smartDefaultData, roomType, style);
+                console.log('🔄 ControlNet fallback...');
+                
+                genResult = await generateWithRetry(
+                  () => generateWithControlNet(cleanedUrl, furniturePrompt, 0.4),
+                  { operation: 'generateWithControlNet', roomId: job.room_id, projectId: job.project_id },
+                  1
+                );
+                genResult.isBase64 = false;
+                
+              } catch (controlNetError) {
+                console.error('❌ Both Gemini and ControlNet failed');
+                throw geminiError; // Throw original Gemini error
+              }
+            } else {
+              throw geminiError;
+            }
           }
 
           if (!genResult.imageUrl) {
@@ -1401,7 +1436,7 @@ async function processJob(supabase: any, job: any): Promise<void> {
               image_url: renderImageUrl,
               storage_path: renderImagePath,
               prompt_used: genResult.method.includes('controlnet') 
-                ? `[ControlNet strength=${currentStrength}] ${buildFurnitureOnlyPrompt(smartDefaultData, roomType, style)}`
+                ? `[ControlNet] ${buildFurnitureOnlyPrompt(smartDefaultData, roomType, style)}`
                 : basePrompt,
               model_used: genResult.method.includes('controlnet') ? "replicate/interior-design" : "gemini-3-pro-image-preview",
               provider: genResult.method.includes('controlnet') ? "replicate" : "lovable-ai",
@@ -1417,7 +1452,6 @@ async function processJob(supabase: any, job: any): Promise<void> {
                 door_count_expected: doorCount,
                 window_count_expected: windowCount,
                 attempt_number: attemptCount,
-                prompt_strength: currentStrength,
                 generation_method: genResult.method,
                 phase: 5,
                 generated_at: new Date().toISOString(),
@@ -1449,11 +1483,10 @@ async function processJob(supabase: any, job: any): Promise<void> {
               renderImagePath, 
               renderId: renderRecord.id, 
               attemptCount,
-              method: genResult.method,
-              promptStrength: currentStrength
+              method: genResult.method
             };
             
-            console.log(`✅ Structure preservation PASSED on attempt ${attemptCount} with strength ${currentStrength}`);
+            console.log(`✅ Structure preservation PASSED on attempt ${attemptCount} using ${genResult.method}`);
             
             // Run prompt quality checks
             const violations = await runQualityChecks(
@@ -1479,7 +1512,7 @@ async function processJob(supabase: any, job: any): Promise<void> {
               .from("renders")
               .update({ 
                 approval_status: 'rejected',
-                rejection_reason: `Auto-rejected (attempt ${attemptCount}, strength ${currentStrength}): ${scoreResult.failureReasons.join(', ')}`,
+                rejection_reason: `Auto-rejected (attempt ${attemptCount}): ${scoreResult.failureReasons.join(', ')}`,
               })
               .eq("id", renderRecord.id);
             
@@ -1491,7 +1524,6 @@ async function processJob(supabase: any, job: any): Promise<void> {
                 renderId: renderRecord.id, 
                 attemptCount,
                 method: genResult.method,
-                promptStrength: currentStrength,
                 warning: `Structure validation failed after ${MAX_STRUCTURE_RETRIES} attempts: ${scoreResult.failureReasons.join(', ')}`
               };
               
@@ -1504,7 +1536,9 @@ async function processJob(supabase: any, job: any): Promise<void> {
                 })
                 .eq("id", renderRecord.id);
             } else {
-              console.log(`🔄 Retrying with stricter preservation (strength: ${strengthLevels[attemptCount]})`);
+              // Set retry context for next attempt with specific failure reasons
+              lastRetryContext = scoreResult.failureReasons.join(', ');
+              console.log(`🔄 Retrying with stronger structure lock prompt...`);
             }
           }
         }
