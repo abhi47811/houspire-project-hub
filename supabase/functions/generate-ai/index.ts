@@ -57,15 +57,21 @@ function buildComprehensivePrompt(input: PromptBuilderInput): string {
  * CRITICAL: This MUST come FIRST in every AI prompt to ensure doors/windows are preserved
  */
 function buildArchitecturalPreservationPrompt(room: any): string {
-  // Extract door/window counts from room data (multiple sources for fallback)
-  const doors = room.doors || room.room_analysis?.door_count || 0;
-  const windows = room.windows || room.room_analysis?.window_count || 0;
-  const doorPositions = room.door_positions || [];
-  const windowPositions = room.window_positions || [];
-  const dimensions = room.dimensions || 
-    (room.length_feet && room.width_feet && room.height_feet 
-      ? `${room.length_feet}ft x ${room.width_feet}ft x ${room.height_feet}ft`
-      : "as shown in cleaned image");
+  // Extract door/window counts from room_analysis (the correct source!)
+  const analysis = room.room_analysis || {};
+  const doors = analysis.door_count || 0;
+  const windows = analysis.window_count || 0;
+  const doorPositions = analysis.door_positions || [];
+  const windowPositions = analysis.window_positions || [];
+  
+  // Get dimensions from analysis or room directly
+  const lengthFeet = room.length_feet || analysis.detected_length_feet;
+  const widthFeet = room.width_feet || analysis.detected_width_feet;
+  const heightFeet = room.height_feet || analysis.detected_height_feet || 9;
+  
+  const dimensions = (lengthFeet && widthFeet)
+    ? `${lengthFeet}ft x ${widthFeet}ft x ${heightFeet}ft`
+    : "as shown in cleaned image";
   
   // Build detailed door descriptions if positions available
   let doorDetails = "";
@@ -139,8 +145,6 @@ Before generating, mentally compare:
 
 **THINK OF IT THIS WAY:** You're showing a client how their EXISTING room will look after renovation.
 You CANNOT move their windows or doors - that would require major construction!`;
-
-`;
 }
 
 // ============================================================================
@@ -157,7 +161,14 @@ async function fetchRoomData(supabase: any, roomId: string) {
         budget_tier
       ),
       room_analysis (
-        ceiling_fan_count
+        door_count,
+        window_count,
+        door_positions,
+        window_positions,
+        ceiling_fan_count,
+        detected_length_feet,
+        detected_width_feet,
+        detected_height_feet
       )
     `)
     .eq('id', roomId)
@@ -582,8 +593,8 @@ serve(async (req) => {
           // 🚨 STEP 5A: Build architectural preservation prompt (MUST BE FIRST!)
           const preservationPrompt = buildArchitecturalPreservationPrompt(room);
           console.log(`✓ Architectural preservation prompt: ${preservationPrompt.length} characters`);
-          console.log(`  Doors to preserve: ${room.doors || 0}`);
-          console.log(`  Windows to preserve: ${room.windows || 0}`);
+          console.log(`  Doors to preserve: ${room.room_analysis?.door_count || 0}`);
+          console.log(`  Windows to preserve: ${room.room_analysis?.window_count || 0}`);
           
           // 🎨 STEP 5B: Build style and design prompt
           const stylePrompt = buildComprehensivePrompt({
