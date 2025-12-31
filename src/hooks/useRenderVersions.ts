@@ -100,6 +100,27 @@ export function useRenderVersions(roomId: string) {
   const finalVersion = versions?.find((v) => v.is_final);
   const versionCount = versions?.length || 0;
 
+  // Revert to version - creates a new version copying the old one
+  const revertToVersion = (versionId: string) => {
+    const targetVersion = versions?.find((v) => v.id === versionId);
+    if (targetVersion) {
+      createVersionMutation.mutate({
+        room_id: roomId,
+        render_url: targetVersion.render_url,
+        storage_path: targetVersion.storage_path,
+        prompt_used: targetVersion.prompt_used || undefined,
+        style_config: (targetVersion.style_config as Record<string, unknown>) || {},
+        generation_params: (targetVersion.generation_params as Record<string, unknown>) || {},
+        notes: `Reverted to version ${targetVersion.version_number}`,
+      });
+    }
+  };
+
+  // Rate version helper
+  const rateVersion = ({ versionId, rating }: { versionId: string; rating: number }) => {
+    updateVersionMutation.mutate({ versionId, updates: { user_rating: rating } });
+  };
+
   return {
     // Data
     versions,
@@ -116,6 +137,8 @@ export function useRenderVersions(roomId: string) {
     markAsFinal: markAsFinalMutation.mutate,
     updateVersion: updateVersionMutation.mutate,
     deleteVersion: deleteVersionMutation.mutate,
+    revertToVersion,
+    rateVersion,
     refetch,
 
     // Loading states
@@ -124,6 +147,7 @@ export function useRenderVersions(roomId: string) {
     isMarking: markAsFinalMutation.isPending,
     isUpdating: updateVersionMutation.isPending,
     isDeleting: deleteVersionMutation.isPending,
+    isReverting: createVersionMutation.isPending, // Revert uses create mutation
   };
 }
 
