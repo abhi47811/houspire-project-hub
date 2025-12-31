@@ -133,6 +133,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
   const [isCataloging, setIsCataloging] = useState(false);
   const [isScoringRender, setIsScoringRender] = useState(false);
+  const [latestScore, setLatestScore] = useState<any | null>(null);
   const [changeRequestOpen, setChangeRequestOpen] = useState(false);
   const [changeRequest, setChangeRequest] = useState('');
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
@@ -580,17 +581,76 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   // Preservation status is now populated from room_analysis or architectural_preservation tables
   // via the preservationStatus state, not from room.doors/windows columns
 
-  const qualityMetrics: QualityMetric[] = [
-    { name: 'Architectural Preservation', score: 100, critical: true },
-    { name: 'Design Style Accuracy', score: 92 },
-    { name: 'Photorealism', score: 88 },
-    { name: 'Furniture Proportions', score: 95 },
-    { name: 'Magazine Quality', score: 90 },
-  ];
+  const qualityMetrics: QualityMetric[] = latestScore?.breakdown
+    ? [
+        {
+          name: 'Architectural Preservation',
+          score: Math.round(latestScore.breakdown.architectural_preservation ?? 0),
+          critical: true,
+        },
+        { name: 'Design Style Accuracy', score: Math.round(latestScore.breakdown.style_consistency ?? 0) },
+        { name: 'Photorealism', score: Math.round(latestScore.breakdown.photorealism ?? 0) },
+        { name: 'Furniture Proportions', score: Math.round(latestScore.breakdown.furniture_proportions ?? 0) },
+        { name: 'Lighting Quality', score: Math.round(latestScore.breakdown.lighting_quality ?? 0) },
+      ]
+    : [
+        {
+          name: 'Architectural Preservation',
+          score: preservationStatus?.validationStatus === 'failed' ? 0 : 85,
+          critical: true,
+        },
+        { name: 'Design Style Accuracy', score: 85 },
+        { name: 'Photorealism', score: 85 },
+        { name: 'Furniture Proportions', score: 85 },
+        { name: 'Lighting Quality', score: 85 },
+      ];
 
-  const overallScore = room.final_quality_score || Math.round(
-    qualityMetrics.reduce((sum, m) => sum + m.score, 0) / qualityMetrics.length
-  );
+  const overallScore = latestScore?.overall
+    ? Math.round(latestScore.overall)
+    :
+        room.final_quality_score ||
+        Math.round(qualityMetrics.reduce((sum, m) => sum + m.score, 0) / qualityMetrics.length);
+
+  const qualityCategoriesForDisplay = latestScore?.breakdown
+    ? ([
+        {
+          name: 'Architectural Preservation',
+          score: Math.round(latestScore.breakdown.architectural_preservation ?? 0),
+          weight: 2,
+          description: 'Camera angle, windows, and doors preserved vs cleaned image',
+          icon: null,
+          critical: true,
+        },
+        {
+          name: 'Style Accuracy',
+          score: Math.round(latestScore.breakdown.style_consistency ?? 0),
+          weight: 1.5,
+          description: 'Design matches selected style guidelines',
+          icon: null,
+        },
+        {
+          name: 'Photorealism',
+          score: Math.round(latestScore.breakdown.photorealism ?? 0),
+          weight: 1.5,
+          description: 'Magazine-quality realistic rendering',
+          icon: null,
+        },
+        {
+          name: 'Furniture Proportions',
+          score: Math.round(latestScore.breakdown.furniture_proportions ?? 0),
+          weight: 1,
+          description: 'Furniture scale matches room dimensions',
+          icon: null,
+        },
+        {
+          name: 'Lighting Quality',
+          score: Math.round(latestScore.breakdown.lighting_quality ?? 0),
+          weight: 1,
+          description: 'Natural and artificial lighting balance',
+          icon: null,
+        },
+      ] as any[])
+    : undefined;
 
   // Real-time validation items based on preservation status
   const validationItems: ValidationItem[] = [];
@@ -678,18 +738,24 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     try {
       setIsScoringRender(true);
       console.log('🎯 Scoring render with AI...');
-      
+
       const { data, error } = await supabase.functions.invoke('score-render', {
-        body: { imageUrl }
+        body: {
+          imageUrl,
+          referenceImageUrl: cleanedImage?.signedUrl || null,
+        },
       });
-      
+
       if (error) {
         console.error('Score render error:', error);
         return 85; // Default score if scoring fails
       }
-      
+
+      const scoreObj = data?.score || null;
+      setLatestScore(scoreObj);
+
       // Edge function returns { success: true, score: { overall: number, breakdown: {...}, ... } }
-      const score = data?.score?.overall || 85;
+      const score = scoreObj?.overall || 85;
       console.log('✅ Render scored:', score);
       return score;
     } catch (err) {
@@ -1365,6 +1431,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
       {hasRender && (
         <QualityScoreDisplay
           overallScore={overallScore}
+          categories={qualityCategoriesForDisplay as any}
           showSuggestions={!room.phase_5_completed}
         />
       )}
