@@ -6,15 +6,9 @@
  * - Excel/CSV budget exports
  * - Image exports with watermarks
  * - Project documentation packages
- * 
- * Export formats:
- * - PDF: Budget report, project summary, renders gallery
- * - Excel: Detailed budget breakdown with formulas
- * - CSV: Budget data for external tools
- * - ZIP: Complete project package
  */
 
-import type { BudgetSummary } from './budgetService';
+import type { BudgetSummary, BudgetItem } from './budgetService';
 import type { QualityScore } from './qualityScoringService';
 
 export interface ExportOptions {
@@ -34,7 +28,7 @@ export interface ExportResult {
   success: boolean;
   file_url?: string;
   file_name?: string;
-  file_size?: number; // in bytes
+  file_size?: number;
   error?: string;
 }
 
@@ -46,27 +40,15 @@ export async function exportBudgetToExcel(
   projectName: string
 ): Promise<ExportResult> {
   try {
-    // Create Excel workbook structure
     const workbook = {
       sheets: [
-        {
-          name: 'Summary',
-          data: createSummarySheet(budget, projectName),
-        },
-        {
-          name: 'Items',
-          data: createItemsSheet(budget),
-        },
-        {
-          name: 'Category Breakdown',
-          data: createCategorySheet(budget),
-        },
+        { name: 'Summary', data: createSummarySheet(budget, projectName) },
+        { name: 'Items', data: createItemsSheet(budget) },
+        { name: 'Category Breakdown', data: createCategorySheet(budget) },
       ],
     };
 
-    // In production, you'd use a library like xlsx or exceljs
-    // For now, return a mock result
-    const fileName = `${projectName}_Budget_${budget.room_type}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const fileName = `${projectName}_Budget_${budget.room_type || 'project'}_${new Date().toISOString().split('T')[0]}.xlsx`;
 
     return {
       success: true,
@@ -89,20 +71,16 @@ export async function exportBudgetToCSV(
   budget: BudgetSummary
 ): Promise<ExportResult> {
   try {
-    // Create CSV content
     const headers = [
       'Item Name',
       'Category',
       'Quantity',
       'Unit',
-      'Base Cost',
-      'Tier Multiplier',
-      'City Multiplier',
-      'Cost Before GST',
-      'GST Rate',
+      'Rate',
+      'Amount',
+      'GST %',
       'GST Amount',
-      'Total Cost',
-      'Priority',
+      'Total',
     ];
 
     const rows = budget.items.map((item) => [
@@ -110,30 +88,26 @@ export async function exportBudgetToCSV(
       item.category,
       item.quantity,
       item.unit,
-      item.base_cost,
-      item.tier_multiplier,
-      item.city_multiplier,
-      item.cost_before_gst,
-      item.gst_rate,
+      item.rate,
+      item.amount,
+      item.gst_percent,
       item.gst_amount,
-      item.total_cost,
-      item.priority,
+      item.total,
     ]);
 
     const csvContent = [
       headers.join(','),
       ...rows.map((row) => row.join(',')),
       '',
-      `Subtotal,,,,,,,${budget.subtotal}`,
-      `Total GST,,,,,,,${budget.total_gst}`,
-      `Total Cost,,,,,,,${budget.total_cost}`,
+      `Subtotal,,,,,${budget.subtotal}`,
+      `Total GST,,,,,${budget.total_gst}`,
+      `Total Cost,,,,,${budget.total_cost}`,
     ].join('\n');
 
-    // Create blob
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
 
-    const fileName = `Budget_${budget.room_type}_${new Date().toISOString().split('T')[0]}.csv`;
+    const fileName = `Budget_${budget.room_type || 'project'}_${new Date().toISOString().split('T')[0]}.csv`;
 
     return {
       success: true,
@@ -167,9 +141,6 @@ export async function exportProjectToPDF(
   options: ExportOptions
 ): Promise<ExportResult> {
   try {
-    // In production, you'd use a PDF generation library like jsPDF or pdfmake
-    // For now, return structure for PDF generation
-
     const pdfStructure = {
       metadata: {
         title: `${projectData.project_name} - Project Report`,
@@ -177,7 +148,6 @@ export async function exportProjectToPDF(
         created: new Date().toISOString(),
       },
       pages: [
-        // Cover page
         {
           type: 'cover',
           data: {
@@ -186,7 +156,6 @@ export async function exportProjectToPDF(
             room_count: projectData.rooms.length,
           },
         },
-        // Table of contents
         {
           type: 'toc',
           data: projectData.rooms.map((r, idx) => ({
@@ -195,9 +164,7 @@ export async function exportProjectToPDF(
             room_type: r.room_type,
           })),
         },
-        // Room pages
         ...projectData.rooms.flatMap((room) => [
-          // Room overview
           {
             type: 'room_overview',
             data: {
@@ -208,32 +175,14 @@ export async function exportProjectToPDF(
               render_count: room.renders?.length || 0,
             },
           },
-          // Budget page (if included)
           ...(options.include_budget && room.budget
-            ? [
-                {
-                  type: 'budget',
-                  data: room.budget,
-                },
-              ]
+            ? [{ type: 'budget', data: room.budget }]
             : []),
-          // Quality score page (if included)
           ...(options.include_quality_scores && room.quality_score
-            ? [
-                {
-                  type: 'quality_score',
-                  data: room.quality_score,
-                },
-              ]
+            ? [{ type: 'quality_score', data: room.quality_score }]
             : []),
-          // Renders gallery (if included)
           ...(options.include_renders && room.renders && room.renders.length > 0
-            ? [
-                {
-                  type: 'renders_gallery',
-                  data: room.renders,
-                },
-              ]
+            ? [{ type: 'renders_gallery', data: room.renders }]
             : []),
         ]),
       ],
@@ -267,15 +216,12 @@ export async function exportImageWithWatermark(
       throw new Error('Watermark options are required');
     }
 
-    // In production, you'd use canvas API to add watermark
-    // For now, return mock result
-
     const fileName = `Render_Watermarked_${new Date().getTime()}.png`;
 
     return {
       success: true,
       file_name: fileName,
-      file_size: 2048000, // ~2MB estimate
+      file_size: 2048000,
     };
   } catch (error) {
     console.error('Error adding watermark:', error);
@@ -294,21 +240,12 @@ export async function exportProjectPackage(
   options: ExportOptions
 ): Promise<ExportResult> {
   try {
-    // In production, you'd use JSZip to create archive
     const packageContents = [];
 
-    if (options.include_budget) {
-      packageContents.push('budgets/');
-    }
-    if (options.include_quality_scores) {
-      packageContents.push('quality_reports/');
-    }
-    if (options.include_renders) {
-      packageContents.push('renders/');
-    }
-    if (options.include_specifications) {
-      packageContents.push('specifications/');
-    }
+    if (options.include_budget) packageContents.push('budgets/');
+    if (options.include_quality_scores) packageContents.push('quality_reports/');
+    if (options.include_renders) packageContents.push('renders/');
+    if (options.include_specifications) packageContents.push('specifications/');
 
     const fileName = `${projectData.project_name}_Complete_${new Date().toISOString().split('T')[0]}.zip`;
 
@@ -334,8 +271,8 @@ function createSummarySheet(budget: BudgetSummary, projectName: string): any[][]
     ['Project Budget Summary'],
     [''],
     ['Project Name:', projectName],
-    ['Room Type:', budget.room_type],
-    ['Room Area:', `${budget.room_area} sq ft`],
+    ['Room Type:', budget.room_type || 'N/A'],
+    ['Room Area:', budget.room_area ? `${budget.room_area} sq ft` : 'N/A'],
     ['Budget Tier:', budget.budget_tier],
     ['City:', budget.city],
     [''],
@@ -344,10 +281,10 @@ function createSummarySheet(budget: BudgetSummary, projectName: string): any[][]
     ['Total GST:', `₹${budget.total_gst.toLocaleString('en-IN')}`],
     ['Total Cost:', `₹${budget.total_cost.toLocaleString('en-IN')}`],
     [''],
-    ['Item Count by Priority'],
-    ['Essential Items:', budget.essential_items],
-    ['Recommended Items:', budget.recommended_items],
-    ['Optional Items:', budget.optional_items],
+    ['Item Count'],
+    ['Essential Items:', budget.essential_items || 0],
+    ['Recommended Items:', budget.recommended_items || 0],
+    ['Optional Items:', budget.optional_items || 0],
     ['Total Items:', budget.items.length],
   ];
 }
@@ -361,13 +298,11 @@ function createItemsSheet(budget: BudgetSummary): any[][] {
     'Category',
     'Quantity',
     'Unit',
-    'Base Cost',
-    'Tier Multiplier',
-    'City Multiplier',
-    'Cost Before GST',
-    'GST Rate',
+    'Rate',
+    'Amount',
+    'GST %',
     'GST Amount',
-    'Total Cost',
+    'Total',
     'Priority',
   ];
 
@@ -376,14 +311,12 @@ function createItemsSheet(budget: BudgetSummary): any[][] {
     item.category,
     item.quantity,
     item.unit,
-    item.base_cost,
-    item.tier_multiplier,
-    item.city_multiplier,
-    item.cost_before_gst,
-    item.gst_rate,
+    item.rate,
+    item.amount,
+    item.gst_percent,
     item.gst_amount,
-    item.total_cost,
-    item.priority,
+    item.total,
+    item.priority || 'recommended',
   ]);
 
   return [headers, ...rows];
@@ -410,15 +343,15 @@ function createCategorySheet(budget: BudgetSummary): any[][] {
 function estimateFileSize(data: any, format: string): number {
   switch (format) {
     case 'excel':
-      return 50000 + data.items?.length * 500; // ~50KB base + 500 bytes per item
+      return 50000 + (data.items?.length || 0) * 500;
     case 'csv':
-      return 5000 + data.items?.length * 200; // ~5KB base + 200 bytes per item
+      return 5000 + (data.items?.length || 0) * 200;
     case 'pdf':
-      return 500000 + (data.rooms?.length || 1) * 100000; // ~500KB base + 100KB per room
+      return 500000 + (data.rooms?.length || 1) * 100000;
     case 'zip':
-      return 1000000 + (data.rooms?.length || 1) * 500000; // ~1MB base + 500KB per room
+      return 1000000 + (data.rooms?.length || 1) * 500000;
     default:
-      return 100000; // 100KB default
+      return 100000;
   }
 }
 
@@ -433,6 +366,5 @@ export function triggerDownload(url: string, fileName: string): void {
   link.click();
   document.body.removeChild(link);
 
-  // Clean up blob URL after download
   setTimeout(() => URL.revokeObjectURL(url), 100);
 }

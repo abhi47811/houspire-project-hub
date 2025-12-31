@@ -1,8 +1,5 @@
 /**
  * F-069 to F-073: Budget Management React Hook
- * 
- * React hook for managing budget calculations, tier selection,
- * and cost estimations in the UI.
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,19 +14,19 @@ import {
 } from '@/services/features/budgetService';
 import { toast } from '@/hooks/use-toast';
 
-export function useBudget(roomId?: string) {
+export function useBudget(projectId?: string, roomId?: string) {
   const queryClient = useQueryClient();
 
   /**
-   * Fetch existing budget for room
+   * Fetch existing budget for project/room
    */
   const budget = useQuery({
-    queryKey: ['budget', roomId],
+    queryKey: ['budget', projectId, roomId],
     queryFn: async () => {
-      if (!roomId) return null;
-      return await getBudget(roomId);
+      if (!projectId) return null;
+      return await getBudget(projectId, roomId);
     },
-    enabled: !!roomId,
+    enabled: !!projectId,
   });
 
   /**
@@ -47,9 +44,11 @@ export function useBudget(roomId?: string) {
       city: string;
       roomArea: number;
     }) => {
+      if (!projectId) throw new Error('Project ID is required');
       if (!roomId) throw new Error('Room ID is required');
 
       const budgetSummary = await generateBudgetFromSmartDefaults(
+        projectId,
         roomId,
         smartDefaultId,
         tier,
@@ -62,7 +61,7 @@ export function useBudget(roomId?: string) {
       return budgetSummary;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['budget', roomId] });
+      queryClient.invalidateQueries({ queryKey: ['budget', projectId, roomId] });
 
       toast({
         title: 'Budget Generated',
@@ -94,8 +93,9 @@ export function useBudget(roomId?: string) {
 
       // Recalculate all items with new tier
       const updatedItems = currentBudget.items.map((item) => {
+        const baseCost = item.base_cost || item.rate;
         const costs = calculateItemCost(
-          item.base_cost,
+          baseCost,
           newTier,
           city,
           item.category,
@@ -105,15 +105,18 @@ export function useBudget(roomId?: string) {
         return {
           ...item,
           tier_multiplier: newTier === 'premium' ? 2.5 : newTier === 'mid_range' ? 1.0 : 0.5,
+          rate: costs.rate,
+          amount: costs.amount,
           cost_before_gst: costs.cost_before_gst,
           gst_amount: costs.gst_amount,
+          total: costs.total,
           total_cost: costs.total_cost,
         };
       });
 
-      const subtotal = updatedItems.reduce((sum, item) => sum + item.cost_before_gst, 0);
+      const subtotal = updatedItems.reduce((sum, item) => sum + item.amount, 0);
       const totalGST = updatedItems.reduce((sum, item) => sum + item.gst_amount, 0);
-      const totalCost = updatedItems.reduce((sum, item) => sum + item.total_cost, 0);
+      const totalCost = updatedItems.reduce((sum, item) => sum + item.total, 0);
 
       const updatedBudget: BudgetSummary = {
         ...currentBudget,
@@ -122,7 +125,6 @@ export function useBudget(roomId?: string) {
         subtotal,
         total_gst: totalGST,
         total_cost: totalCost,
-        updated_at: new Date().toISOString(),
       };
 
       await saveBudget(updatedBudget);
@@ -130,7 +132,7 @@ export function useBudget(roomId?: string) {
       return updatedBudget;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['budget', roomId] });
+      queryClient.invalidateQueries({ queryKey: ['budget', projectId, roomId] });
 
       toast({
         title: 'Budget Tier Updated',
@@ -158,19 +160,12 @@ export function useBudget(roomId?: string) {
   };
 
   return {
-    // Queries
     budget: budget.data,
     isLoading: budget.isLoading,
     error: budget.error,
-
-    // Mutations
     generateBudget,
     updateBudgetTier,
-
-    // Utilities
     getBudgetComparison,
-
-    // States
     isGenerating: generateBudget.isPending,
     isUpdating: updateBudgetTier.isPending,
   };

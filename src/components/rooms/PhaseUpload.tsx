@@ -261,7 +261,6 @@ export function PhaseUpload({ room, projectId, onPhaseComplete }: PhaseUploadPro
             <div className="text-sm text-muted-foreground">
               Room analysis complete. Proceed to the next phase.
             </div>
-            )}
 
             {/* Lighting Analysis */}
             {analysisResult.lighting && (

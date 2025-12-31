@@ -1,16 +1,8 @@
 /**
  * F-069 to F-073: Budget Automation System
  * 
- * Comprehensive cost estimation and budget management for interior design projects.
- * Handles 3-tier pricing (Premium/Mid-Range/Budget), city multipliers, GST rates,
- * and automatic budget calculations based on smart defaults and selections.
- * 
- * Features:
- * - F-069: Multi-tier pricing (Premium 2.5x, Mid-Range 1.0x, Budget 0.5x)
- * - F-070: City-specific cost adjustments (11 Indian cities)
- * - F-071: GST rate application by category
- * - F-072: Automatic budget calculations
- * - F-073: Budget breakdown and reporting
+ * Cost estimation and budget management for interior design projects.
+ * Uses budget_items table for storage.
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -27,13 +19,13 @@ export const BUDGET_TIERS = {
 export type BudgetTier = keyof typeof BUDGET_TIERS;
 
 /**
- * City-specific price multipliers (11 Indian cities)
+ * City-specific price multipliers
  */
 export const CITY_MULTIPLIERS: Record<string, number> = {
   mumbai: 1.15,
   delhi: 1.10,
   bangalore: 1.10,
-  bengaluru: 1.10, // Alias
+  bengaluru: 1.10,
   pune: 1.00,
   hyderabad: 0.95,
   chennai: 0.95,
@@ -42,7 +34,6 @@ export const CITY_MULTIPLIERS: Record<string, number> = {
   jaipur: 0.85,
   surat: 0.85,
   lucknow: 0.85,
-  // Default for unlisted cities
   default: 1.00,
 };
 
@@ -50,19 +41,19 @@ export const CITY_MULTIPLIERS: Record<string, number> = {
  * GST rates by item category
  */
 export const GST_RATES: Record<string, number> = {
-  furniture: 0.18, // 18%
-  fabrics: 0.12, // 12%
-  raw_materials: 0.05, // 5%
-  installation: 0.18, // 18%
-  hardware: 0.18, // 18%
-  appliances: 0.18, // 18%
-  lighting: 0.18, // 18%
-  flooring: 0.18, // 18%
-  paint: 0.18, // 18%
-  wallpaper: 0.12, // 12%
-  accessories: 0.18, // 18%
-  plants: 0.05, // 5%
-  artwork: 0.12, // 12%
+  furniture: 0.18,
+  fabrics: 0.12,
+  raw_materials: 0.05,
+  installation: 0.18,
+  hardware: 0.18,
+  appliances: 0.18,
+  lighting: 0.18,
+  flooring: 0.18,
+  paint: 0.18,
+  wallpaper: 0.12,
+  accessories: 0.18,
+  plants: 0.05,
+  artwork: 0.12,
 };
 
 /**
@@ -87,7 +78,7 @@ export const BASE_COSTS_PER_SQFT: Record<string, number> = {
 };
 
 /**
- * Budget item interface
+ * Budget item interface - matches the actual budget_items table schema
  */
 export interface BudgetItem {
   id: string;
@@ -95,46 +86,40 @@ export interface BudgetItem {
   item_name: string;
   quantity: number;
   unit: string;
-  base_cost: number; // Before multipliers
-  tier_multiplier: number;
-  city_multiplier: number;
-  cost_before_gst: number;
-  gst_rate: number;
+  rate: number;
+  amount: number;
+  gst_percent: number;
   gst_amount: number;
-  total_cost: number;
-  priority: 'essential' | 'recommended' | 'optional';
-  notes?: string;
+  total: number;
+  specification?: string;
+  // Optional fields for display/calculations
+  base_cost?: number;
+  tier_multiplier?: number;
+  city_multiplier?: number;
+  cost_before_gst?: number;
+  gst_rate?: number;
+  total_cost?: number;
+  priority?: 'essential' | 'recommended' | 'optional';
 }
 
 /**
  * Budget summary interface
  */
 export interface BudgetSummary {
-  room_id: string;
-  room_type: string;
-  room_area: number; // in sq ft
+  project_id: string;
+  room_id?: string;
+  room_type?: string;
+  room_area?: number;
   budget_tier: BudgetTier;
   city: string;
-  
-  // Cost breakdown
-  subtotal: number; // Before GST
+  subtotal: number;
   total_gst: number;
-  total_cost: number; // After GST
-  
-  // Cost per category
+  total_cost: number;
   by_category: Record<string, number>;
-  
-  // Item count by priority
-  essential_items: number;
-  recommended_items: number;
-  optional_items: number;
-  
-  // Items list
   items: BudgetItem[];
-  
-  // Metadata
-  created_at: string;
-  updated_at: string;
+  essential_items?: number;
+  recommended_items?: number;
+  optional_items?: number;
 }
 
 /**
@@ -150,7 +135,7 @@ export function getCityMultiplier(city: string): number {
  */
 export function getGSTRate(category: string): number {
   const categoryLower = category.toLowerCase().trim();
-  return GST_RATES[categoryLower] || 0.18; // Default 18%
+  return GST_RATES[categoryLower] || 0.18;
 }
 
 /**
@@ -163,22 +148,29 @@ export function calculateItemCost(
   category: string,
   quantity: number = 1
 ): {
+  rate: number;
+  amount: number;
   cost_before_gst: number;
   gst_amount: number;
+  total: number;
   total_cost: number;
 } {
   const tierMultiplier = BUDGET_TIERS[tier];
   const cityMultiplier = getCityMultiplier(city);
   const gstRate = getGSTRate(category);
 
-  const costBeforeGST = baseCost * tierMultiplier * cityMultiplier * quantity;
-  const gstAmount = costBeforeGST * gstRate;
-  const totalCost = costBeforeGST + gstAmount;
+  const rate = Math.round(baseCost * tierMultiplier * cityMultiplier);
+  const amount = rate * quantity;
+  const gstAmount = Math.round(amount * gstRate);
+  const total = amount + gstAmount;
 
   return {
-    cost_before_gst: Math.round(costBeforeGST),
-    gst_amount: Math.round(gstAmount),
-    total_cost: Math.round(totalCost),
+    rate,
+    amount,
+    cost_before_gst: amount,
+    gst_amount: gstAmount,
+    total,
+    total_cost: total,
   };
 }
 
@@ -186,6 +178,7 @@ export function calculateItemCost(
  * Generate budget from smart defaults
  */
 export async function generateBudgetFromSmartDefaults(
+  projectId: string,
   roomId: string,
   smartDefaultId: string,
   tier: BudgetTier,
@@ -206,12 +199,13 @@ export async function generateBudgetFromSmartDefaults(
     const items: BudgetItem[] = [];
 
     // Parse specifications and create budget items
-    const specifications = smartDefault.specifications || [];
+    const specifications = (smartDefault.specifications as any[]) || [];
     specifications.forEach((spec: any, idx: number) => {
       const itemName = spec.item || spec.ITEM || 'Unknown Item';
       const category = categorizeItem(itemName);
       const baseCost = estimateBaseCost(itemName, category, roomArea);
       const quantity = spec.quantity || 1;
+      const priority = spec.priority || 'recommended';
 
       const costs = calculateItemCost(baseCost, tier, city, category, quantity);
 
@@ -221,22 +215,27 @@ export async function generateBudgetFromSmartDefaults(
         item_name: itemName,
         quantity,
         unit: spec.unit || 'unit',
+        rate: costs.rate,
+        amount: costs.amount,
+        gst_percent: getGSTRate(category) * 100,
+        gst_amount: costs.gst_amount,
+        total: costs.total,
+        specification: spec.description,
+        // Extended fields
         base_cost: baseCost,
         tier_multiplier: BUDGET_TIERS[tier],
         city_multiplier: getCityMultiplier(city),
-        cost_before_gst: costs.cost_before_gst,
+        cost_before_gst: costs.amount,
         gst_rate: getGSTRate(category),
-        gst_amount: costs.gst_amount,
-        total_cost: costs.total_cost,
-        priority: spec.priority || 'recommended',
-        notes: spec.description,
+        total_cost: costs.total,
+        priority,
       });
     });
 
     // Calculate summary
-    const subtotal = items.reduce((sum, item) => sum + item.cost_before_gst, 0);
+    const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
     const totalGST = items.reduce((sum, item) => sum + item.gst_amount, 0);
-    const totalCost = items.reduce((sum, item) => sum + item.total_cost, 0);
+    const totalCost = items.reduce((sum, item) => sum + item.total, 0);
 
     // Calculate by category
     const byCategory: Record<string, number> = {};
@@ -244,7 +243,7 @@ export async function generateBudgetFromSmartDefaults(
       if (!byCategory[item.category]) {
         byCategory[item.category] = 0;
       }
-      byCategory[item.category] += item.total_cost;
+      byCategory[item.category] += item.total;
     });
 
     // Count by priority
@@ -252,7 +251,8 @@ export async function generateBudgetFromSmartDefaults(
     const recommendedItems = items.filter((i) => i.priority === 'recommended').length;
     const optionalItems = items.filter((i) => i.priority === 'optional').length;
 
-    const summary: BudgetSummary = {
+    return {
+      project_id: projectId,
       room_id: roomId,
       room_type: smartDefault.room_type,
       room_area: roomArea,
@@ -262,15 +262,11 @@ export async function generateBudgetFromSmartDefaults(
       total_gst: totalGST,
       total_cost: totalCost,
       by_category: byCategory,
+      items,
       essential_items: essentialItems,
       recommended_items: recommendedItems,
       optional_items: optionalItems,
-      items,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     };
-
-    return summary;
   } catch (error) {
     console.error('Error generating budget:', error);
     throw error;
@@ -311,7 +307,7 @@ function categorizeItem(itemName: string): string {
     return 'artwork';
   }
 
-  return 'accessories'; // Default
+  return 'accessories';
 }
 
 /**
@@ -320,7 +316,6 @@ function categorizeItem(itemName: string): string {
 function estimateBaseCost(itemName: string, category: string, roomArea: number): number {
   const nameLower = itemName.toLowerCase();
 
-  // Furniture
   if (category === 'furniture') {
     if (nameLower.includes('sofa') || nameLower.includes('sectional')) return 45000;
     if (nameLower.includes('bed')) return 35000;
@@ -331,38 +326,33 @@ function estimateBaseCost(itemName: string, category: string, roomArea: number):
     if (nameLower.includes('desk')) return 20000;
     if (nameLower.includes('wardrobe')) return 50000;
     if (nameLower.includes('dresser')) return 25000;
-    return 15000; // Default furniture
+    return 15000;
   }
 
-  // Lighting
   if (category === 'lighting') {
     if (nameLower.includes('chandelier')) return 15000;
     if (nameLower.includes('pendant')) return 5000;
     if (nameLower.includes('floor lamp')) return 4000;
     if (nameLower.includes('table lamp')) return 2500;
-    return 3000; // Default lighting
+    return 3000;
   }
 
-  // Fabrics
   if (category === 'fabrics') {
     if (nameLower.includes('curtain')) return 8000;
     if (nameLower.includes('rug')) return 12000;
     if (nameLower.includes('cushion')) return 1500;
-    return 3000; // Default fabric
+    return 3000;
   }
 
-  // Flooring (per sq ft cost)
   if (category === 'flooring') {
-    return roomArea * 150; // ₹150 per sq ft average
+    return roomArea * 150;
   }
 
-  // Paint (per sq ft cost)
   if (category === 'paint') {
-    const wallArea = roomArea * 3; // Approximate wall area
-    return wallArea * 45; // ₹45 per sq ft including labor
+    const wallArea = roomArea * 3;
+    return wallArea * 45;
   }
 
-  // Default estimates
   const defaults: Record<string, number> = {
     hardware: 500,
     appliances: 25000,
@@ -375,42 +365,124 @@ function estimateBaseCost(itemName: string, category: string, roomArea: number):
 }
 
 /**
- * Save budget to database
+ * Save budget items to database
  */
-export async function saveBudget(budget: BudgetSummary): Promise<void> {
+export async function saveBudgetItems(
+  projectId: string,
+  roomId: string | null,
+  items: BudgetItem[]
+): Promise<void> {
   try {
-    const { error } = await supabase.from('budgets').upsert({
-      room_id: budget.room_id,
-      budget_tier: budget.budget_tier,
-      city: budget.city,
-      subtotal: budget.subtotal,
-      total_gst: budget.total_gst,
-      total_cost: budget.total_cost,
-      items: budget.items,
-      by_category: budget.by_category,
-      updated_at: new Date().toISOString(),
-    });
+    // Delete existing items for this project/room
+    let deleteQuery = supabase
+      .from('budget_items')
+      .delete()
+      .eq('project_id', projectId);
+    
+    if (roomId) {
+      deleteQuery = deleteQuery.eq('room_id', roomId);
+    }
+    
+    await deleteQuery;
+
+    // Insert new items
+    const budgetItems = items.map((item, idx) => ({
+      project_id: projectId,
+      room_id: roomId,
+      category: item.category,
+      item_name: item.item_name,
+      quantity: item.quantity,
+      unit: item.unit,
+      rate: item.rate,
+      amount: item.amount,
+      gst_percent: item.gst_percent,
+      gst_amount: item.gst_amount,
+      total: item.total,
+      specification: item.specification,
+      sort_order: idx,
+      status: 'pending',
+    }));
+
+    const { error } = await supabase
+      .from('budget_items')
+      .insert(budgetItems);
 
     if (error) throw error;
   } catch (error) {
-    console.error('Error saving budget:', error);
+    console.error('Error saving budget items:', error);
     throw error;
   }
 }
 
 /**
- * Get budget for room
+ * Save budget summary (wrapper for saveBudgetItems)
  */
-export async function getBudget(roomId: string): Promise<BudgetSummary | null> {
+export async function saveBudget(budget: BudgetSummary): Promise<void> {
+  await saveBudgetItems(budget.project_id, budget.room_id || null, budget.items);
+}
+
+/**
+ * Get budget items for project and construct summary
+ */
+export async function getBudget(
+  projectId: string,
+  roomId?: string
+): Promise<BudgetSummary | null> {
   try {
-    const { data, error } = await supabase
-      .from('budgets')
+    let query = supabase
+      .from('budget_items')
       .select('*')
-      .eq('room_id', roomId)
-      .single();
+      .eq('project_id', projectId)
+      .order('sort_order');
+
+    if (roomId) {
+      query = query.eq('room_id', roomId);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
-    return data as BudgetSummary;
+    if (!data || data.length === 0) return null;
+
+    const items: BudgetItem[] = data.map(item => ({
+      id: item.id,
+      category: item.category,
+      item_name: item.item_name,
+      quantity: item.quantity,
+      unit: item.unit,
+      rate: item.rate,
+      amount: item.amount || 0,
+      gst_percent: item.gst_percent,
+      gst_amount: item.gst_amount || 0,
+      total: item.total || 0,
+      specification: item.specification || undefined,
+      total_cost: item.total || 0,
+      priority: 'recommended',
+    }));
+
+    const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+    const totalGST = items.reduce((sum, item) => sum + item.gst_amount, 0);
+    const totalCost = items.reduce((sum, item) => sum + item.total, 0);
+
+    const byCategory: Record<string, number> = {};
+    items.forEach((item) => {
+      if (!byCategory[item.category]) {
+        byCategory[item.category] = 0;
+      }
+      byCategory[item.category] += item.total;
+    });
+
+    return {
+      project_id: projectId,
+      room_id: roomId,
+      budget_tier: 'mid_range',
+      city: 'default',
+      subtotal,
+      total_gst: totalGST,
+      total_cost: totalCost,
+      by_category: byCategory,
+      items,
+    };
   } catch (error) {
     console.error('Error fetching budget:', error);
     return null;
@@ -424,13 +496,15 @@ export function compareBudgetTiers(
   baseCost: number,
   city: string,
   category: string
-): Record<BudgetTier, { cost_before_gst: number; total_cost: number }> {
+): Record<BudgetTier, { amount: number; total: number; cost_before_gst: number; total_cost: number }> {
   const tiers: BudgetTier[] = ['budget', 'mid_range', 'premium'];
-  const comparison: any = {};
+  const comparison: Record<BudgetTier, { amount: number; total: number; cost_before_gst: number; total_cost: number }> = {} as any;
 
   tiers.forEach((tier) => {
     const costs = calculateItemCost(baseCost, tier, city, category);
     comparison[tier] = {
+      amount: costs.amount,
+      total: costs.total,
       cost_before_gst: costs.cost_before_gst,
       total_cost: costs.total_cost,
     };

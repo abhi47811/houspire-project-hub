@@ -1,8 +1,5 @@
 /**
  * F-073: Budget Breakdown Display Component
- * 
- * Visual representation of budget breakdown by category,
- * priority, and cost components.
  */
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import type { BudgetSummary, BudgetItem } from '@/services/features/budgetService';
+import type { BudgetSummary } from '@/services/features/budgetService';
 
 interface BudgetBreakdownDisplayProps {
   budget: BudgetSummary;
@@ -51,7 +48,7 @@ export function BudgetBreakdownDisplay({
   // Group items by priority
   const itemsByPriority = {
     essential: budget.items.filter((i) => i.priority === 'essential'),
-    recommended: budget.items.filter((i) => i.priority === 'recommended'),
+    recommended: budget.items.filter((i) => i.priority === 'recommended' || !i.priority),
     optional: budget.items.filter((i) => i.priority === 'optional'),
   };
 
@@ -66,7 +63,7 @@ export function BudgetBreakdownDisplay({
             <div>
               <CardTitle className="text-base">Budget Breakdown</CardTitle>
               <CardDescription className="text-xs">
-                {budget.room_type.replace('_', ' ')} • {budget.room_area} sq ft
+                {budget.room_type?.replace('_', ' ') || 'Project'} {budget.room_area ? `• ${budget.room_area} sq ft` : ''}
               </CardDescription>
             </div>
           </div>
@@ -154,7 +151,7 @@ export function BudgetBreakdownDisplay({
               </div>
               <div className="text-xs text-muted-foreground">
                 ₹{itemsByPriority.essential
-                  .reduce((sum, item) => sum + item.total_cost, 0)
+                  .reduce((sum, item) => sum + (item.total || 0), 0)
                   .toLocaleString('en-IN')}
               </div>
             </div>
@@ -166,7 +163,7 @@ export function BudgetBreakdownDisplay({
               </div>
               <div className="text-xs text-muted-foreground">
                 ₹{itemsByPriority.recommended
-                  .reduce((sum, item) => sum + item.total_cost, 0)
+                  .reduce((sum, item) => sum + (item.total || 0), 0)
                   .toLocaleString('en-IN')}
               </div>
             </div>
@@ -178,7 +175,7 @@ export function BudgetBreakdownDisplay({
               </div>
               <div className="text-xs text-muted-foreground">
                 ₹{itemsByPriority.optional
-                  .reduce((sum, item) => sum + item.total_cost, 0)
+                  .reduce((sum, item) => sum + (item.total || 0), 0)
                   .toLocaleString('en-IN')}
               </div>
             </div>
@@ -232,10 +229,10 @@ export function BudgetBreakdownDisplay({
                 </div>
                 <div className="text-right">
                   <div className="font-medium">
-                    ₹{item.total_cost.toLocaleString('en-IN')}
+                    ₹{(item.total || 0).toLocaleString('en-IN')}
                   </div>
                   <Badge variant="outline" className="text-[10px] h-4 px-1">
-                    {item.priority}
+                    {item.priority || 'recommended'}
                   </Badge>
                 </div>
               </div>
