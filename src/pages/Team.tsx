@@ -1,6 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/hero';
+import { PremiumEmptyState } from '@/components/ui/premium';
 import { Users } from 'lucide-react';
 
 const roleColors: Record<string, string> = {
@@ -21,12 +23,13 @@ export default function Team() {
   }> = [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Team</h1>
-        <p className="text-muted-foreground">Manage your team members and their roles</p>
-      </div>
+      <PageHeader
+        title="Team Management"
+        subtitle="Manage your team members, roles, and permissions"
+        icon={Users}
+      />
 
       {/* Team Grid */}
       {teamMembers.length > 0 ? (
@@ -56,17 +59,11 @@ export default function Team() {
           ))}
         </div>
       ) : (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="rounded-full bg-muted p-4">
-              <Users className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="mt-4 text-lg font-semibold">No team members yet</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Team members will appear here once they sign up
-            </p>
-          </CardContent>
-        </Card>
+        <PremiumEmptyState
+          icon={Users}
+          title="No Team Members Yet"
+          description="Team members will appear here once they sign up and join your workspace"
+        />
       )}
     </div>
   );

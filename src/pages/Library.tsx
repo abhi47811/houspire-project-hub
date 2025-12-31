@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Library, BarChart3, Settings, Target, PlusCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PageHeader } from '@/components/ui/hero';
 import { useAuth } from '@/contexts/AuthContext';
 import { LibraryBrowseTab } from '@/components/library/LibraryBrowseTab';
 import { LibraryAnalyticsTab } from '@/components/library/LibraryAnalyticsTab';
@@ -24,18 +25,21 @@ export function LibraryPage() {
   const visibleTabs = tabs.filter(tab => tab.roles.includes(userRole));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Houspire Library</h1>
-        <p className="text-muted-foreground mt-1">
-          Explore and manage design references
-        </p>
-      </div>
+    <div className="space-y-6 animate-fade-in">
+      <PageHeader
+        title="Houspire Library"
+        subtitle="Explore and manage design references, trends, and inspirations"
+        icon={Library}
+      />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="animate-fade-in-up"  style={{ animationDelay: '100ms' }}>
+        <TabsList className="grid w-full glass-subtle p-1" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
           {visibleTabs.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+            <TabsTrigger 
+              key={tab.id} 
+              value={tab.id} 
+              className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+            >
               <tab.icon className="h-4 w-4" />
               <span className="hidden sm:inline">{tab.label}</span>
             </TabsTrigger>

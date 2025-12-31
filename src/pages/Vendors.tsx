@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PremiumButton, PremiumCard, PremiumSkeleton } from '@/components/ui/premium';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
@@ -335,27 +336,27 @@ export default function Vendors() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
+      <div className="flex items-center justify-between glass-subtle p-6 rounded-xl">
+        <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Link to={`/projects/${projectId}`} className="hover:text-foreground flex items-center gap-1">
+            <Link to={`/projects/${projectId}`} className="hover:text-foreground flex items-center gap-1 hover-lift">
               <ArrowLeft className="h-4 w-4" />
               {project?.name || 'Project'}
             </Link>
             <span>/</span>
-            <span>Vendors</span>
+            <span className="text-foreground font-medium">Vendors</span>
           </div>
-          <h1 className="text-2xl font-bold">Vendor Matching</h1>
+          <h1 className="text-3xl font-bold text-gradient-primary">Vendor Matching</h1>
         </div>
 
-        <Button onClick={handleRefreshMatches} disabled={isRefreshing}>
+        <PremiumButton onClick={handleRefreshMatches} disabled={isRefreshing}>
           {isRefreshing ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <RefreshCw className="mr-2 h-4 w-4" />
           )}
           Refresh Matches
-        </Button>
+        </PremiumButton>
       </div>
 
       <div className="grid grid-cols-12 gap-6">
