@@ -28,11 +28,11 @@ interface QualityScore {
   recommendations: string[];
 }
 
-const QUALITY_ANALYSIS_PROMPT = `You are an expert interior design quality assessor. Analyze this interior design render image and provide a detailed quality score.
+const QUALITY_ANALYSIS_PROMPT = `You are an expert interior design quality assessor. Analyze the interior design render image and provide a detailed quality score.
 
 Rate each category from 0-100:
 1. PHOTOREALISM: Does it look like a real photograph? Check for AI artifacts, unrealistic lighting, or distortions.
-2. ARCHITECTURAL PRESERVATION: Are windows, doors, ceiling heights, and structural elements realistic and consistent?
+2. ARCHITECTURAL PRESERVATION: Are windows, doors, ceiling heights, camera angle, and structural elements realistic and consistent?
 3. STYLE CONSISTENCY: Is the design style cohesive throughout? No mixing of incompatible elements?
 4. FURNITURE PROPORTIONS: Are furniture pieces realistically sized and positioned in the space?
 5. LIGHTING QUALITY: Is the lighting natural and consistent? No impossible shadows or highlights?
@@ -53,12 +53,45 @@ Respond ONLY with valid JSON in this exact format:
   "recommendations": ["list of improvement suggestions"]
 }`;
 
-async function analyzeRenderQuality(imageUrl: string): Promise<QualityScore> {
+async function analyzeRenderQuality(renderImageUrl: string, referenceImageUrl?: string): Promise<QualityScore> {
   if (!LOVABLE_API_KEY) {
     throw new Error("LOVABLE_API_KEY not configured");
   }
 
   console.log("Analyzing render quality with AI...");
+
+  const hasReference = !!referenceImageUrl;
+  const prompt = hasReference
+    ? `You are an expert interior design quality assessor.
+
+You will be given TWO images:
+- Image A: the CLEANED/base room photo (ground truth)
+- Image B: the GENERATED RENDER (must preserve the same room)
+
+Score Image B against Image A.
+
+CRITICAL RULES FOR ARCHITECTURAL PRESERVATION (0-100):
+- If camera angle/viewpoint changes vs Image A → architectural_preservation MUST be 0-20.
+- If the number of windows/doors changes or new windows/doors appear → MUST be 0-20.
+- If windows/doors move to different walls → MUST be 0-20.
+- Only score 90+ if Image B keeps the same camera position AND the same openings.
+
+Then rate each category from 0-100:
+1. PHOTOREALISM
+2. ARCHITECTURAL PRESERVATION (relative to Image A)
+3. STYLE CONSISTENCY
+4. FURNITURE PROPORTIONS
+5. LIGHTING QUALITY
+6. COLOR ACCURACY
+
+Respond ONLY with valid JSON in the exact format described.`
+    : QUALITY_ANALYSIS_PROMPT;
+
+  const content: any[] = [{ type: "text", text: prompt }];
+  if (hasReference) {
+    content.push({ type: "image_url", image_url: { url: referenceImageUrl } });
+  }
+  content.push({ type: "image_url", image_url: { url: renderImageUrl } });
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -71,10 +104,7 @@ async function analyzeRenderQuality(imageUrl: string): Promise<QualityScore> {
       messages: [
         {
           role: "user",
-          content: [
-            { type: "text", text: QUALITY_ANALYSIS_PROMPT },
-            { type: "image_url", image_url: { url: imageUrl } },
-          ],
+          content,
         },
       ],
     }),
@@ -128,7 +158,7 @@ serve(async (req) => {
   }
 
   try {
-    const { renderId, imageUrl } = await req.json();
+    const { renderId, imageUrl, referenceImageUrl } = await req.json();
 
     if (!renderId && !imageUrl) {
       throw new Error("Either renderId or imageUrl is required");
@@ -136,6 +166,7 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
     let renderImageUrl = imageUrl;
+    const refUrl: string | undefined = referenceImageUrl;
 
     // If renderId provided, fetch the render
     if (renderId) {
@@ -155,8 +186,8 @@ serve(async (req) => {
 
     console.log(`Scoring render: ${renderImageUrl.slice(0, 50)}...`);
 
-    // Analyze the render
-    const qualityScore = await analyzeRenderQuality(renderImageUrl);
+    // Analyze the render (optionally against a reference/base image)
+    const qualityScore = await analyzeRenderQuality(renderImageUrl, refUrl);
 
     console.log(`Quality score: ${qualityScore.overall}/100`);
 
@@ -165,7 +196,7 @@ serve(async (req) => {
       await supabase
         .from("renders")
         .update({
-          quality_score: qualityScore.overall / 100, // Store as 0-1
+          quality_score: qualityScore.overall, // Store as 0-100
           quality_details: qualityScore,
           updated_at: new Date().toISOString(),
         })
