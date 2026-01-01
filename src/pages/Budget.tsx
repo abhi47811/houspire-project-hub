@@ -150,6 +150,7 @@ export default function Budget() {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [isRematching, setIsRematching] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState(0);
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
 
@@ -274,6 +275,40 @@ export default function Budget() {
     } finally {
       setIsExtracting(false);
       setExtractionProgress(0);
+    }
+  };
+
+  // Rematch unmatched items using synonyms and fuzzy matching
+  const handleRematchItems = async () => {
+    setIsRematching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('rematch-budget-items', {
+        body: { project_id: projectId },
+      });
+
+      if (error) throw error;
+
+      const matched = data?.matched || 0;
+      const total = data?.total || 0;
+
+      toast({
+        title: 'Rematch Complete',
+        description: matched > 0 
+          ? `Matched ${matched} of ${total} items successfully!` 
+          : 'No new matches found. Try adding more synonyms.',
+        variant: matched > 0 ? 'default' : 'destructive',
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['budget-items', projectId] });
+    } catch (error: any) {
+      console.error('Rematch failed:', error);
+      toast({
+        title: 'Rematch Failed',
+        description: error.message || 'Failed to rematch items.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRematching(false);
     }
   };
 
@@ -573,6 +608,23 @@ export default function Budget() {
             )}
             Extract from Renders ({approvedRenders.length})
           </PremiumButton>
+
+          {/* Re-Match Button - shows when there are unmatched items */}
+          {unmatchedCount > 0 && (
+            <PremiumButton
+              variant="outline"
+              onClick={handleRematchItems}
+              disabled={isRematching || isExtracting}
+              className="border-amber-500/30 hover:border-amber-500 hover:bg-amber-500/5"
+            >
+              {isRematching ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4 text-amber-500" />
+              )}
+              Re-Match ({unmatchedCount})
+            </PremiumButton>
+          )}
 
           {budgetItems.length === 0 ? (
             <PremiumButton onClick={handleGenerateBudget} disabled={isGenerating}>
