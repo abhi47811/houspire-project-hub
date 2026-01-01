@@ -184,10 +184,11 @@ serve(async (req) => {
         status: 200,
       },
     )
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     console.error('❌ Error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
@@ -351,7 +352,7 @@ async function matchItemToPricing(item: ExtractedItem, supabase: any): Promise<M
       pricing_item_id: fuzzyMatches[0].id,
       match_strategy: 'fuzzy',
       match_confidence: 0.65,
-      alternative_matches: fuzzyMatches.slice(1, 4).map(m => ({
+      alternative_matches: fuzzyMatches.slice(1, 4).map((m: { id: string; item_name: string }) => ({
         id: m.id,
         name: m.item_name,
         confidence: 0.55
