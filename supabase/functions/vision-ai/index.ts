@@ -205,57 +205,53 @@ Return JSON with scores (0-100) for each category and overall, plus any issues f
 
       case "itemizeBudget":
         model = "google/gemini-2.5-pro";
-        systemPrompt = `You are an expert interior design estimator. Analyze the room render and itemize all furniture, decor, and fixtures visible.
+        systemPrompt = `You are an expert interior design estimator. Analyze the room renders and itemize ALL materials and furniture visible.
 
-CRITICAL QUANTITY RULES:
-1. Count FUNCTIONAL ITEMS, not components:
-   - 1 sofa (NOT 3 seats), 1 dining table (NOT 4 legs), 1 bookshelf (NOT 5 shelves)
+CRITICAL QUANTITY RULES - READ CAREFULLY:
+1. COUNT FUNCTIONAL ITEMS, NOT COMPONENTS:
+   - 1 sofa (NOT 3 seats) → quantity: 1
+   - 1 dining table (NOT 4 legs) → quantity: 1
+   - 1 bookshelf (NOT 5 shelves) → quantity: 1
+   - 1 chandelier (NOT 8 bulbs) → quantity: 1
 
-2. Group SETS appropriately:
-   - Multiple cushions on one sofa: count individually (2, 4, 6 cushions)
-   - Multiple dining chairs: count each chair individually  
-   - Pair of curtain panels: "1 set" or "2 panels"
+2. USE CORRECT UNITS:
+   - Furniture (sofas, chairs, tables) → unit: "nos", count each piece
+   - Rugs/Carpets → unit: "nos" (1 area rug, NOT sqft)
+   - Cushions/Pillows → unit: "nos", count each individual cushion
+   - Plants → unit: "nos", count each pot
+   - Artwork/Frames → unit: "nos", count each piece
+   - Curtains → unit: "nos" or "sets" (count panels or pairs)
+   - Flooring → unit: "sqft" (estimate room area)
+   - Wall paint → unit: "sqft" (estimate wall area)
 
-3. Use CORRECT UNITS:
-   - Furniture: "nos" (1 sofa, 2 chairs, 1 table)
-   - Rugs/Carpets: "nos" (1 area rug, NOT sqft)
-   - Curtains: "set" per window OR "nos" for panels
-   - Cushions: "nos" per cushion
-   - Lighting: "nos" (1 floor lamp, 4 ceiling lights)
-   - Artwork: count individual pieces OR "1 set" if gallery wall
-
-4. Be PRECISE - count what you SEE:
-   - If 2 armchairs visible, quantity = 2
-   - If 4 cushions on sofa, quantity = 4
-   - If 6 framed photos, quantity = 6
-   - Don't estimate - count carefully
+3. COUNT PRECISELY WHAT YOU SEE:
+   - 2 armchairs visible → quantity: 2
+   - 4 throw cushions visible → quantity: 4
+   - 6 framed photos visible → quantity: 6
+   - 3 potted plants visible → quantity: 3
 
 EXAMPLES:
-✅ "3-Seater Sofa", quantity: 1, unit: "nos"
-✅ "Throw Cushions", quantity: 4, unit: "nos", spec: "grey and beige fabric"
-✅ "Area Rug", quantity: 1, unit: "nos", spec: "6x8 ft, grey/brown pattern"
-✅ "Armchair", quantity: 2, unit: "nos"
-✅ "Ceiling Light Fixtures", quantity: 4, unit: "nos"
-✅ "Framed Artwork", quantity: 6, unit: "nos"
-
-❌ "Sofa", quantity: 3 (wrong - counting seats not sofas)
-❌ "Area rug", quantity: 48, unit: "sqft" (wrong - should be 1 rug)
-❌ "Cushions", quantity: 1 when 4 visible (wrong - count all)
+✅ CORRECT: { "item_name": "3-Seater Leather Sofa", "quantity": 1, "unit": "nos" }
+✅ CORRECT: { "item_name": "Throw Cushions", "quantity": 4, "unit": "nos" }
+✅ CORRECT: { "item_name": "Area Rug", "quantity": 1, "unit": "nos" }
+✅ CORRECT: { "item_name": "Armchair", "quantity": 2, "unit": "nos" }
+❌ WRONG: { "item_name": "Sofa", "quantity": 3, "unit": "nos" } ← counting seats!
+❌ WRONG: { "item_name": "Area Rug", "quantity": 120, "unit": "sqft" } ← should be 1 nos
 
 For each item provide:
-- item_name: furniture/decor type (e.g., "Leather Sofa", "Floor Lamp", "Throw Cushion")
-- category: furniture, lighting, decor, wall_treatment, ceiling, flooring, fixtures
-- specification: material, color, style, dimensions (e.g., "brown leather, contemporary style")
-- quantity: COUNT CAREFULLY - actual number of items visible
-- unit: "nos" for countable items, "set" for grouped items, "sqft" for area coverage
+- item_name: specific product name (e.g., "3-Seater Leather Sofa", "Velvet Armchair")
+- category: (Flooring, Wall Treatment, Ceiling, Furniture, Lighting, Fixtures, Decor, Textiles)
+- specification: detailed specs (material, color, size estimate)
+- quantity: COUNT of items visible (follow rules above!)
+- unit: correct unit (nos for items, sqft for flooring/walls, rft for running items)
 
-Return as JSON array: [{"item_name": string, "category": string, "specification": string, "quantity": number, "unit": string}]`;
+Return as JSON array.`;
         const imageContents = (imageUrls || []).map((url: string) => ({
           type: "image_url",
           image_url: { url },
         }));
         userContent = [
-          { type: "text", text: "Carefully count and itemize all visible furniture, lighting, and decor from this room image. Count items precisely - don't estimate." },
+          { type: "text", text: "Itemize ALL materials and furniture from these room renders for budget estimation. COUNT each item precisely - sofas count as 1 (not by seats), cushions count individually, rugs count as 1 nos (not sqft)." },
           ...imageContents,
         ];
         break;
