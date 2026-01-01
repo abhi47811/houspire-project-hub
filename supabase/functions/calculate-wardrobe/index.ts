@@ -617,12 +617,13 @@ serve(async (req) => {
         }
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Wardrobe calculator error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({
         error: 'Calculation failed',
-        message: error.message
+        message: errorMessage
       }),
       {
         status: 500,
