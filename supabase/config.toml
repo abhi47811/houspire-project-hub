@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.bulk-import-pricing]
 verify_jwt = false
+
+[functions.rematch-budget-items]
+verify_jwt = false
