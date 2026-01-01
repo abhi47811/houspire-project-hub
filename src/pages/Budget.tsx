@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -24,6 +25,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import {
   Table,
   TableBody,
@@ -48,14 +54,28 @@ import {
   ChevronDown,
   Loader2,
   Zap,
+  Scan,
+  AlertCircle,
+  CheckCircle2,
+  HelpCircle,
+  Brain,
 } from 'lucide-react';
 import { ExportBudgetPDFButton } from '@/components/budget/ExportBudgetPDFButton';
 import { useRecommendations } from '@/hooks/useRecommendations';
+
+interface AlternativeMatch {
+  pricing_item_id: string;
+  item_name: string;
+  category: string;
+  match_score: number;
+  tier_price: number;
+}
 
 interface BudgetItem {
   id: string;
   project_id: string;
   room_id: string | null;
+  render_id: string | null;
   category: string;
   item_name: string;
   specification: string | null;
@@ -68,25 +88,54 @@ interface BudgetItem {
   total: number;
   assigned_vendor_id: string | null;
   vendor_name: string | null;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'unmatched';
   sort_order: number | null;
+  // AI extraction fields
+  ai_item_name: string | null;
+  ai_category: string | null;
+  ai_confidence: number | null;
+  ai_specifications: Record<string, any> | null;
+  // Matching fields
+  pricing_item_id: string | null;
+  match_strategy: 'exact' | 'synonym' | 'fuzzy' | 'llm' | null;
+  match_confidence: number | null;
+  alternative_matches: AlternativeMatch[] | null;
+  user_edited: boolean;
+  budget_tier: string | null;
 }
 
 interface Project {
   id: string;
   name: string;
   city: string | null;
+  budget_tier: string | null;
+}
+
+interface Render {
+  id: string;
+  room_id: string;
+  image_url: string;
+  approval_status: string;
 }
 
 const categories = [
   { id: 'all', label: 'All Items' },
-  { id: 'flooring', label: 'Flooring' },
-  { id: 'wall_treatment', label: 'Wall Treatment' },
-  { id: 'ceiling', label: 'Ceiling' },
-  { id: 'furniture', label: 'Furniture' },
-  { id: 'lighting', label: 'Lighting' },
-  { id: 'fixtures', label: 'Fixtures' },
+  { id: 'Furniture', label: 'Furniture' },
+  { id: 'Flooring', label: 'Flooring' },
+  { id: 'Wall Finish', label: 'Wall Finish' },
+  { id: 'Ceiling', label: 'Ceiling' },
+  { id: 'Lighting', label: 'Lighting' },
+  { id: 'Soft Furnishings', label: 'Soft Furnishings' },
+  { id: 'Decor', label: 'Decor' },
 ];
+
+// Match strategy display config
+const matchStrategyConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  exact: { label: 'Exact', color: 'bg-green-500/10 text-green-600 border-green-500/20', icon: <CheckCircle2 className="h-3 w-3" /> },
+  synonym: { label: 'Synonym', color: 'bg-blue-500/10 text-blue-600 border-blue-500/20', icon: <Check className="h-3 w-3" /> },
+  fuzzy: { label: 'Fuzzy', color: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20', icon: <HelpCircle className="h-3 w-3" /> },
+  llm: { label: 'AI', color: 'bg-purple-500/10 text-purple-600 border-purple-500/20', icon: <Brain className="h-3 w-3" /> },
+};
 
 export default function Budget() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -97,6 +146,8 @@ export default function Budget() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionProgress, setExtractionProgress] = useState(0);
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
 
   // AI Budget Optimization hook
@@ -108,11 +159,32 @@ export default function Budget() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('id, name, city')
+        .select('id, name, city, budget_tier')
         .eq('id', projectId)
         .maybeSingle();
       if (error) throw error;
       return data as Project | null;
+    },
+    enabled: !!projectId,
+  });
+
+  // Fetch approved renders for extraction
+  const { data: approvedRenders = [] } = useQuery({
+    queryKey: ['approved-renders', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('renders')
+        .select(`
+          id,
+          room_id,
+          image_url,
+          approval_status,
+          rooms!inner(project_id)
+        `)
+        .eq('rooms.project_id', projectId)
+        .eq('approval_status', 'approved');
+      if (error) throw error;
+      return (data || []) as Render[];
     },
     enabled: !!projectId,
   });
@@ -133,7 +205,7 @@ export default function Budget() {
       
       const { data, error } = await query;
       if (error) throw error;
-      return data as BudgetItem[];
+      return (data || []) as unknown as BudgetItem[];
     },
     enabled: !!projectId,
   });
@@ -143,6 +215,64 @@ export default function Budget() {
   const totalGst = budgetItems.reduce((sum, item) => sum + (item.gst_amount || 0), 0);
   const grandTotal = budgetItems.reduce((sum, item) => sum + (item.total || 0), 0);
   const itemsCount = budgetItems.length;
+  const matchedCount = budgetItems.filter(i => i.pricing_item_id).length;
+  const unmatchedCount = budgetItems.filter(i => i.status === 'unmatched' || !i.pricing_item_id).length;
+
+  // Extract budget items from approved renders
+  const handleExtractFromRenders = async () => {
+    if (approvedRenders.length === 0) {
+      toast({
+        title: 'No Approved Renders',
+        description: 'Approve some renders first to extract budget items.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsExtracting(true);
+    setExtractionProgress(0);
+
+    try {
+      let processedCount = 0;
+      let totalItems = 0;
+
+      for (const render of approvedRenders) {
+        const { data, error } = await supabase.functions.invoke('extract-budget-items', {
+          body: {
+            render_id: render.id,
+            project_id: projectId,
+            room_id: render.room_id,
+            budget_tier: project?.budget_tier || 'mid_premium',
+          },
+        });
+
+        if (error) {
+          console.error(`Failed to extract from render ${render.id}:`, error);
+        } else {
+          totalItems += data?.items_count || 0;
+        }
+
+        processedCount++;
+        setExtractionProgress((processedCount / approvedRenders.length) * 100);
+      }
+
+      toast({
+        title: 'Extraction Complete',
+        description: `Extracted ${totalItems} items from ${approvedRenders.length} renders.`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['budget-items', projectId] });
+    } catch (error: any) {
+      toast({
+        title: 'Extraction Failed',
+        description: error.message || 'Failed to extract budget items.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExtracting(false);
+      setExtractionProgress(0);
+    }
+  };
 
   const handleGenerateBudget = async () => {
     setIsGenerating(true);
@@ -212,7 +342,6 @@ export default function Budget() {
   };
 
   const handleAutoAssignVendors = async () => {
-    // Mock vendor assignment
     toast({
       title: 'Vendors Assigned',
       description: `Auto-assigned vendors to ${selectedItems.length} items.`,
@@ -252,8 +381,6 @@ export default function Budget() {
     });
   };
 
-  // PDF export is now handled by ExportBudgetPDFButton component
-
   const handleExportVendorTemplates = () => {
     toast({
       title: 'Exporting Vendor Templates',
@@ -263,15 +390,75 @@ export default function Budget() {
 
   const handleCellEdit = async (itemId: string, field: string, value: any) => {
     try {
+      const updateData: any = { [field]: value, user_edited: true };
+      
+      // Recalculate amounts if quantity or rate changed
+      if (field === 'quantity' || field === 'rate') {
+        const item = budgetItems.find(i => i.id === itemId);
+        if (item) {
+          const newQty = field === 'quantity' ? value : item.quantity;
+          const newRate = field === 'rate' ? value : item.rate;
+          const newAmount = newQty * newRate;
+          const newGst = newAmount * (item.gst_percent / 100);
+          
+          updateData.amount = newAmount;
+          updateData.gst_amount = newGst;
+          updateData.total = newAmount + newGst;
+          updateData.custom_quantity = field === 'quantity' ? value : null;
+          updateData.custom_price = field === 'rate' ? value : null;
+        }
+      }
+
       const { error } = await supabase
         .from('budget_items')
-        .update({ [field]: value })
+        .update(updateData)
         .eq('id', itemId);
 
       if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ['budget-items', projectId] });
       setEditingCell(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update item.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Select alternative pricing item
+  const handleSelectAlternative = async (itemId: string, alternative: AlternativeMatch) => {
+    try {
+      const item = budgetItems.find(i => i.id === itemId);
+      if (!item) return;
+
+      const newAmount = alternative.tier_price * item.quantity;
+      const newGst = newAmount * (item.gst_percent / 100);
+
+      const { error } = await supabase
+        .from('budget_items')
+        .update({
+          item_name: alternative.item_name,
+          pricing_item_id: alternative.pricing_item_id,
+          user_selected_item_id: alternative.pricing_item_id,
+          rate: alternative.tier_price,
+          amount: newAmount,
+          gst_amount: newGst,
+          total: newAmount + newGst,
+          status: 'pending',
+          user_edited: true,
+        })
+        .eq('id', itemId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Item Updated',
+        description: `Changed to "${alternative.item_name}"`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['budget-items', projectId] });
     } catch (error) {
       toast({
         title: 'Error',
@@ -291,33 +478,10 @@ export default function Budget() {
       return;
     }
 
-    // Build a project-level context for budget optimization
-    const projectContext = {
-      projectId: project.id,
-      city: project.city || 'Mumbai',
-      totalBudget: grandTotal,
-      itemCount: itemsCount,
-      categories: [...new Set(budgetItems.map(item => item.category))],
-      currentItems: budgetItems.map(item => ({
-        category: item.category,
-        itemName: item.item_name,
-        quantity: item.quantity,
-        rate: item.rate,
-        total: item.total,
-      })),
-    };
-
     toast({
       title: 'AI Budget Optimization',
       description: 'Analyzing your budget for cost-saving alternatives...',
     });
-
-    // Note: This would call the generateBudgetAlternatives mutation
-    // For now, it shows user feedback. Full implementation would integrate
-    // with SmartRecommendations component's budget tab
-    
-    // Future: Open dialog with budget alternatives from SmartRecommendations
-    // generateBudgetAlternatives.mutate({ roomContext: projectContext, currentBudgetItems: budgetItems });
   };
 
   const formatCurrency = (amount: number) => {
@@ -326,6 +490,19 @@ export default function Budget() {
       currency: 'INR',
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const getConfidenceBadge = (confidence: number | null) => {
+    if (confidence === null) return null;
+    const percent = Math.round(confidence * 100);
+    const color = percent >= 80 ? 'bg-green-500/10 text-green-600' 
+      : percent >= 60 ? 'bg-yellow-500/10 text-yellow-600' 
+      : 'bg-red-500/10 text-red-600';
+    return (
+      <Badge variant="outline" className={`text-xs ${color}`}>
+        {percent}%
+      </Badge>
+    );
   };
 
   if (projectLoading) {
@@ -365,6 +542,21 @@ export default function Budget() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* AI Extract Button */}
+          <PremiumButton
+            variant="outline"
+            onClick={handleExtractFromRenders}
+            disabled={isExtracting || approvedRenders.length === 0}
+            className="border-purple-500/30 hover:border-purple-500 hover:bg-purple-500/5"
+          >
+            {isExtracting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Scan className="mr-2 h-4 w-4 text-purple-500" />
+            )}
+            Extract from Renders ({approvedRenders.length})
+          </PremiumButton>
+
           {budgetItems.length === 0 ? (
             <PremiumButton onClick={handleGenerateBudget} disabled={isGenerating}>
               {isGenerating ? (
@@ -431,8 +623,24 @@ export default function Budget() {
         </div>
       </div>
 
+      {/* Extraction Progress */}
+      {isExtracting && (
+        <Card className="border-purple-500/20 bg-purple-500/5">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-4">
+              <Scan className="h-5 w-5 text-purple-500 animate-pulse" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Extracting items from renders...</p>
+                <Progress value={extractionProgress} className="h-2 mt-2" />
+              </div>
+              <span className="text-sm text-muted-foreground">{Math.round(extractionProgress)}%</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
@@ -466,6 +674,20 @@ export default function Budget() {
               <span className="text-sm text-muted-foreground">Items</span>
             </div>
             <p className="text-2xl font-bold mt-1">{itemsCount}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {matchedCount} matched / {unmatchedCount} unmatched
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <Brain className="h-4 w-4 text-purple-500" />
+              <span className="text-sm text-muted-foreground">AI Extracted</span>
+            </div>
+            <p className="text-2xl font-bold mt-1">
+              {budgetItems.filter(i => i.ai_item_name).length}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -504,7 +726,7 @@ export default function Budget() {
       <Card>
         <CardHeader className="pb-0">
           <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-8">
               {categories.map(cat => (
                 <TabsTrigger key={cat.id} value={cat.id} className="text-xs">
                   {cat.label}
@@ -523,16 +745,22 @@ export default function Budget() {
               <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
               <h3 className="text-lg font-medium mb-2">No budget items yet</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Generate a budget from your completed room renders
+                Extract items from approved renders or generate a budget
               </p>
-              <Button onClick={handleGenerateBudget} disabled={isGenerating}>
-                {isGenerating ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
-                )}
-                Generate Budget
-              </Button>
+              <div className="flex justify-center gap-2">
+                <Button onClick={handleExtractFromRenders} disabled={isExtracting || approvedRenders.length === 0}>
+                  <Scan className="mr-2 h-4 w-4" />
+                  Extract from Renders
+                </Button>
+                <Button variant="outline" onClick={handleGenerateBudget} disabled={isGenerating}>
+                  {isGenerating ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  Generate Budget
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -547,12 +775,11 @@ export default function Budget() {
                     </TableHead>
                     <TableHead className="w-12">S.No</TableHead>
                     <TableHead>Item Name</TableHead>
-                    <TableHead>Specification</TableHead>
+                    <TableHead>Match</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
                     <TableHead>Unit</TableHead>
                     <TableHead className="text-right">Rate (₹)</TableHead>
                     <TableHead className="text-right">Amount (₹)</TableHead>
-                    <TableHead className="text-right">GST (₹)</TableHead>
                     <TableHead className="text-right">Total (₹)</TableHead>
                     <TableHead>Vendor</TableHead>
                     <TableHead>Status</TableHead>
@@ -560,7 +787,7 @@ export default function Budget() {
                 </TableHeader>
                 <TableBody>
                   {budgetItems.map((item, index) => (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.id} className={item.status === 'unmatched' ? 'bg-yellow-500/5' : ''}>
                       <TableCell>
                         <Checkbox
                           checked={selectedItems.includes(item.id)}
@@ -568,9 +795,67 @@ export default function Budget() {
                         />
                       </TableCell>
                       <TableCell className="font-medium">{index + 1}</TableCell>
-                      <TableCell className="font-medium">{item.item_name}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
-                        {item.specification || '-'}
+                      <TableCell>
+                        <div className="space-y-1">
+                          <HoverCard>
+                            <HoverCardTrigger asChild>
+                              <span className="font-medium cursor-help">{item.item_name}</span>
+                            </HoverCardTrigger>
+                            <HoverCardContent className="w-80">
+                              <div className="space-y-2">
+                                {item.ai_item_name && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">AI Detected:</p>
+                                    <p className="text-sm font-medium">{item.ai_item_name}</p>
+                                  </div>
+                                )}
+                                {item.ai_specifications && Object.keys(item.ai_specifications).length > 0 && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Specifications:</p>
+                                    <ul className="text-xs space-y-1">
+                                      {Object.entries(item.ai_specifications).map(([key, val]) => (
+                                        <li key={key}><span className="font-medium">{key}:</span> {String(val)}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {item.alternative_matches && item.alternative_matches.length > 0 && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground mb-1">Alternatives:</p>
+                                    <div className="space-y-1">
+                                      {item.alternative_matches.slice(0, 3).map((alt, i) => (
+                                        <button
+                                          key={i}
+                                          onClick={() => handleSelectAlternative(item.id, alt)}
+                                          className="w-full text-left text-xs p-1.5 rounded hover:bg-accent flex justify-between items-center"
+                                        >
+                                          <span>{alt.item_name}</span>
+                                          <span className="text-muted-foreground">₹{alt.tier_price.toLocaleString('en-IN')}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
+                          {item.specification && (
+                            <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                              {item.specification}
+                            </p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {item.match_strategy && matchStrategyConfig[item.match_strategy] && (
+                            <Badge variant="outline" className={`text-xs ${matchStrategyConfig[item.match_strategy].color}`}>
+                              {matchStrategyConfig[item.match_strategy].icon}
+                              <span className="ml-1">{matchStrategyConfig[item.match_strategy].label}</span>
+                            </Badge>
+                          )}
+                          {item.ai_confidence && getConfidenceBadge(item.ai_confidence)}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         {editingCell?.id === item.id && editingCell?.field === 'quantity' ? (
@@ -615,13 +900,12 @@ export default function Budget() {
                             className="cursor-pointer hover:text-primary"
                             onDoubleClick={() => setEditingCell({ id: item.id, field: 'rate' })}
                           >
-                            {item.rate.toLocaleString('en-IN')}
+                            {item.rate?.toLocaleString('en-IN') || '-'}
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">{item.amount?.toLocaleString('en-IN')}</TableCell>
-                      <TableCell className="text-right">{item.gst_amount?.toLocaleString('en-IN')}</TableCell>
-                      <TableCell className="text-right font-medium">{item.total?.toLocaleString('en-IN')}</TableCell>
+                      <TableCell className="text-right">{item.amount?.toLocaleString('en-IN') || '-'}</TableCell>
+                      <TableCell className="text-right font-medium">{item.total?.toLocaleString('en-IN') || '-'}</TableCell>
                       <TableCell>
                         <Select
                           value={item.vendor_name || 'auto'}
@@ -639,12 +923,22 @@ export default function Budget() {
                         </Select>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={item.status === 'approved' ? 'default' : 'outline'}
-                          className={item.status === 'approved' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}
-                        >
-                          {item.status === 'approved' ? 'Approved' : 'Pending'}
-                        </Badge>
+                        {item.status === 'unmatched' ? (
+                          <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Unmatched
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant={item.status === 'approved' ? 'default' : 'outline'}
+                            className={item.status === 'approved' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}
+                          >
+                            {item.status === 'approved' ? 'Approved' : 'Pending'}
+                          </Badge>
+                        )}
+                        {item.user_edited && (
+                          <Badge variant="outline" className="ml-1 text-xs">Edited</Badge>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

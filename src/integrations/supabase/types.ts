@@ -260,19 +260,98 @@ export type Database = {
           },
         ]
       }
+      budget_exports: {
+        Row: {
+          budget_tier: string | null
+          client_email: string | null
+          client_name: string | null
+          created_at: string | null
+          export_format: string
+          export_type: string | null
+          exported_by: string | null
+          file_size_bytes: number | null
+          file_url: string | null
+          id: string
+          items_count: number | null
+          project_id: string
+          storage_path: string | null
+          total_amount: number | null
+        }
+        Insert: {
+          budget_tier?: string | null
+          client_email?: string | null
+          client_name?: string | null
+          created_at?: string | null
+          export_format: string
+          export_type?: string | null
+          exported_by?: string | null
+          file_size_bytes?: number | null
+          file_url?: string | null
+          id?: string
+          items_count?: number | null
+          project_id: string
+          storage_path?: string | null
+          total_amount?: number | null
+        }
+        Update: {
+          budget_tier?: string | null
+          client_email?: string | null
+          client_name?: string | null
+          created_at?: string | null
+          export_format?: string
+          export_type?: string | null
+          exported_by?: string | null
+          file_size_bytes?: number | null
+          file_url?: string | null
+          id?: string
+          items_count?: number | null
+          project_id?: string
+          storage_path?: string | null
+          total_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_exports_exported_by_fkey"
+            columns: ["exported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_exports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_items: {
         Row: {
+          ai_category: string | null
+          ai_confidence: number | null
+          ai_item_name: string | null
+          ai_specifications: Json | null
+          alternative_matches: Json | null
           amount: number | null
           assigned_vendor_id: string | null
+          budget_tier: string | null
           category: string
           created_at: string
+          custom_price: number | null
+          custom_quantity: number | null
+          extraction_batch_id: string | null
           gst_amount: number | null
           gst_percent: number
           id: string
           item_name: string
+          match_confidence: number | null
+          match_strategy: string | null
+          pricing_item_id: string | null
           project_id: string
           quantity: number
           rate: number
+          render_id: string | null
           room_id: string | null
           sort_order: number | null
           specification: string | null
@@ -280,20 +359,35 @@ export type Database = {
           total: number | null
           unit: string
           updated_at: string
+          user_edited: boolean | null
+          user_selected_item_id: string | null
           vendor_name: string | null
         }
         Insert: {
+          ai_category?: string | null
+          ai_confidence?: number | null
+          ai_item_name?: string | null
+          ai_specifications?: Json | null
+          alternative_matches?: Json | null
           amount?: number | null
           assigned_vendor_id?: string | null
+          budget_tier?: string | null
           category: string
           created_at?: string
+          custom_price?: number | null
+          custom_quantity?: number | null
+          extraction_batch_id?: string | null
           gst_amount?: number | null
           gst_percent?: number
           id?: string
           item_name: string
+          match_confidence?: number | null
+          match_strategy?: string | null
+          pricing_item_id?: string | null
           project_id: string
           quantity?: number
           rate?: number
+          render_id?: string | null
           room_id?: string | null
           sort_order?: number | null
           specification?: string | null
@@ -301,20 +395,35 @@ export type Database = {
           total?: number | null
           unit?: string
           updated_at?: string
+          user_edited?: boolean | null
+          user_selected_item_id?: string | null
           vendor_name?: string | null
         }
         Update: {
+          ai_category?: string | null
+          ai_confidence?: number | null
+          ai_item_name?: string | null
+          ai_specifications?: Json | null
+          alternative_matches?: Json | null
           amount?: number | null
           assigned_vendor_id?: string | null
+          budget_tier?: string | null
           category?: string
           created_at?: string
+          custom_price?: number | null
+          custom_quantity?: number | null
+          extraction_batch_id?: string | null
           gst_amount?: number | null
           gst_percent?: number
           id?: string
           item_name?: string
+          match_confidence?: number | null
+          match_strategy?: string | null
+          pricing_item_id?: string | null
           project_id?: string
           quantity?: number
           rate?: number
+          render_id?: string | null
           room_id?: string | null
           sort_order?: number | null
           specification?: string | null
@@ -322,9 +431,18 @@ export type Database = {
           total?: number | null
           unit?: string
           updated_at?: string
+          user_edited?: boolean | null
+          user_selected_item_id?: string | null
           vendor_name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "budget_items_pricing_item_id_fkey"
+            columns: ["pricing_item_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "budget_items_project_id_fkey"
             columns: ["project_id"]
@@ -333,10 +451,74 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "budget_items_render_id_fkey"
+            columns: ["render_id"]
+            isOneToOne: false
+            referencedRelation: "renders"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "budget_items_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_items_user_selected_item_id_fkey"
+            columns: ["user_selected_item_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_templates: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          design_style: string | null
+          id: string
+          is_public: boolean | null
+          items: Json
+          name: string
+          room_type: string | null
+          times_used: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          design_style?: string | null
+          id?: string
+          is_public?: boolean | null
+          items?: Json
+          name: string
+          room_type?: string | null
+          times_used?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          design_style?: string | null
+          id?: string
+          is_public?: boolean | null
+          items?: Json
+          name?: string
+          room_type?: string | null
+          times_used?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -487,6 +669,48 @@ export type Database = {
         }
         Relationships: []
       }
+      item_synonyms: {
+        Row: {
+          canonical_name: string
+          category: string | null
+          confidence_score: number | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          source: string | null
+          synonym: string
+          times_confirmed: number | null
+          times_used: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          canonical_name: string
+          category?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          source?: string | null
+          synonym: string
+          times_confirmed?: number | null
+          times_used?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          canonical_name?: string
+          category?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          source?: string | null
+          synonym?: string
+          times_confirmed?: number | null
+          times_used?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       job_queue: {
         Row: {
           completed_at: string | null
@@ -555,6 +779,136 @@ export type Database = {
           },
           {
             foreignKeyName: "job_queue_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kitchen_modules: {
+        Row: {
+          accessories_total: number | null
+          backsplash_material: string | null
+          backsplash_sqft: number | null
+          base_units_rft: number | null
+          budget_item_id: string | null
+          budget_tier: string | null
+          carcass_material: string | null
+          carcass_thickness_mm: number | null
+          carcass_total: number | null
+          chimney_included: boolean | null
+          corner_solutions: string | null
+          countertop_edge_profile: string | null
+          countertop_material: string | null
+          countertop_sqft: number | null
+          countertop_total: number | null
+          created_at: string | null
+          grand_total: number | null
+          hardware_brand: string | null
+          hardware_total: number | null
+          hob_included: boolean | null
+          id: string
+          layout_type: string | null
+          notes: string | null
+          project_id: string
+          room_id: string | null
+          shutter_total: number | null
+          sink_included: boolean | null
+          soft_close_hinges: number | null
+          tall_units_nos: number | null
+          tandem_drawers: number | null
+          total_length_feet: number | null
+          updated_at: string | null
+          upper_units_rft: number | null
+        }
+        Insert: {
+          accessories_total?: number | null
+          backsplash_material?: string | null
+          backsplash_sqft?: number | null
+          base_units_rft?: number | null
+          budget_item_id?: string | null
+          budget_tier?: string | null
+          carcass_material?: string | null
+          carcass_thickness_mm?: number | null
+          carcass_total?: number | null
+          chimney_included?: boolean | null
+          corner_solutions?: string | null
+          countertop_edge_profile?: string | null
+          countertop_material?: string | null
+          countertop_sqft?: number | null
+          countertop_total?: number | null
+          created_at?: string | null
+          grand_total?: number | null
+          hardware_brand?: string | null
+          hardware_total?: number | null
+          hob_included?: boolean | null
+          id?: string
+          layout_type?: string | null
+          notes?: string | null
+          project_id: string
+          room_id?: string | null
+          shutter_total?: number | null
+          sink_included?: boolean | null
+          soft_close_hinges?: number | null
+          tall_units_nos?: number | null
+          tandem_drawers?: number | null
+          total_length_feet?: number | null
+          updated_at?: string | null
+          upper_units_rft?: number | null
+        }
+        Update: {
+          accessories_total?: number | null
+          backsplash_material?: string | null
+          backsplash_sqft?: number | null
+          base_units_rft?: number | null
+          budget_item_id?: string | null
+          budget_tier?: string | null
+          carcass_material?: string | null
+          carcass_thickness_mm?: number | null
+          carcass_total?: number | null
+          chimney_included?: boolean | null
+          corner_solutions?: string | null
+          countertop_edge_profile?: string | null
+          countertop_material?: string | null
+          countertop_sqft?: number | null
+          countertop_total?: number | null
+          created_at?: string | null
+          grand_total?: number | null
+          hardware_brand?: string | null
+          hardware_total?: number | null
+          hob_included?: boolean | null
+          id?: string
+          layout_type?: string | null
+          notes?: string | null
+          project_id?: string
+          room_id?: string | null
+          shutter_total?: number | null
+          sink_included?: boolean | null
+          soft_close_hinges?: number | null
+          tall_units_nos?: number | null
+          tandem_drawers?: number | null
+          total_length_feet?: number | null
+          updated_at?: string | null
+          upper_units_rft?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kitchen_modules_budget_item_id_fkey"
+            columns: ["budget_item_id"]
+            isOneToOne: false
+            referencedRelation: "budget_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kitchen_modules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kitchen_modules_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "rooms"
@@ -734,6 +1088,102 @@ export type Database = {
           optimistic_data?: Json
           status?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      pricing_items: {
+        Row: {
+          ahmedabad_multiplier: number | null
+          bangalore_multiplier: number | null
+          brand: string | null
+          budget_price: number
+          category: string
+          chennai_multiplier: number | null
+          created_at: string | null
+          delhi_multiplier: number | null
+          gst_percent: number
+          hsn_code: string | null
+          hyderabad_multiplier: number | null
+          id: string
+          is_active: boolean | null
+          item_name: string
+          jaipur_multiplier: number | null
+          keywords: string[] | null
+          kolkata_multiplier: number | null
+          lucknow_multiplier: number | null
+          mid_premium_price: number
+          mumbai_multiplier: number | null
+          premium_price: number
+          pune_multiplier: number | null
+          source: string | null
+          specification: string | null
+          sub_category: string | null
+          surat_multiplier: number | null
+          synonyms: string[] | null
+          unit: string
+          updated_at: string | null
+        }
+        Insert: {
+          ahmedabad_multiplier?: number | null
+          bangalore_multiplier?: number | null
+          brand?: string | null
+          budget_price?: number
+          category: string
+          chennai_multiplier?: number | null
+          created_at?: string | null
+          delhi_multiplier?: number | null
+          gst_percent?: number
+          hsn_code?: string | null
+          hyderabad_multiplier?: number | null
+          id?: string
+          is_active?: boolean | null
+          item_name: string
+          jaipur_multiplier?: number | null
+          keywords?: string[] | null
+          kolkata_multiplier?: number | null
+          lucknow_multiplier?: number | null
+          mid_premium_price?: number
+          mumbai_multiplier?: number | null
+          premium_price?: number
+          pune_multiplier?: number | null
+          source?: string | null
+          specification?: string | null
+          sub_category?: string | null
+          surat_multiplier?: number | null
+          synonyms?: string[] | null
+          unit?: string
+          updated_at?: string | null
+        }
+        Update: {
+          ahmedabad_multiplier?: number | null
+          bangalore_multiplier?: number | null
+          brand?: string | null
+          budget_price?: number
+          category?: string
+          chennai_multiplier?: number | null
+          created_at?: string | null
+          delhi_multiplier?: number | null
+          gst_percent?: number
+          hsn_code?: string | null
+          hyderabad_multiplier?: number | null
+          id?: string
+          is_active?: boolean | null
+          item_name?: string
+          jaipur_multiplier?: number | null
+          keywords?: string[] | null
+          kolkata_multiplier?: number | null
+          lucknow_multiplier?: number | null
+          mid_premium_price?: number
+          mumbai_multiplier?: number | null
+          premium_price?: number
+          pune_multiplier?: number | null
+          source?: string | null
+          specification?: string | null
+          sub_category?: string | null
+          surat_multiplier?: number | null
+          synonyms?: string[] | null
+          unit?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -2147,6 +2597,118 @@ export type Database = {
         }
         Relationships: []
       }
+      wardrobe_modules: {
+        Row: {
+          accessories_total: number | null
+          budget_item_id: string | null
+          budget_tier: string | null
+          carcass_material: string | null
+          carcass_total: number | null
+          created_at: string | null
+          depth_inches: number | null
+          drawer_channels_pairs: number | null
+          drawer_units: number | null
+          grand_total: number | null
+          hang_sections: number | null
+          hardware_total: number | null
+          height_feet: number | null
+          id: string
+          led_profile_feet: number | null
+          mirror_sqft: number | null
+          notes: string | null
+          project_id: string
+          room_id: string | null
+          shelf_sections: number | null
+          shutter_finish: string | null
+          shutter_material: string | null
+          shutter_total: number | null
+          soft_close_hinges: number | null
+          updated_at: string | null
+          wardrobe_type: string | null
+          width_feet: number | null
+        }
+        Insert: {
+          accessories_total?: number | null
+          budget_item_id?: string | null
+          budget_tier?: string | null
+          carcass_material?: string | null
+          carcass_total?: number | null
+          created_at?: string | null
+          depth_inches?: number | null
+          drawer_channels_pairs?: number | null
+          drawer_units?: number | null
+          grand_total?: number | null
+          hang_sections?: number | null
+          hardware_total?: number | null
+          height_feet?: number | null
+          id?: string
+          led_profile_feet?: number | null
+          mirror_sqft?: number | null
+          notes?: string | null
+          project_id: string
+          room_id?: string | null
+          shelf_sections?: number | null
+          shutter_finish?: string | null
+          shutter_material?: string | null
+          shutter_total?: number | null
+          soft_close_hinges?: number | null
+          updated_at?: string | null
+          wardrobe_type?: string | null
+          width_feet?: number | null
+        }
+        Update: {
+          accessories_total?: number | null
+          budget_item_id?: string | null
+          budget_tier?: string | null
+          carcass_material?: string | null
+          carcass_total?: number | null
+          created_at?: string | null
+          depth_inches?: number | null
+          drawer_channels_pairs?: number | null
+          drawer_units?: number | null
+          grand_total?: number | null
+          hang_sections?: number | null
+          hardware_total?: number | null
+          height_feet?: number | null
+          id?: string
+          led_profile_feet?: number | null
+          mirror_sqft?: number | null
+          notes?: string | null
+          project_id?: string
+          room_id?: string | null
+          shelf_sections?: number | null
+          shutter_finish?: string | null
+          shutter_material?: string | null
+          shutter_total?: number | null
+          soft_close_hinges?: number | null
+          updated_at?: string | null
+          wardrobe_type?: string | null
+          width_feet?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wardrobe_modules_budget_item_id_fkey"
+            columns: ["budget_item_id"]
+            isOneToOne: false
+            referencedRelation: "budget_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wardrobe_modules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wardrobe_modules_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       library_performance_summary: {
@@ -2293,6 +2855,22 @@ export type Database = {
         }[]
       }
       auto_promote_tier: { Args: { lib_id: string }; Returns: string }
+      calculate_city_price: {
+        Args: {
+          p_budget_tier?: string
+          p_city: string
+          p_pricing_item_id: string
+          p_quantity?: number
+        }
+        Returns: {
+          base_price: number
+          city_multiplier: number
+          gst_amount: number
+          subtotal: number
+          tier_price: number
+          total: number
+        }[]
+      }
       calculate_quality_score: {
         Args: { p_render_id: string }
         Returns: number
