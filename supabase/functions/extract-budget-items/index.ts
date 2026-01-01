@@ -39,11 +39,7 @@ serve(async (req) => {
 
     const { render_id, project_id, room_id } = await req.json()
 
-    // === DEBUG LOGGING ===
-    console.log('=== extract-budget-items invoked ===')
-    console.log('📥 Input:', { render_id, project_id, room_id })
-    console.log('🔑 API Key exists:', !!Deno.env.get('GOOGLE_AI_API_KEY'))
-    console.log('🔑 API Key length:', Deno.env.get('GOOGLE_AI_API_KEY')?.length || 0)
+    console.log(`🔍 Extracting budget items for render: ${render_id}`)
 
     // 1. Fetch render details
     const { data: render, error: renderError } = await supabase
@@ -52,47 +48,18 @@ serve(async (req) => {
       .eq('id', render_id)
       .single()
 
-    if (renderError) {
-      console.error('❌ Failed to fetch render:', renderError)
-      throw renderError
-    }
+    if (renderError) throw renderError
 
     if (!render.image_url) {
       throw new Error('Render has no image URL')
     }
 
-    console.log('📷 Render image URL:', render.image_url)
-    console.log('🏠 Room type:', render.rooms?.room_type)
+    // 2. Call Gemini 2.0 Flash Vision API for item extraction
+    const extractedItems = await extractItemsFromRender(render.image_url, render.rooms.room_type)
 
-    // 2. Check idempotency - if budget items already exist for this render, skip
-    const { data: existingItems } = await supabase
-      .from('budget_items')
-      .select('id')
-      .eq('render_id', render_id)
-      .limit(1)
+    console.log(`✅ Extracted ${extractedItems.length} items from render`)
 
-    if (existingItems && existingItems.length > 0) {
-      console.log('⚠️ Budget items already exist for render:', render_id)
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Budget items already extracted for this render',
-          items_extracted: 0,
-          already_exists: true
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
-      )
-    }
-
-    // 3. Call Gemini 2.0 Flash Vision API for item extraction
-    const { items: extractedItems, usedMockData } = await extractItemsFromRender(render.image_url, render.rooms.room_type)
-
-    console.log(`✅ Extracted ${extractedItems.length} items from render (mock: ${usedMockData})`)
-
-    // 4. Fetch project details for city and budget tier
+    // 3. Fetch project details for city and budget tier
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('city, budget_tier')
@@ -104,7 +71,7 @@ serve(async (req) => {
     const city = project?.city || 'Hyderabad'
     const budgetTier = project?.budget_tier || 'mid_premium'
 
-    // 5. Match each extracted item to pricing database
+    // 4. Match each extracted item to pricing database
     const budgetItems = []
     for (const item of extractedItems) {
       const matchResult = await matchItemToPricing(item, supabase)
@@ -182,20 +149,17 @@ serve(async (req) => {
       }
     }
 
-    // 6. Insert budget items into database
+    // 5. Insert budget items into database
     const { data: insertedItems, error: insertError } = await supabase
       .from('budget_items')
       .insert(budgetItems)
       .select()
 
-    if (insertError) {
-      console.error('❌ Failed to insert budget items:', insertError)
-      throw insertError
-    }
+    if (insertError) throw insertError
 
     console.log(`💾 Inserted ${insertedItems.length} budget items`)
 
-    // 7. Send notification to user
+    // 6. Send notification to user
     const { data: projectData } = await supabase
       .from('projects')
       .select('created_by')
@@ -218,8 +182,7 @@ serve(async (req) => {
         items_extracted: extractedItems.length,
         items_matched: budgetItems.filter(i => i.pricing_item_id).length,
         items_unmatched: budgetItems.filter(i => !i.pricing_item_id).length,
-        total_amount: budgetItems.reduce((sum, item) => sum + (item.total || 0), 0),
-        used_mock_data: usedMockData
+        total_amount: budgetItems.reduce((sum, item) => sum + (item.total || 0), 0)
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -239,156 +202,172 @@ serve(async (req) => {
   }
 })
 
-// AI Item Extraction using Gemini 2.0 Flash
-async function extractItemsFromRender(imageUrl: string, roomType: string): Promise<{ items: ExtractedItem[], usedMockData: boolean }> {
+// AI Item Extraction using Gemini 2.0 Flash with Style-Aware Analysis
+async function extractItemsFromRender(imageUrl: string, roomType: string): Promise<ExtractedItem[]> {
   const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY')
   
   if (!GOOGLE_AI_API_KEY) {
-    console.warn('⚠️ GOOGLE_AI_API_KEY not set, using mock data')
-    return { items: getMockExtractedItems(roomType), usedMockData: true }
+    console.warn('⚠️  GOOGLE_AI_API_KEY not set, using mock data')
+    return getMockExtractedItems(roomType)
   }
 
-  const prompt = `Analyze this interior design render and extract ALL visible items with quantities.
+  // PHASE 1: STYLE DETECTION FIRST (Critical for accurate item detection)
+  const stylePrompt = `Analyze this interior design image and identify the PRIMARY design style.
+
+IMPORTANT: Be precise about the style as this affects material identification.
+
+Possible Styles:
+- Industrial Loft: Exposed brick, concrete, metal fixtures, pipes, raw materials
+- Modern Luxury: Marble, chandeliers, ornate furniture, premium finishes
+- Contemporary: Clean lines, neutral colors, simple furniture
+- Traditional: Wood, carved details, classic furniture
+- Scandinavian: White/light colors, minimalist, natural wood
+- Bohemian: Colorful, eclectic, plants, textiles
+- Minimalist: Simple, bare, functional, limited decor
+- Rustic: Wood, stone, natural materials
+- Mid-Century Modern: Retro furniture, wood, geometric patterns
+
+Return ONLY a JSON object:
+{
+  "style": "style_name",
+  "confidence": 0.0-1.0,
+  "key_features": ["feature1", "feature2", "feature3"]
+}`
+
+  let detectedStyle = 'contemporary'
+  let styleFeatures: string[] = []
+
+  try {
+    const styleResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: stylePrompt },
+              {
+                inline_data: {
+                  mime_type: 'image/jpeg',
+                  data: await fetchImageAsBase64(imageUrl)
+                }
+              }
+            ]
+          }]
+        })
+      }
+    )
+
+    const styleData = await styleResponse.json()
+    const styleText = styleData.candidates?.[0]?.content?.parts?.[0]?.text
+    
+    if (styleText) {
+      const styleMatch = styleText.match(/```json\n([\s\S]*?)\n```/) || styleText.match(/\{[\s\S]*\}/)
+      const styleJson = styleMatch ? (styleMatch[1] || styleMatch[0]) : styleText
+      const styleResult = JSON.parse(styleJson)
+      detectedStyle = styleResult.style || 'contemporary'
+      styleFeatures = styleResult.key_features || []
+      console.log(`🎨 Detected style: ${detectedStyle} (confidence: ${styleResult.confidence})`)
+    }
+  } catch (error) {
+    console.error('Style detection error:', error)
+  }
+
+  // PHASE 2: STYLE-AWARE ITEM EXTRACTION
+  const prompt = `Analyze this ${detectedStyle} style interior design render and extract ALL visible items.
 
 Room Type: ${roomType}
+Detected Style: ${detectedStyle}
+Key Features: ${styleFeatures.join(', ')}
+
+CRITICAL INSTRUCTIONS FOR ${detectedStyle.toUpperCase()} STYLE:
+
+${getStyleSpecificInstructions(detectedStyle)}
 
 Extract items into these categories (use exact category names):
 1. furniture: Sofas, chairs, tables, beds, cabinets, TV units, wardrobes, etc.
-2. flooring: Floor tiles, wooden flooring, vinyl, carpet, marble, etc.
-3. lighting: Lights, fans, chandeliers, LED strips, etc.
-4. hardware: Handles, hinges, locks, rails, fittings, etc.
-5. decor: Curtains, cushions, rugs, artwork, plants, mirrors, etc.
-6. materials: Laminates, veneers, plywood, MDF, edge bands, etc.
+2. flooring: Floor tiles, wooden flooring, vinyl, carpet, marble, EXPOSED CONCRETE, etc.
+3. lighting: Lights, fans, chandeliers, LED strips, INDUSTRIAL PENDANTS, etc.
+4. hardware: Handles, hinges, locks, rails, fittings, EXPOSED PIPES, DUCTWORK, etc.
+5. decor: Curtains, cushions, rugs, artwork, plants, mirrors, throw pillows, blankets, etc.
+6. materials: Laminates, veneers, plywood, MDF, edge bands, EXPOSED BRICK, CONCRETE, etc.
 7. glass: Glass panels, mirrors, partitions, etc.
-8. soft_furnishings: Curtains, blinds, upholstery, etc.
+8. soft_furnishings: Curtains, blinds, upholstery, rugs, throw pillows, etc.
 
 For each item provide:
-- name: Brief descriptive name (e.g., "3-seater sofa", "Dining table 6-seater")
+- name: Brief descriptive name matching the detected style (e.g., "Industrial pendant light", "Exposed concrete floor")
 - category: furniture/flooring/lighting/hardware/decor/materials/glass/soft_furnishings
 - confidence: 0.0-1.0 (how certain are you this item exists?)
-- quantity: Number of units visible
-- specifications: Size, material, color (if identifiable)
+- quantity: Number of units visible (count carefully - don't miss items)
+- specifications: Size, material, color, style-specific details
 
-Return ONLY valid JSON array of items. Example:
+IMPORTANT: 
+- Include ALL visible items, even small decor pieces (plants, artwork, pillows, rugs)
+- For structural elements like floors/ceilings, describe the ACTUAL material (not assumed luxury)
+- Don't assume marble/granite unless clearly visible - concrete/painted surfaces are common
+- Count individual items accurately (e.g., 4 throw pillows, not 1 set)
+
+Return ONLY valid JSON array. Example for industrial style:
 [
-  {"name": "3-seater sofa", "category": "furniture", "confidence": 0.95, "quantity": 1, "specifications": "Fabric, grey, modern style"},
-  {"name": "Coffee table", "category": "furniture", "confidence": 0.90, "quantity": 1, "specifications": "Wooden, rectangular"},
-  {"name": "Vitrified floor tiles", "category": "flooring", "confidence": 0.85, "quantity": 1, "specifications": "2x2 ft, grey"}
+  {"name": "Brown leather sofa", "category": "furniture", "confidence": 0.95, "quantity": 1, "specifications": "3-seater, brown leather, industrial style"},
+  {"name": "Exposed concrete floor", "category": "flooring", "confidence": 0.90, "quantity": 1, "specifications": "Polished concrete, grey"},
+  {"name": "Industrial pendant light", "category": "lighting", "confidence": 0.92, "quantity": 3, "specifications": "Edison bulb, metal cage"},
+  {"name": "Exposed brick wall", "category": "materials", "confidence": 0.88, "quantity": 1, "specifications": "Red brick, unfinished"},
+  {"name": "Indoor plant", "category": "decor", "confidence": 0.85, "quantity": 3, "specifications": "Various sizes, potted"},
+  {"name": "Throw pillow", "category": "soft_furnishings", "confidence": 0.90, "quantity": 4, "specifications": "Mixed patterns and textures"}
 ]`
 
   try {
-    console.log('🤖 Calling Gemini API...')
-    console.log('📷 Image URL:', imageUrl)
-    
-    // Fetch image with proper MIME detection and safe base64 encoding
-    const { base64, mimeType } = await fetchImageAsBase64(imageUrl)
-    
-    console.log('📦 Image processed:', { mimeType, base64Length: base64.length })
-    
-    const requestBody = {
-      contents: [{
-        parts: [
-          { text: prompt },
-          {
-            inline_data: {
-              mime_type: mimeType,
-              data: base64
-            }
-          }
-        ]
-      }]
-    }
-    
-    console.log('📤 Sending request to Gemini...')
-    
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              {
+                inline_data: {
+                  mime_type: 'image/jpeg',
+                  data: await fetchImageAsBase64(imageUrl)
+                }
+              }
+            ]
+          }]
+        })
       }
     )
-
-    console.log('📥 Gemini response status:', response.status)
-    
-    if (!response.ok) {
-      const errorBody = await response.text()
-      console.error('❌ Gemini API error response:', errorBody)
-      throw new Error(`Gemini API error: ${response.status} - ${errorBody}`)
-    }
 
     const data = await response.json()
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text
     
     if (!text) {
-      console.error('❌ No text response from Gemini')
-      console.log('📄 Full Gemini response:', JSON.stringify(data).substring(0, 500))
-      return { items: getMockExtractedItems(roomType), usedMockData: true }
+      console.error('No text response from Gemini')
+      return getMockExtractedItems(roomType)
     }
-    
-    console.log('✅ Gemini response text preview:', text.substring(0, 200))
     
     // Extract JSON from markdown code blocks if present
     const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\[[\s\S]*\]/)
     const jsonText = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text
     
     const items: ExtractedItem[] = JSON.parse(jsonText)
-    console.log(`✅ Parsed ${items.length} items from Gemini response`)
-    
-    return { items, usedMockData: false }
+    return items
     
   } catch (error) {
-    console.error('=== Gemini API ERROR ===')
-    console.error('Error type:', error?.constructor?.name)
-    console.error('Error message:', error instanceof Error ? error.message : String(error))
-    console.error('Stack:', error instanceof Error ? error.stack : 'N/A')
-    console.log('⚠️ Falling back to mock data for room type:', roomType)
-    return { items: getMockExtractedItems(roomType), usedMockData: true }
+    console.error('Gemini API error:', error)
+    return getMockExtractedItems(roomType)
   }
 }
 
-// Helper: Fetch image as base64 with proper MIME type detection
-async function fetchImageAsBase64(url: string): Promise<{ base64: string, mimeType: string }> {
-  console.log('📥 Fetching image:', url)
-  
+// Helper: Fetch image as base64
+async function fetchImageAsBase64(url: string): Promise<string> {
   const response = await fetch(url)
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`)
-  }
-  
-  // Get MIME type from response headers first
-  let mimeType = response.headers.get('content-type') || 'image/jpeg'
-  
-  // Fallback: detect from URL extension
-  const urlLower = url.toLowerCase()
-  if (urlLower.includes('.png')) mimeType = 'image/png'
-  else if (urlLower.includes('.jpg') || urlLower.includes('.jpeg')) mimeType = 'image/jpeg'
-  else if (urlLower.includes('.webp')) mimeType = 'image/webp'
-  else if (urlLower.includes('.gif')) mimeType = 'image/gif'
-  
-  console.log('🎨 Detected MIME type:', mimeType)
-  
   const blob = await response.blob()
   const buffer = await blob.arrayBuffer()
-  const bytes = new Uint8Array(buffer)
-  
-  console.log('📊 Image size:', bytes.length, 'bytes')
-  
-  // Safe chunked base64 encoding for large images (avoids stack overflow)
-  let binary = ''
-  const chunkSize = 8192
-  
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length))
-    binary += String.fromCharCode.apply(null, Array.from(chunk))
-  }
-  
-  const base64 = btoa(binary)
-  console.log('✅ Base64 encoded, length:', base64.length)
-  
-  return { base64, mimeType }
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+  return base64
 }
 
 // Helper: Get tier-based price
@@ -545,6 +524,41 @@ async function matchItemToPricing(item: ExtractedItem, supabase: any): Promise<M
   }
 
   return null
+}
+
+// Helper: Get style-specific extraction instructions
+function getStyleSpecificInstructions(style: string): string {
+  const instructions: Record<string, string> = {
+    'industrial loft': `
+- FLOORING: Look for polished concrete, NOT marble or tiles (unless clearly visible)
+- WALLS: Check for exposed brick walls, concrete walls, NOT painted/wallpapered surfaces
+- CEILING: Look for exposed concrete, visible pipes, ductwork, metal beams
+- LIGHTING: Industrial pendants with Edison bulbs, NOT chandeliers or ornate fixtures
+- FURNITURE: Leather, metal frames, wood - NOT ornate or traditional pieces
+- DECOR: Include ALL plants, artwork, rugs, throw pillows, blankets visible in the scene`,
+    'modern luxury': `
+- FLOORING: Marble, granite, high-end tiles (check for veining/patterns)
+- WALLS: Premium paint, textured finishes, wallpaper, paneling
+- CEILING: False ceiling with cove lighting, ornate details
+- LIGHTING: Crystal chandeliers, designer pendants, recessed lights
+- FURNITURE: Ornate, upholstered, premium materials
+- DECOR: Artwork, sculptures, premium textiles`,
+    'contemporary': `
+- FLOORING: Wood, engineered flooring, premium tiles
+- WALLS: Clean painted surfaces, accent walls
+- CEILING: Simple false ceiling or exposed
+- LIGHTING: Modern fixtures, clean lines
+- FURNITURE: Simple, functional, neutral colors
+- DECOR: Minimal but present - plants, simple artwork`,
+    'default': `
+- Carefully examine all materials - don't assume premium finishes
+- Look for ACTUAL visible materials, not what you expect to see
+- Include ALL decor items: plants, artwork, rugs, pillows, throws, etc.
+- Count items individually, don't group into sets
+- Check for exposed structural elements (brick, concrete, pipes)`
+  }
+  
+  return instructions[style.toLowerCase()] || instructions['default']
 }
 
 // Mock data for testing without Gemini API
