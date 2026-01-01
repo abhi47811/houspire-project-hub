@@ -103,11 +103,12 @@ async function synonymMatch(item: ExtractedItem, tier: string, city: string): Pr
   // First, check if this is a known synonym
   const { data: synonymData } = await supabase
     .from('item_synonyms')
-    .select('canonical_name, confidence')
+    .select('canonical_name, confidence_score, category')
     .or(`canonical_name.ilike.${normalized},synonym.ilike.${normalized}`)
-    .order('confidence', { ascending: false })
+    .eq('is_active', true)
+    .order('confidence_score', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (!synonymData) return null;
 
@@ -128,7 +129,7 @@ async function synonymMatch(item: ExtractedItem, tier: string, city: string): Pr
     item_name: pricingData.item_name,
     category: pricingData.category,
     match_strategy: 'synonym',
-    match_confidence: 0.95 * (synonymData.confidence || 1.0),
+    match_confidence: 0.95 * (synonymData.confidence_score || 1.0),
     alternative_matches: [],
     rate: getTierPrice(pricingData, tier, city),
     unit: pricingData.unit,
