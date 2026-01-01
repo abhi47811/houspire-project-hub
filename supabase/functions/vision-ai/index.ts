@@ -225,7 +225,24 @@ FLOORING:
 - Room sizes: Small 100-150, Medium 150-300, Large 300-500 sqft
 - Unit: "sqft"
 
-WALLS (paint, panels, brick, concrete):
+WALL PAINT - CRITICAL DETECTION:
+- Quantity: Total painted wall area in sqft
+- Calculate: Wall perimeter × ceiling height - windows/doors
+- Example: (15+18+15+18)ft × 10ft = 660 sqft, minus 100 sqft for openings = 560 sqft
+- Detect finish type from visual cues:
+  * Matte/flat finish (no reflection) → "Interior Emulsion Paint"
+  * Satin/eggshell finish (soft sheen) → "Premium Emulsion Paint"
+  * High gloss/shiny → "Duco Paint Gloss"
+  * Textured/patterned surface → "Textured Wall Paint"
+  * Rough plaster/Italian look → "Stucco Venetian Plaster"
+  * Chalky/traditional look → "Limewash Paint"
+  * Metallic/shimmer effect → "Metallic Paint Finish"
+- Include as SEPARATE line items:
+  * Wall Putty: same sqft as paint (for smooth finish)
+  * Wall Primer: same sqft as paint (base coat)
+- Unit: "sqft"
+
+WALLS (non-paint treatments):
 - Quantity: Wall area in sqft (width × height)
 - Example: 15ft wide × 10ft high = 150 sqft
 - Deduct 30-50 sqft per large window/door
@@ -234,6 +251,7 @@ WALLS (paint, panels, brick, concrete):
 CEILING:
 - Quantity: Ceiling area = floor area (sqft)
 - Example: Same as floor (270 sqft)
+- For painted ceiling, add "Ceiling Paint" as separate item
 - Unit: "sqft"
 
 LINEAR ELEMENTS (pipes, ducts, molding):
@@ -253,8 +271,12 @@ CRITICAL - ARCHITECTURAL EXAMPLES:
 
 Living Room (18ft × 15ft, 10ft ceiling):
 ✅ Concrete Floor: quantity: 270, unit: "sqft" (NOT 1 sqft!)
+✅ Interior Emulsion Paint: quantity: 560, unit: "sqft" (walls minus openings)
+✅ Wall Primer: quantity: 560, unit: "sqft" (same as paint)
+✅ Wall Putty: quantity: 560, unit: "sqft" (same as paint)
 ✅ Brick Accent Wall: quantity: 150, unit: "sqft" (15ft × 10ft)
 ✅ Exposed Concrete Ceiling: quantity: 270, unit: "sqft" (same as floor)
+✅ Ceiling Paint: quantity: 270, unit: "sqft" (if painted)
 ✅ Exposed Industrial Pipes: quantity: 35, unit: "rft" (running across ceiling)
 ✅ Metal Ducting: quantity: 20, unit: "rft"
 
@@ -269,15 +291,17 @@ FURNITURE EXAMPLES:
 
 WRONG EXAMPLES - NEVER DO THIS:
 ❌ Concrete floor: quantity: 1, unit: "sqft" (IMPOSSIBLE - room is not 1 sqft!)
+❌ Wall paint: quantity: 1, unit: "sqft" (Should be 400-600 sqft)
 ❌ Brick wall: quantity: 1, unit: "sqft" (Should be 150+ sqft)
 ❌ Ceiling pipes: quantity: 6, unit: "rft" (Too short - should be 30-50 rft)
 ❌ Sofa: quantity: 3, unit: "nos" (Counting seats, not sofas)
 ❌ Area rug: quantity: 120, unit: "sqft" (Should be 1 nos)
 
 CRITICAL REMINDER:
-- Architectural elements need REALISTIC measurements (150-500 sqft for floors, 20-50 rft for pipes)
+- Architectural elements need REALISTIC measurements (150-500 sqft for floors, 400-700 sqft for wall paint)
+- ALWAYS include Wall Primer + Wall Putty as separate items when walls are painted
 - Furniture/decor are COUNTABLE items (1, 2, 4, 6)
-- NEVER use "1 sqft" for a full room floor/ceiling
+- NEVER use "1 sqft" for a full room floor/ceiling/wall
 - NEVER use "2 rft" or "6 rft" for pipes running across entire ceiling
 
 For each item return:
