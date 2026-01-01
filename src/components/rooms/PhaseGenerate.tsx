@@ -924,6 +924,37 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         console.error('Failed to auto-catalog render:', catalogError);
       }
 
+      // Extract budget items from approved render
+      try {
+        console.log('🔍 Triggering budget extraction for render:', currentRender?.id);
+        
+        const { data: extractionData, error: extractionError } = await supabase.functions.invoke(
+          'extract-budget-items',
+          {
+            body: {
+              render_id: currentRender?.id,
+              project_id: projectId,
+              room_id: room.id
+            }
+          }
+        );
+        
+        if (extractionError) {
+          console.error('❌ Budget extraction failed:', extractionError);
+          // Don't block approval - just log the error
+        } else {
+          console.log('✅ Budget extraction completed:', extractionData);
+          if (extractionData?.items_extracted > 0) {
+            toast({
+              title: 'Budget Items Extracted',
+              description: `${extractionData.items_extracted} items extracted from render. ${extractionData.items_matched} matched to pricing.`,
+            });
+          }
+        }
+      } catch (extractError) {
+        console.error('Failed to extract budget items:', extractError);
+      }
+
       const { data: rooms, error: fetchError } = await supabase
         .from('rooms')
         .select('phase_5_completed')
