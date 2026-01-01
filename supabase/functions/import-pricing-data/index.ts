@@ -228,20 +228,46 @@ function getGstRate(category: string): number {
   return categoryGstRates[normalizedCat] ?? 18;
 }
 
-// Parse Excel row to pricing item
+// Parse Excel row to pricing item - handles both standardized and raw formats
 function parseRow(row: Record<string, unknown>, headers: string[], sheetName: string): Partial<PricingItem> | null {
   try {
-    // Try to find item name column
-    const itemNameKeys = ["item_name", "item", "name", "description", "product", "material", "particulars", "work description"];
-    let itemName = "";
-    for (const key of itemNameKeys) {
-      const found = headers.find((h) => h.toLowerCase().includes(key));
-      if (found && row[found]) {
-        itemName = String(row[found]).trim();
-        break;
-      }
+    const headerMap: Record<string, string> = {};
+    for (const h of headers) {
+      headerMap[h.toLowerCase().replace(/[\s\-_]+/g, "_")] = h;
     }
 
+    // Helper to get value from row
+    const getValue = (keys: string[]): string | undefined => {
+      for (const key of keys) {
+        const normalized = key.toLowerCase().replace(/[\s\-_]+/g, "_");
+        // Direct match
+        if (row[key] !== undefined && row[key] !== null && row[key] !== "") {
+          return String(row[key]).trim();
+        }
+        // Normalized match
+        const found = headers.find(h => h.toLowerCase().replace(/[\s\-_]+/g, "_") === normalized);
+        if (found && row[found] !== undefined && row[found] !== null && row[found] !== "") {
+          return String(row[found]).trim();
+        }
+        // Partial match
+        const partial = headers.find(h => h.toLowerCase().includes(normalized));
+        if (partial && row[partial] !== undefined && row[partial] !== null && row[partial] !== "") {
+          return String(row[partial]).trim();
+        }
+      }
+      return undefined;
+    };
+
+    const getNumericValue = (keys: string[], defaultVal: number = 0): number => {
+      const val = getValue(keys);
+      if (!val) return defaultVal;
+      const num = Number(String(val).replace(/[₹,\s]/g, "").replace(/lac|lakh|l$/i, "00000").replace(/k$/i, "000"));
+      return isNaN(num) ? defaultVal : num;
+    };
+
+    // === Extract item name ===
+    let itemName = getValue(["item_name", "item", "name", "description", "product", "material", "particulars", "work_description"]);
+    
     // Fallback: first non-empty string column
     if (!itemName) {
       for (const h of headers) {
@@ -255,86 +281,42 @@ function parseRow(row: Record<string, unknown>, headers: string[], sheetName: st
 
     if (!itemName || itemName.length < 2) return null;
 
-    // Try to find category from row or use sheet name
-    const categoryKeys = ["category", "type", "group", "section"];
-    let category = "";
-    for (const key of categoryKeys) {
-      const found = headers.find((h) => h.toLowerCase().includes(key));
-      if (found && row[found]) {
-        category = String(row[found]).toLowerCase().replace(/[\s-]+/g, "_").trim();
-        break;
-      }
-    }
-    
-    if (!category) {
+    // === Extract category ===
+    let category = getValue(["category", "type", "group", "section"]);
+    if (category) {
+      category = category.toLowerCase().replace(/[\s\-]+/g, "_").trim();
+    } else {
       category = detectCategory(sheetName, itemName);
     }
 
-    // Try to find specification
-    const specKeys = ["specification", "spec", "details", "size", "dimension", "make", "brand"];
-    let specification = "";
-    for (const key of specKeys) {
-      const found = headers.find((h) => h.toLowerCase().includes(key));
-      if (found && row[found]) {
-        specification = String(row[found]).trim();
-        break;
-      }
+    // === Extract sub_category ===
+    let subCategory = getValue(["sub_category", "subcategory", "sub category"]);
+    if (!subCategory) {
+      subCategory = sheetName.toLowerCase().replace(/[\s\-]+/g, "_");
     }
 
-    // Try to find unit
-    const unitKeys = ["unit", "uom", "measure", "qty unit"];
-    let unit = "nos";
-    for (const key of unitKeys) {
-      const found = headers.find((h) => h.toLowerCase() === key || h.toLowerCase().includes(key));
-      if (found && row[found]) {
-        const unitVal = String(row[found]).toLowerCase().trim();
-        // Normalize common units
-        if (unitVal.includes("sq") || unitVal.includes("sft")) unit = "sqft";
-        else if (unitVal.includes("rft") || unitVal.includes("running")) unit = "rft";
-        else if (unitVal.includes("lft") || unitVal === "ft") unit = "ft";
-        else if (unitVal.includes("lot")) unit = "lot";
-        else if (unitVal.includes("set")) unit = "set";
-        else if (unitVal.includes("pair")) unit = "pair";
-        else if (unitVal.includes("kg") || unitVal.includes("kgs")) unit = "kg";
-        else if (unitVal.includes("no") || unitVal.includes("nos") || unitVal.includes("pc") || unitVal.includes("pcs")) unit = "nos";
-        else unit = unitVal.slice(0, 10);
-        break;
-      }
-    }
+    // === Extract specification ===
+    const specification = getValue(["specification", "spec", "details", "size", "dimension", "make", "brand"]);
 
-    // Extract prices - look for budget/mid/premium patterns
-    let budgetPrice = 0;
-    let midPremiumPrice = 0;
-    let premiumPrice = 0;
-    let basePrice = 0;
+    // === Extract unit ===
+    let unit = getValue(["unit", "uom", "measure", "qty_unit"]) || "nos";
+    const unitLower = unit.toLowerCase();
+    if (unitLower.includes("sq") || unitLower.includes("sft")) unit = "sqft";
+    else if (unitLower.includes("rft") || unitLower.includes("running")) unit = "rft";
+    else if (unitLower.includes("lft") || unitLower === "ft") unit = "ft";
+    else if (unitLower.includes("lot")) unit = "lot";
+    else if (unitLower.includes("set")) unit = "set";
+    else if (unitLower.includes("pair")) unit = "pair";
+    else if (unitLower.includes("kg")) unit = "kg";
+    else if (unitLower.includes("no") || unitLower.includes("pc")) unit = "nos";
 
-    for (const header of headers) {
-      const h = header.toLowerCase();
-      const rawVal = row[header];
-      if (rawVal === null || rawVal === undefined || rawVal === "") continue;
-      
-      const val = Number(String(rawVal).replace(/[₹,\s]/g, "").replace(/lac|lakh|l$/i, "00000").replace(/k$/i, "000"));
-      if (isNaN(val) || val <= 0) continue;
+    // === Extract prices - check for standardized columns first ===
+    let budgetPrice = getNumericValue(["budget_price", "budget", "economy", "basic_price"]);
+    let midPremiumPrice = getNumericValue(["mid_premium_price", "mid_price", "standard", "regular", "mid"]);
+    let premiumPrice = getNumericValue(["premium_price", "premium", "luxury", "high_price"]);
+    let basePrice = getNumericValue(["rate", "price", "cost", "amount"]);
 
-      // Budget tier
-      if (h.includes("budget") || h.includes("economy") || h.includes("basic")) {
-        budgetPrice = val;
-      }
-      // Mid/Standard tier
-      else if (h.includes("mid") || h.includes("standard") || h.includes("regular")) {
-        midPremiumPrice = val;
-      }
-      // Premium tier
-      else if ((h.includes("premium") || h.includes("luxury") || h.includes("high")) && !h.includes("mid")) {
-        premiumPrice = val;
-      }
-      // Generic rate/price column
-      else if ((h.includes("rate") || h.includes("price") || h.includes("cost") || h.includes("amount")) && basePrice === 0) {
-        basePrice = val;
-      }
-    }
-
-    // Calculate missing tiers from base price or from each other
+    // Calculate missing tiers
     if (basePrice > 0 && midPremiumPrice === 0) {
       midPremiumPrice = basePrice;
     }
@@ -350,36 +332,80 @@ function parseRow(row: Record<string, unknown>, headers: string[], sheetName: st
       budgetPrice = Math.round(premiumPrice * 0.5);
     }
 
-    // Skip if no prices found
     if (budgetPrice === 0 && midPremiumPrice === 0 && premiumPrice === 0) {
       return null;
     }
 
-    const gstPercent = getGstRate(category);
+    // === Extract GST ===
+    let gstPercent = getNumericValue(["gst_percent", "gst", "gst_rate", "tax"]);
+    if (gstPercent === 0) {
+      gstPercent = getGstRate(category);
+    }
+
+    // === Extract city multipliers - check for standardized columns ===
+    const hyderabadMult = getNumericValue(["hyderabad_multiplier", "hyderabad_mult", "hyd_mult"], defaultMultipliers.hyderabad);
+    const delhiMult = getNumericValue(["delhi_multiplier", "delhi_mult", "del_mult"], defaultMultipliers.delhi);
+    const bangaloreMult = getNumericValue(["bangalore_multiplier", "bangalore_mult", "blr_mult"], defaultMultipliers.bangalore);
+    const puneMult = getNumericValue(["pune_multiplier", "pune_mult"], defaultMultipliers.pune);
+    const mumbaiMult = getNumericValue(["mumbai_multiplier", "mumbai_mult", "mum_mult"], defaultMultipliers.mumbai);
+    const chennaiMult = getNumericValue(["chennai_multiplier", "chennai_mult"], defaultMultipliers.chennai);
+    const kolkataMult = getNumericValue(["kolkata_multiplier", "kolkata_mult"], defaultMultipliers.kolkata);
+    const ahmedabadMult = getNumericValue(["ahmedabad_multiplier", "ahmedabad_mult"], defaultMultipliers.ahmedabad);
+    const jaipurMult = getNumericValue(["jaipur_multiplier", "jaipur_mult"], defaultMultipliers.jaipur);
+    const lucknowMult = getNumericValue(["lucknow_multiplier", "lucknow_mult"], defaultMultipliers.lucknow);
+    const suratMult = getNumericValue(["surat_multiplier", "surat_mult"], defaultMultipliers.surat);
+
+    // === Extract keywords and synonyms - check for standardized columns ===
+    let keywords: string[] = [];
+    const keywordsVal = getValue(["keywords"]);
+    if (keywordsVal) {
+      // Handle JSON array or comma-separated
+      try {
+        keywords = JSON.parse(keywordsVal);
+      } catch {
+        keywords = keywordsVal.split(",").map(k => k.trim()).filter(k => k);
+      }
+    }
+    if (keywords.length === 0) {
+      keywords = generateKeywords(itemName, category, specification);
+    }
+
+    let synonyms: string[] = [];
+    const synonymsVal = getValue(["synonyms"]);
+    if (synonymsVal) {
+      try {
+        synonyms = JSON.parse(synonymsVal);
+      } catch {
+        synonyms = synonymsVal.split(",").map(s => s.trim()).filter(s => s);
+      }
+    }
+    if (synonyms.length === 0) {
+      synonyms = generateSynonyms(itemName, category);
+    }
 
     return {
       item_name: itemName,
       category,
-      sub_category: sheetName.toLowerCase().replace(/[\s-]+/g, "_"),
+      sub_category: subCategory,
       specification: specification || undefined,
       unit,
       budget_price: budgetPrice,
       mid_premium_price: midPremiumPrice,
       premium_price: premiumPrice,
       gst_percent: gstPercent,
-      hyderabad_multiplier: defaultMultipliers.hyderabad,
-      delhi_multiplier: defaultMultipliers.delhi,
-      bangalore_multiplier: defaultMultipliers.bangalore,
-      pune_multiplier: defaultMultipliers.pune,
-      mumbai_multiplier: defaultMultipliers.mumbai,
-      chennai_multiplier: defaultMultipliers.chennai,
-      kolkata_multiplier: defaultMultipliers.kolkata,
-      ahmedabad_multiplier: defaultMultipliers.ahmedabad,
-      jaipur_multiplier: defaultMultipliers.jaipur,
-      lucknow_multiplier: defaultMultipliers.lucknow,
-      surat_multiplier: defaultMultipliers.surat,
-      synonyms: generateSynonyms(itemName, category),
-      keywords: generateKeywords(itemName, category, specification),
+      hyderabad_multiplier: hyderabadMult,
+      delhi_multiplier: delhiMult,
+      bangalore_multiplier: bangaloreMult,
+      pune_multiplier: puneMult,
+      mumbai_multiplier: mumbaiMult,
+      chennai_multiplier: chennaiMult,
+      kolkata_multiplier: kolkataMult,
+      ahmedabad_multiplier: ahmedabadMult,
+      jaipur_multiplier: jaipurMult,
+      lucknow_multiplier: lucknowMult,
+      surat_multiplier: suratMult,
+      synonyms,
+      keywords,
     };
   } catch (e) {
     console.error("Error parsing row:", e);
