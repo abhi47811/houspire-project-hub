@@ -10,11 +10,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 /**
  * RoomRedirect Component
  * 
- * Handles legacy URL pattern /room/:roomId and redirects to the correct 
- * /projects/:projectId/rooms/:roomId pattern by fetching the project ID from the database.
+ * Handles legacy URL patterns:
+ * - /room/:roomId -> redirects to /projects/:projectId/rooms/:roomId
+ * - /:projectId/rooms/:roomId -> redirects to /projects/:projectId/rooms/:roomId
  */
 export default function RoomRedirect() {
-  const { roomId } = useParams<{ roomId: string }>();
+  const { roomId, projectId } = useParams<{ roomId: string; projectId?: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [error, setError] = useState<{ title: string; description: string } | null>(null);
@@ -28,6 +29,14 @@ export default function RoomRedirect() {
           description: 'Room ID is missing from the URL.',
         });
         setIsLoading(false);
+        return;
+      }
+
+      // If projectId is provided in URL (from /:projectId/rooms/:roomId pattern),
+      // redirect directly without database lookup
+      if (projectId) {
+        console.log('ProjectId available, redirecting directly to:', `/projects/${projectId}/rooms/${roomId}`);
+        navigate(`/projects/${projectId}/rooms/${roomId}`, { replace: true });
         return;
       }
 
@@ -90,7 +99,7 @@ export default function RoomRedirect() {
     };
 
     fetchRoomAndRedirect();
-  }, [roomId, navigate, toast]);
+  }, [roomId, projectId, navigate, toast]);
 
   if (isLoading) {
     return (

@@ -72,8 +72,15 @@ const App = () => (
                   </RouteErrorBoundary>
                 } />
                 
-                {/* Old URL pattern redirect */}
+                {/* Old URL pattern redirects */}
                 <Route path="/room/:roomId" element={
+                  <RouteErrorBoundary routeName="RoomRedirect">
+                    <RoomRedirect />
+                  </RouteErrorBoundary>
+                } />
+                
+                {/* Missing /projects prefix redirect */}
+                <Route path="/:projectId/rooms/:roomId" element={
                   <RouteErrorBoundary routeName="RoomRedirect">
                     <RoomRedirect />
                   </RouteErrorBoundary>
