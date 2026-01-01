@@ -574,16 +574,32 @@ CRITICAL REMINDERS - NEVER DO THIS:
 ❌ Pipes: quantity: 6, unit: "rft" (Should be 30-50 rft)
 
 ===============================================
-OUTPUT FORMAT
+OUTPUT FORMAT - USE EXACT CATEGORY NAMES
 ===============================================
 For each item return:
 {
   "item_name": "specific name matching pricing database",
-  "category": "flooring|wall_treatment|ceiling|lighting|soft_furnishings|false_ceiling|doors|windows|electrical|kitchen|bathroom|furniture|decor|fixtures",
+  "category": "Finishes|flooring|Ceiling|lighting|Soft Furnishings|FALSE_CEILING|DOORS|WINDOWS|Electrical|KITCHEN|BATHROOM|Furniture|Decor|Fixtures|Linear Elements",
   "specification": "material, color, finish, style details",
   "quantity": <MEASURE architectural in sqft/rft, COUNT items in nos>,
   "unit": "sqft|rft|nos|set"
 }
+
+CATEGORY MAPPING (use these exact names):
+- Wall paint, textures, finishes → "Finishes"
+- Flooring (all types) → "flooring"
+- Ceiling paint/treatment → "Ceiling"
+- False ceiling structures → "FALSE_CEILING"
+- All lighting fixtures → "lighting"
+- Curtains, blinds, bedding → "Soft Furnishings"
+- Doors → "DOORS"
+- Windows → "WINDOWS"
+- Switches, sockets, AC → "Electrical"
+- Kitchen cabinets, counters → "KITCHEN"
+- Bathroom fixtures, tiles → "BATHROOM"
+- Sofas, beds, tables, chairs → "Furniture"
+- Art, plants, vases → "Decor"
+- Pipes, ducts, molding → "Linear Elements"
 
 Return as JSON array.`;
         const imageContents = (imageUrls || []).map((url: string) => ({

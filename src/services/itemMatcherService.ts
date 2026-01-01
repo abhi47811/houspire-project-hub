@@ -8,6 +8,51 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
+/**
+ * CATEGORY MAPPING: Vision-AI output → Database categories
+ * Handles case mismatches and naming differences
+ */
+const CATEGORY_MAP: Record<string, string[]> = {
+  // Vision-AI output -> possible database categories (case-insensitive search)
+  'wall_treatment': ['Finishes', 'finishes', 'Wall Finishes', 'materials'],
+  'wall_paint': ['Finishes', 'finishes', 'Wall Finishes'],
+  'finishes': ['Finishes', 'finishes', 'Wall Finishes'],
+  'ceiling': ['Ceiling', 'ceiling', 'FALSE_CEILING', 'False Ceiling & Wall'],
+  'false_ceiling': ['FALSE_CEILING', 'false_ceiling', 'Ceiling', 'False Ceiling & Wall'],
+  'flooring': ['flooring', 'Flooring', 'FLOORING'],
+  'lighting': ['lighting', 'Lighting', 'LIGHTING'],
+  'soft_furnishings': ['soft_furnishings', 'Soft Furnishings', 'SOFT_FURNISHINGS', 'Soft Furnishing'],
+  'furniture': ['furniture', 'Furniture', 'FURNITURE'],
+  'decor': ['decor', 'Decor', 'DECOR', 'Plants'],
+  'doors': ['DOORS', 'Doors', 'doors', 'hardware', 'Hardware'],
+  'windows': ['WINDOWS', 'Windows', 'windows', 'glass'],
+  'electrical': ['Electrical', 'electrical', 'ELECTRICAL'],
+  'kitchen': ['KITCHEN', 'Kitchen', 'kitchen', 'cabinetry', 'countertops', 'appliances'],
+  'bathroom': ['BATHROOM', 'Bathroom', 'bathroom', 'Fixtures', 'plumbing'],
+  'fixtures': ['Fixtures', 'fixtures', 'plumbing', 'hardware'],
+  'linear_elements': ['Linear Elements', 'linear_elements', 'LINEAR_ELEMENTS'],
+  'walls': ['Walls', 'walls', 'WALLS', 'Wall Finishes'],
+};
+
+/**
+ * Get all possible database categories for a given input category
+ */
+function getMappedCategories(category: string): string[] {
+  const normalized = category.toLowerCase().replace(/\s+/g, '_');
+  const mapped = CATEGORY_MAP[normalized];
+  if (mapped) return mapped;
+  
+  // Also check if input directly matches any mapped category
+  for (const [key, values] of Object.entries(CATEGORY_MAP)) {
+    if (values.some(v => v.toLowerCase() === category.toLowerCase())) {
+      return values;
+    }
+  }
+  
+  // Fallback: return original + common variations
+  return [category, category.toLowerCase(), category.toUpperCase()];
+}
+
 export interface MatchResult {
   pricing_item_id: string;
   item_name: string;
@@ -67,29 +112,35 @@ function tokenize(name: string): string[] {
  */
 async function exactMatch(item: ExtractedItem, tier: string, city: string): Promise<MatchResult | null> {
   const normalized = normalizeItemName(item.name);
+  const categories = getMappedCategories(item.category);
   
-  const { data, error } = await supabase
-    .from('pricing_items')
-    .select('*')
-    .ilike('item_name', normalized)
-    .eq('category', item.category)
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle();
+  // Try each mapped category
+  for (const cat of categories) {
+    const { data, error } = await supabase
+      .from('pricing_items')
+      .select('*')
+      .ilike('item_name', normalized)
+      .ilike('category', cat)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
 
-  if (error || !data) return null;
-
-  return {
-    pricing_item_id: data.id,
-    item_name: data.item_name,
-    category: data.category,
-    match_strategy: 'exact',
-    match_confidence: 1.0,
-    alternative_matches: [],
-    rate: getTierPrice(data, tier, city),
-    unit: data.unit,
-    gst_percent: data.gst_percent,
-  };
+    if (!error && data) {
+      return {
+        pricing_item_id: data.id,
+        item_name: data.item_name,
+        category: data.category,
+        match_strategy: 'exact',
+        match_confidence: 1.0,
+        alternative_matches: [],
+        rate: getTierPrice(data, tier, city),
+        unit: data.unit,
+        gst_percent: data.gst_percent,
+      };
+    }
+  }
+  
+  return null;
 }
 
 /**
@@ -99,6 +150,7 @@ async function exactMatch(item: ExtractedItem, tier: string, city: string): Prom
  */
 async function synonymMatch(item: ExtractedItem, tier: string, city: string): Promise<MatchResult | null> {
   const normalized = normalizeItemName(item.name);
+  const categories = getMappedCategories(item.category);
   
   // First, check if this is a known synonym
   const { data: synonymData, error: synonymError } = await supabase
@@ -112,29 +164,33 @@ async function synonymMatch(item: ExtractedItem, tier: string, city: string): Pr
 
   if (synonymError || !synonymData) return null;
 
-  // Find pricing item by canonical name
-  const { data: pricingData, error: pricingError } = await supabase
-    .from('pricing_items')
-    .select('*')
-    .ilike('item_name', synonymData.canonical_name)
-    .eq('category', item.category)
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle();
+  // Find pricing item by canonical name - try all mapped categories
+  for (const cat of categories) {
+    const { data: pricingData, error: pricingError } = await supabase
+      .from('pricing_items')
+      .select('*')
+      .ilike('item_name', synonymData.canonical_name)
+      .ilike('category', cat)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
 
-  if (pricingError || !pricingData) return null;
-
-  return {
-    pricing_item_id: pricingData.id,
-    item_name: pricingData.item_name,
-    category: pricingData.category,
-    match_strategy: 'synonym',
-    match_confidence: 0.95 * (synonymData.confidence_score || 1.0),
-    alternative_matches: [],
-    rate: getTierPrice(pricingData, tier, city),
-    unit: pricingData.unit,
-    gst_percent: pricingData.gst_percent,
-  };
+    if (!pricingError && pricingData) {
+      return {
+        pricing_item_id: pricingData.id,
+        item_name: pricingData.item_name,
+        category: pricingData.category,
+        match_strategy: 'synonym',
+        match_confidence: 0.95 * (synonymData.confidence_score || 1.0),
+        alternative_matches: [],
+        rate: getTierPrice(pricingData, tier, city),
+        unit: pricingData.unit,
+        gst_percent: pricingData.gst_percent,
+      };
+    }
+  }
+  
+  return null;
 }
 
 /**
@@ -145,54 +201,60 @@ async function synonymMatch(item: ExtractedItem, tier: string, city: string): Pr
 async function containsMatch(item: ExtractedItem, tier: string, city: string): Promise<MatchResult | null> {
   const tokens = tokenize(item.name);
   if (tokens.length === 0) return null;
+  const categories = getMappedCategories(item.category);
 
   // Search for items where any token is contained in the item_name
   const orConditions = tokens
     .map(token => `item_name.ilike.%${token}%`)
     .join(',');
 
-  const { data: matches } = await supabase
-    .from('pricing_items')
-    .select('*')
-    .or(orConditions)
-    .eq('category', item.category)
-    .eq('is_active', true)
-    .limit(5);
+  // Try each mapped category
+  for (const cat of categories) {
+    const { data: matches } = await supabase
+      .from('pricing_items')
+      .select('*')
+      .or(orConditions)
+      .ilike('category', cat)
+      .eq('is_active', true)
+      .limit(5);
 
-  if (!matches || matches.length === 0) return null;
+    if (matches && matches.length > 0) {
+      // Score each match by number of matching tokens
+      const scoredMatches = matches.map(match => {
+        const matchTokens = tokenize(match.item_name);
+        const overlap = tokens.filter(t => matchTokens.includes(t)).length;
+        const score = overlap / Math.max(tokens.length, matchTokens.length);
+        return { match, score };
+      });
 
-  // Score each match by number of matching tokens
-  const scoredMatches = matches.map(match => {
-    const matchTokens = tokenize(match.item_name);
-    const overlap = tokens.filter(t => matchTokens.includes(t)).length;
-    const score = overlap / Math.max(tokens.length, matchTokens.length);
-    return { match, score };
-  });
+      // Sort by score (highest first)
+      scoredMatches.sort((a, b) => b.score - a.score);
+      const best = scoredMatches[0];
 
-  // Sort by score (highest first)
-  scoredMatches.sort((a, b) => b.score - a.score);
-  const best = scoredMatches[0];
+      if (best.score >= 0.3) {
+        const alternatives = scoredMatches.slice(1, 4).map(m => ({
+          pricing_item_id: m.match.id,
+          item_name: m.match.item_name,
+          match_score: m.score * 0.85,
+          rate: getTierPrice(m.match, tier, city),
+        }));
 
-  if (best.score < 0.3) return null;  // Minimum threshold
+        return {
+          pricing_item_id: best.match.id,
+          item_name: best.match.item_name,
+          category: best.match.category,
+          match_strategy: 'fuzzy',
+          match_confidence: 0.85 + (best.score * 0.05),
+          alternative_matches: alternatives,
+          rate: getTierPrice(best.match, tier, city),
+          unit: best.match.unit,
+          gst_percent: best.match.gst_percent,
+        };
+      }
+    }
+  }
 
-  const alternatives = scoredMatches.slice(1, 4).map(m => ({
-    pricing_item_id: m.match.id,
-    item_name: m.match.item_name,
-    match_score: m.score * 0.85,
-    rate: getTierPrice(m.match, tier, city),
-  }));
-
-  return {
-    pricing_item_id: best.match.id,
-    item_name: best.match.item_name,
-    category: best.match.category,
-    match_strategy: 'fuzzy',
-    match_confidence: 0.85 + (best.score * 0.05),  // 85-90%
-    alternative_matches: alternatives,
-    rate: getTierPrice(best.match, tier, city),
-    unit: best.match.unit,
-    gst_percent: best.match.gst_percent,
-  };
+  return null;
 }
 
 /**
@@ -203,50 +265,55 @@ async function containsMatch(item: ExtractedItem, tier: string, city: string): P
 async function tokenMatch(item: ExtractedItem, tier: string, city: string): Promise<MatchResult | null> {
   const tokens = tokenize(item.name);
   if (tokens.length === 0) return null;
+  const categories = getMappedCategories(item.category);
 
-  // Get all items in category
-  const { data: categoryItems } = await supabase
-    .from('pricing_items')
-    .select('*')
-    .eq('category', item.category)
-    .eq('is_active', true)
-    .limit(50);
+  // Try each mapped category
+  for (const cat of categories) {
+    const { data: categoryItems } = await supabase
+      .from('pricing_items')
+      .select('*')
+      .ilike('category', cat)
+      .eq('is_active', true)
+      .limit(50);
 
-  if (!categoryItems || categoryItems.length === 0) return null;
+    if (categoryItems && categoryItems.length > 0) {
+      // Calculate overlap score for each item
+      const scoredMatches = categoryItems.map(dbItem => {
+        const dbTokens = tokenize(dbItem.item_name);
+        const overlap = tokens.filter(t => dbTokens.includes(t)).length;
+        const score = overlap > 0 ? overlap / Math.max(tokens.length, dbTokens.length) : 0;
+        return { dbItem, score };
+      });
 
-  // Calculate overlap score for each item
-  const scoredMatches = categoryItems.map(dbItem => {
-    const dbTokens = tokenize(dbItem.item_name);
-    const overlap = tokens.filter(t => dbTokens.includes(t)).length;
-    const score = overlap > 0 ? overlap / Math.max(tokens.length, dbTokens.length) : 0;
-    return { dbItem, score };
-  });
+      // Sort by score
+      scoredMatches.sort((a, b) => b.score - a.score);
+      const best = scoredMatches[0];
 
-  // Sort by score
-  scoredMatches.sort((a, b) => b.score - a.score);
-  const best = scoredMatches[0];
+      if (best.score > 0) {
+        const confidence = 0.35 + (best.score * 0.45);
+        const alternatives = scoredMatches.slice(1, 4).map(m => ({
+          pricing_item_id: m.dbItem.id,
+          item_name: m.dbItem.item_name,
+          match_score: confidence * m.score,
+          rate: getTierPrice(m.dbItem, tier, city),
+        }));
 
-  if (best.score === 0) return null;
+        return {
+          pricing_item_id: best.dbItem.id,
+          item_name: best.dbItem.item_name,
+          category: best.dbItem.category,
+          match_strategy: 'token',
+          match_confidence: confidence,
+          alternative_matches: alternatives,
+          rate: getTierPrice(best.dbItem, tier, city),
+          unit: best.dbItem.unit,
+          gst_percent: best.dbItem.gst_percent,
+        };
+      }
+    }
+  }
 
-  const confidence = 0.35 + (best.score * 0.45);  // 35-80%
-  const alternatives = scoredMatches.slice(1, 4).map(m => ({
-    pricing_item_id: m.dbItem.id,
-    item_name: m.dbItem.item_name,
-    match_score: confidence * m.score,
-    rate: getTierPrice(m.dbItem, tier, city),
-  }));
-
-  return {
-    pricing_item_id: best.dbItem.id,
-    item_name: best.dbItem.item_name,
-    category: best.dbItem.category,
-    match_strategy: 'token',
-    match_confidence: confidence,
-    alternative_matches: alternatives,
-    rate: getTierPrice(best.dbItem, tier, city),
-    unit: best.dbItem.unit,
-    gst_percent: best.dbItem.gst_percent,
-  };
+  return null;
 }
 
 /**
@@ -255,43 +322,48 @@ async function tokenMatch(item: ExtractedItem, tier: string, city: string): Prom
  * Extract key noun and match to category
  */
 async function keywordFallback(item: ExtractedItem, tier: string, city: string): Promise<MatchResult | null> {
-  // Extract the most important word (usually the noun)
   const tokens = tokenize(item.name);
   if (tokens.length === 0) return null;
+  const categories = getMappedCategories(item.category);
 
   // Common furniture/material keywords (prioritize these)
-  const keywords = ['sofa', 'chair', 'table', 'bed', 'cabinet', 'wardrobe', 'light', 'tile', 'marble', 'wood', 'granite'];
-  const keyToken = tokens.find(t => keywords.includes(t)) || tokens[tokens.length - 1];  // Last word is usually the noun
+  const keywords = ['sofa', 'chair', 'table', 'bed', 'cabinet', 'wardrobe', 'light', 'tile', 'marble', 'wood', 'granite', 'paint', 'curtain', 'blind', 'fan', 'lamp', 'chandelier'];
+  const keyToken = tokens.find(t => keywords.includes(t)) || tokens[tokens.length - 1];
 
-  const { data: matches } = await supabase
-    .from('pricing_items')
-    .select('*')
-    .ilike('item_name', `%${keyToken}%`)
-    .eq('category', item.category)
-    .eq('is_active', true)
-    .limit(5);
+  // Try each mapped category
+  for (const cat of categories) {
+    const { data: matches } = await supabase
+      .from('pricing_items')
+      .select('*')
+      .ilike('item_name', `%${keyToken}%`)
+      .ilike('category', cat)
+      .eq('is_active', true)
+      .limit(5);
 
-  if (!matches || matches.length === 0) return null;
+    if (matches && matches.length > 0) {
+      const best = matches[0];
+      const alternatives = matches.slice(1, 4).map(m => ({
+        pricing_item_id: m.id,
+        item_name: m.item_name,
+        match_score: 0.60,
+        rate: getTierPrice(m, tier, city),
+      }));
 
-  const best = matches[0];
-  const alternatives = matches.slice(1, 4).map(m => ({
-    pricing_item_id: m.id,
-    item_name: m.item_name,
-    match_score: 0.60,
-    rate: getTierPrice(m, tier, city),
-  }));
+      return {
+        pricing_item_id: best.id,
+        item_name: best.item_name,
+        category: best.category,
+        match_strategy: 'keyword',
+        match_confidence: 0.70,
+        alternative_matches: alternatives,
+        rate: getTierPrice(best, tier, city),
+        unit: best.unit,
+        gst_percent: best.gst_percent,
+      };
+    }
+  }
 
-  return {
-    pricing_item_id: best.id,
-    item_name: best.item_name,
-    category: best.category,
-    match_strategy: 'keyword',
-    match_confidence: 0.70,
-    alternative_matches: alternatives,
-    rate: getTierPrice(best, tier, city),
-    unit: best.unit,
-    gst_percent: best.gst_percent,
-  };
+  return null;
 }
 
 /**
