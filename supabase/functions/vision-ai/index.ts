@@ -205,45 +205,89 @@ Return JSON with scores (0-100) for each category and overall, plus any issues f
 
       case "itemizeBudget":
         model = "google/gemini-2.5-pro";
-        systemPrompt = `You are an expert interior design estimator. Analyze the room renders and itemize ALL materials and furniture visible.
+        systemPrompt = `You are an expert interior design estimator and quantity surveyor. Analyze this room and provide accurate measurements and counts.
 
-CRITICAL QUANTITY RULES - READ CAREFULLY:
-1. COUNT FUNCTIONAL ITEMS, NOT COMPONENTS:
-   - 1 sofa (NOT 3 seats) → quantity: 1
-   - 1 dining table (NOT 4 legs) → quantity: 1
-   - 1 bookshelf (NOT 5 shelves) → quantity: 1
-   - 1 chandelier (NOT 8 bulbs) → quantity: 1
+STEP 1: ESTIMATE ROOM DIMENSIONS FIRST
+Observe furniture scale, ceiling height, and spatial proportions to estimate:
+- Room length (ft): typical 12-25 ft
+- Room width (ft): typical 10-20 ft
+- Ceiling height (ft): typical 9-12 ft (industrial/loft: 10-14 ft)
+- Floor area = length × width (sqft)
+- Wall perimeter = 2 × (length + width)
 
-2. USE CORRECT UNITS:
-   - Furniture (sofas, chairs, tables) → unit: "nos", count each piece
-   - Rugs/Carpets → unit: "nos" (1 area rug, NOT sqft)
-   - Cushions/Pillows → unit: "nos", count each individual cushion
-   - Plants → unit: "nos", count each pot
-   - Artwork/Frames → unit: "nos", count each piece
-   - Curtains → unit: "nos" or "sets" (count panels or pairs)
-   - Flooring → unit: "sqft" (estimate room area)
-   - Wall paint → unit: "sqft" (estimate wall area)
+STEP 2: QUANTITY RULES BY CATEGORY
 
-3. COUNT PRECISELY WHAT YOU SEE:
-   - 2 armchairs visible → quantity: 2
-   - 4 throw cushions visible → quantity: 4
-   - 6 framed photos visible → quantity: 6
-   - 3 potted plants visible → quantity: 3
+A. ARCHITECTURAL ELEMENTS - MEASURE AREA/LENGTH:
 
-EXAMPLES:
-✅ CORRECT: { "item_name": "3-Seater Leather Sofa", "quantity": 1, "unit": "nos" }
-✅ CORRECT: { "item_name": "Throw Cushions", "quantity": 4, "unit": "nos" }
-✅ CORRECT: { "item_name": "Area Rug", "quantity": 1, "unit": "nos" }
-✅ CORRECT: { "item_name": "Armchair", "quantity": 2, "unit": "nos" }
-❌ WRONG: { "item_name": "Sofa", "quantity": 3, "unit": "nos" } ← counting seats!
-❌ WRONG: { "item_name": "Area Rug", "quantity": 120, "unit": "sqft" } ← should be 1 nos
+FLOORING:
+- Quantity: FULL floor area in sqft (NOT "1 sqft" or "2 sqft")
+- Examples: 15ft × 18ft = 270 sqft, 12ft × 14ft = 168 sqft
+- Room sizes: Small 100-150, Medium 150-300, Large 300-500 sqft
+- Unit: "sqft"
 
-For each item provide:
-- item_name: specific product name (e.g., "3-Seater Leather Sofa", "Velvet Armchair")
-- category: (Flooring, Wall Treatment, Ceiling, Furniture, Lighting, Fixtures, Decor, Textiles)
-- specification: detailed specs (material, color, size estimate)
-- quantity: COUNT of items visible (follow rules above!)
-- unit: correct unit (nos for items, sqft for flooring/walls, rft for running items)
+WALLS (paint, panels, brick, concrete):
+- Quantity: Wall area in sqft (width × height)
+- Example: 15ft wide × 10ft high = 150 sqft
+- Deduct 30-50 sqft per large window/door
+- Unit: "sqft"
+
+CEILING:
+- Quantity: Ceiling area = floor area (sqft)
+- Example: Same as floor (270 sqft)
+- Unit: "sqft"
+
+LINEAR ELEMENTS (pipes, ducts, molding):
+- Quantity: Total visible length in running feet
+- Examples: Exposed pipes 30-50 rft, Ducting 15-40 rft, Molding = perimeter (40-80 rft)
+- Unit: "rft" (running feet)
+
+B. FURNITURE & DECOR - COUNT ITEMS:
+- Sofas, chairs, tables: Count each (1 sofa, 2 chairs, 1 table)
+- Cushions, plants, lamps: Count each (4 cushions, 3 plants)
+- Lighting fixtures: Count each (4 ceiling lights, 1 floor lamp)
+- Artwork: Count pieces (6 frames OR "1 gallery wall set")
+- Area rugs: Count as items (1 area rug), NOT sqft
+- Unit: "nos" (number of items)
+
+CRITICAL - ARCHITECTURAL EXAMPLES:
+
+Living Room (18ft × 15ft, 10ft ceiling):
+✅ Concrete Floor: quantity: 270, unit: "sqft" (NOT 1 sqft!)
+✅ Brick Accent Wall: quantity: 150, unit: "sqft" (15ft × 10ft)
+✅ Exposed Concrete Ceiling: quantity: 270, unit: "sqft" (same as floor)
+✅ Exposed Industrial Pipes: quantity: 35, unit: "rft" (running across ceiling)
+✅ Metal Ducting: quantity: 20, unit: "rft"
+
+FURNITURE EXAMPLES:
+✅ 3-Seater Leather Sofa: quantity: 1, unit: "nos"
+✅ Velvet Armchairs: quantity: 2, unit: "nos"
+✅ Wooden Coffee Table: quantity: 1, unit: "nos"
+✅ Throw Cushions: quantity: 4, unit: "nos"
+✅ Area Rug: quantity: 1, unit: "nos" (NOT sqft!)
+✅ Potted Plants: quantity: 3, unit: "nos"
+✅ Industrial Light Tracks: quantity: 4, unit: "nos"
+
+WRONG EXAMPLES - NEVER DO THIS:
+❌ Concrete floor: quantity: 1, unit: "sqft" (IMPOSSIBLE - room is not 1 sqft!)
+❌ Brick wall: quantity: 1, unit: "sqft" (Should be 150+ sqft)
+❌ Ceiling pipes: quantity: 6, unit: "rft" (Too short - should be 30-50 rft)
+❌ Sofa: quantity: 3, unit: "nos" (Counting seats, not sofas)
+❌ Area rug: quantity: 120, unit: "sqft" (Should be 1 nos)
+
+CRITICAL REMINDER:
+- Architectural elements need REALISTIC measurements (150-500 sqft for floors, 20-50 rft for pipes)
+- Furniture/decor are COUNTABLE items (1, 2, 4, 6)
+- NEVER use "1 sqft" for a full room floor/ceiling
+- NEVER use "2 rft" or "6 rft" for pipes running across entire ceiling
+
+For each item return:
+{
+  "item_name": "specific name",
+  "category": "flooring|wall_treatment|ceiling|furniture|lighting|decor|fixtures",
+  "specification": "material, color, finish, style",
+  "quantity": <MEASURE architectural in sqft/rft, COUNT furniture in nos>,
+  "unit": "sqft|rft|nos|set"
+}
 
 Return as JSON array.`;
         const imageContents = (imageUrls || []).map((url: string) => ({
@@ -251,7 +295,19 @@ Return as JSON array.`;
           image_url: { url },
         }));
         userContent = [
-          { type: "text", text: "Itemize ALL materials and furniture from these room renders for budget estimation. COUNT each item precisely - sofas count as 1 (not by seats), cushions count individually, rugs count as 1 nos (not sqft)." },
+          { type: "text", text: `Analyze this room image carefully:
+
+STEP 1: First estimate room dimensions (length × width × height in feet)
+STEP 2: Calculate floor area, wall areas, ceiling area (in sqft) - NOT "1 sqft"!
+STEP 3: Estimate linear measurements for pipes, ducts, molding (in rft) - NOT "2 rft" or "6 rft" for full ceiling runs!
+STEP 4: Count furniture and decor items precisely (1 sofa, 2 chairs, 4 cushions)
+
+CRITICAL REMINDERS:
+- Floor/ceiling: 150-500 sqft (NEVER "1 sqft")
+- Walls: 100-300 sqft each (NEVER "1 sqft")
+- Pipes/ducts: 20-50 rft (NEVER "2 rft" or "6 rft" for full runs)
+- Furniture: countable (1, 2, 4, 6)
+- Area rugs: 1 nos (NEVER sqft)` },
           ...imageContents,
         ];
         break;
