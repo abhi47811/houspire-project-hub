@@ -39,7 +39,11 @@ serve(async (req) => {
 
     const { render_id, project_id, room_id } = await req.json()
 
-    console.log(`🔍 Extracting budget items for render: ${render_id}`)
+    // === DEBUG LOGGING ===
+    console.log('=== extract-budget-items invoked ===')
+    console.log('📥 Input:', { render_id, project_id, room_id })
+    console.log('🔑 API Key exists:', !!Deno.env.get('GOOGLE_AI_API_KEY'))
+    console.log('🔑 API Key length:', Deno.env.get('GOOGLE_AI_API_KEY')?.length || 0)
 
     // 1. Fetch render details
     const { data: render, error: renderError } = await supabase
@@ -48,18 +52,47 @@ serve(async (req) => {
       .eq('id', render_id)
       .single()
 
-    if (renderError) throw renderError
+    if (renderError) {
+      console.error('❌ Failed to fetch render:', renderError)
+      throw renderError
+    }
 
     if (!render.image_url) {
       throw new Error('Render has no image URL')
     }
 
-    // 2. Call Gemini 2.0 Flash Vision API for item extraction
-    const extractedItems = await extractItemsFromRender(render.image_url, render.rooms.room_type)
+    console.log('📷 Render image URL:', render.image_url)
+    console.log('🏠 Room type:', render.rooms?.room_type)
 
-    console.log(`✅ Extracted ${extractedItems.length} items from render`)
+    // 2. Check idempotency - if budget items already exist for this render, skip
+    const { data: existingItems } = await supabase
+      .from('budget_items')
+      .select('id')
+      .eq('render_id', render_id)
+      .limit(1)
 
-    // 3. Fetch project details for city and budget tier
+    if (existingItems && existingItems.length > 0) {
+      console.log('⚠️ Budget items already exist for render:', render_id)
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Budget items already extracted for this render',
+          items_extracted: 0,
+          already_exists: true
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
+    }
+
+    // 3. Call Gemini 2.0 Flash Vision API for item extraction
+    const { items: extractedItems, usedMockData } = await extractItemsFromRender(render.image_url, render.rooms.room_type)
+
+    console.log(`✅ Extracted ${extractedItems.length} items from render (mock: ${usedMockData})`)
+
+    // 4. Fetch project details for city and budget tier
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('city, budget_tier')
@@ -71,7 +104,7 @@ serve(async (req) => {
     const city = project?.city || 'Hyderabad'
     const budgetTier = project?.budget_tier || 'mid_premium'
 
-    // 4. Match each extracted item to pricing database
+    // 5. Match each extracted item to pricing database
     const budgetItems = []
     for (const item of extractedItems) {
       const matchResult = await matchItemToPricing(item, supabase)
@@ -149,17 +182,20 @@ serve(async (req) => {
       }
     }
 
-    // 5. Insert budget items into database
+    // 6. Insert budget items into database
     const { data: insertedItems, error: insertError } = await supabase
       .from('budget_items')
       .insert(budgetItems)
       .select()
 
-    if (insertError) throw insertError
+    if (insertError) {
+      console.error('❌ Failed to insert budget items:', insertError)
+      throw insertError
+    }
 
     console.log(`💾 Inserted ${insertedItems.length} budget items`)
 
-    // 6. Send notification to user
+    // 7. Send notification to user
     const { data: projectData } = await supabase
       .from('projects')
       .select('created_by')
@@ -182,7 +218,8 @@ serve(async (req) => {
         items_extracted: extractedItems.length,
         items_matched: budgetItems.filter(i => i.pricing_item_id).length,
         items_unmatched: budgetItems.filter(i => !i.pricing_item_id).length,
-        total_amount: budgetItems.reduce((sum, item) => sum + (item.total || 0), 0)
+        total_amount: budgetItems.reduce((sum, item) => sum + (item.total || 0), 0),
+        used_mock_data: usedMockData
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -203,12 +240,12 @@ serve(async (req) => {
 })
 
 // AI Item Extraction using Gemini 2.0 Flash
-async function extractItemsFromRender(imageUrl: string, roomType: string): Promise<ExtractedItem[]> {
+async function extractItemsFromRender(imageUrl: string, roomType: string): Promise<{ items: ExtractedItem[], usedMockData: boolean }> {
   const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY')
   
   if (!GOOGLE_AI_API_KEY) {
-    console.warn('⚠️  GOOGLE_AI_API_KEY not set, using mock data')
-    return getMockExtractedItems(roomType)
+    console.warn('⚠️ GOOGLE_AI_API_KEY not set, using mock data')
+    return { items: getMockExtractedItems(roomType), usedMockData: true }
   }
 
   const prompt = `Analyze this interior design render and extract ALL visible items with quantities.
@@ -240,55 +277,118 @@ Return ONLY valid JSON array of items. Example:
 ]`
 
   try {
+    console.log('🤖 Calling Gemini API...')
+    console.log('📷 Image URL:', imageUrl)
+    
+    // Fetch image with proper MIME detection and safe base64 encoding
+    const { base64, mimeType } = await fetchImageAsBase64(imageUrl)
+    
+    console.log('📦 Image processed:', { mimeType, base64Length: base64.length })
+    
+    const requestBody = {
+      contents: [{
+        parts: [
+          { text: prompt },
+          {
+            inline_data: {
+              mime_type: mimeType,
+              data: base64
+            }
+          }
+        ]
+      }]
+    }
+    
+    console.log('📤 Sending request to Gemini...')
+    
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              {
-                inline_data: {
-                  mime_type: 'image/jpeg',
-                  data: await fetchImageAsBase64(imageUrl)
-                }
-              }
-            ]
-          }]
-        })
+        body: JSON.stringify(requestBody)
       }
     )
+
+    console.log('📥 Gemini response status:', response.status)
+    
+    if (!response.ok) {
+      const errorBody = await response.text()
+      console.error('❌ Gemini API error response:', errorBody)
+      throw new Error(`Gemini API error: ${response.status} - ${errorBody}`)
+    }
 
     const data = await response.json()
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text
     
     if (!text) {
-      console.error('No text response from Gemini')
-      return getMockExtractedItems(roomType)
+      console.error('❌ No text response from Gemini')
+      console.log('📄 Full Gemini response:', JSON.stringify(data).substring(0, 500))
+      return { items: getMockExtractedItems(roomType), usedMockData: true }
     }
+    
+    console.log('✅ Gemini response text preview:', text.substring(0, 200))
     
     // Extract JSON from markdown code blocks if present
     const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\[[\s\S]*\]/)
     const jsonText = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text
     
     const items: ExtractedItem[] = JSON.parse(jsonText)
-    return items
+    console.log(`✅ Parsed ${items.length} items from Gemini response`)
+    
+    return { items, usedMockData: false }
     
   } catch (error) {
-    console.error('Gemini API error:', error)
-    return getMockExtractedItems(roomType)
+    console.error('=== Gemini API ERROR ===')
+    console.error('Error type:', error?.constructor?.name)
+    console.error('Error message:', error instanceof Error ? error.message : String(error))
+    console.error('Stack:', error instanceof Error ? error.stack : 'N/A')
+    console.log('⚠️ Falling back to mock data for room type:', roomType)
+    return { items: getMockExtractedItems(roomType), usedMockData: true }
   }
 }
 
-// Helper: Fetch image as base64
-async function fetchImageAsBase64(url: string): Promise<string> {
+// Helper: Fetch image as base64 with proper MIME type detection
+async function fetchImageAsBase64(url: string): Promise<{ base64: string, mimeType: string }> {
+  console.log('📥 Fetching image:', url)
+  
   const response = await fetch(url)
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`)
+  }
+  
+  // Get MIME type from response headers first
+  let mimeType = response.headers.get('content-type') || 'image/jpeg'
+  
+  // Fallback: detect from URL extension
+  const urlLower = url.toLowerCase()
+  if (urlLower.includes('.png')) mimeType = 'image/png'
+  else if (urlLower.includes('.jpg') || urlLower.includes('.jpeg')) mimeType = 'image/jpeg'
+  else if (urlLower.includes('.webp')) mimeType = 'image/webp'
+  else if (urlLower.includes('.gif')) mimeType = 'image/gif'
+  
+  console.log('🎨 Detected MIME type:', mimeType)
+  
   const blob = await response.blob()
   const buffer = await blob.arrayBuffer()
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
-  return base64
+  const bytes = new Uint8Array(buffer)
+  
+  console.log('📊 Image size:', bytes.length, 'bytes')
+  
+  // Safe chunked base64 encoding for large images (avoids stack overflow)
+  let binary = ''
+  const chunkSize = 8192
+  
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length))
+    binary += String.fromCharCode.apply(null, Array.from(chunk))
+  }
+  
+  const base64 = btoa(binary)
+  console.log('✅ Base64 encoded, length:', base64.length)
+  
+  return { base64, mimeType }
 }
 
 // Helper: Get tier-based price
