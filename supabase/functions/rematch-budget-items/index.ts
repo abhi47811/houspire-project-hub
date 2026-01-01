@@ -200,11 +200,19 @@ serve(async (req) => {
       if (!match) {
         let bestMatch: PricingItem | null = null;
         let bestScore = 0;
-        const THRESHOLD = 0.7;
+        const THRESHOLD = 0.65; // Lowered threshold for better matching
 
-        // Filter by category if available
-        const categoryItems = item.category 
-          ? pricingItems.filter(p => p.category.toLowerCase() === item.category.toLowerCase())
+        // Normalize category for comparison (handle flooring vs Flooring)
+        const normalizedCategory = item.category?.toLowerCase().replace(/_/g, ' ');
+        
+        // Filter by category if available, with flexible matching
+        const categoryItems = normalizedCategory
+          ? pricingItems.filter(p => {
+              const pCat = p.category.toLowerCase().replace(/_/g, ' ');
+              return pCat === normalizedCategory || 
+                     pCat.includes(normalizedCategory) || 
+                     normalizedCategory.includes(pCat);
+            })
           : pricingItems;
 
         for (const pricingItem of categoryItems) {
@@ -247,6 +255,7 @@ serve(async (req) => {
         const amount = tierPrice * item.quantity;
         const gstAmount = amount * (item.gst_percent / 100);
 
+        // Note: amount, gst_amount, total are generated columns - only update rate
         const { error: updateError } = await supabase
           .from('budget_items')
           .update({
@@ -254,9 +263,6 @@ serve(async (req) => {
             match_strategy: match.match_strategy,
             match_confidence: match.match_confidence,
             rate: tierPrice,
-            amount: amount,
-            gst_amount: gstAmount,
-            total: amount + gstAmount,
             status: 'matched',
             updated_at: new Date().toISOString()
           })
