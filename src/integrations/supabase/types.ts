@@ -260,6 +260,48 @@ export type Database = {
           },
         ]
       }
+      brand_reference: {
+        Row: {
+          brand: string
+          category: string
+          created_at: string | null
+          data: Json | null
+          id: string
+          market_position: string | null
+          origin: string | null
+          price_range_delhi: string | null
+          quality_rating: string | null
+          updated_at: string | null
+          warranty: string | null
+        }
+        Insert: {
+          brand: string
+          category: string
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          market_position?: string | null
+          origin?: string | null
+          price_range_delhi?: string | null
+          quality_rating?: string | null
+          updated_at?: string | null
+          warranty?: string | null
+        }
+        Update: {
+          brand?: string
+          category?: string
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          market_position?: string | null
+          origin?: string | null
+          price_range_delhi?: string | null
+          quality_rating?: string | null
+          updated_at?: string | null
+          warranty?: string | null
+        }
+        Relationships: []
+      }
       budget_exports: {
         Row: {
           budget_tier: string | null
@@ -632,6 +674,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      city_multipliers: {
+        Row: {
+          category: string
+          city: string
+          created_at: string | null
+          id: string
+          multiplier: number
+          notes: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          city: string
+          created_at?: string | null
+          id?: string
+          multiplier?: number
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          city?: string
+          created_at?: string | null
+          id?: string
+          multiplier?: number
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      city_pricing: {
+        Row: {
+          city: string
+          city_rate: number
+          created_at: string | null
+          id: string
+          item_category: string
+          item_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          city: string
+          city_rate?: number
+          created_at?: string | null
+          id?: string
+          item_category: string
+          item_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          city?: string
+          city_rate?: number
+          created_at?: string | null
+          id?: string
+          item_category?: string
+          item_name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       design_templates: {
         Row: {
@@ -1012,6 +1114,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      material_reference: {
+        Row: {
+          category: string
+          created_at: string | null
+          data: Json
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          data?: Json
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          data?: Json
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -2199,6 +2325,33 @@ export type Database = {
           },
         ]
       }
+      size_guide_reference: {
+        Row: {
+          category: string
+          created_at: string | null
+          id: string
+          size_type: string
+          specifications: Json
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          id?: string
+          size_type: string
+          specifications?: Json
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          id?: string
+          size_type?: string
+          specifications?: Json
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       smart_defaults: {
         Row: {
           checklist: Json
@@ -2957,6 +3110,10 @@ export type Database = {
           status: string
           total_items: number
         }[]
+      }
+      get_city_price: {
+        Args: { p_category: string; p_city: string; p_item_name: string }
+        Returns: number
       }
       get_next_job: {
         Args: { p_project_id?: string }
