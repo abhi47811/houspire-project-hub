@@ -1114,9 +1114,12 @@ export type Database = {
           mid_premium_price: number
           mumbai_multiplier: number | null
           premium_price: number
+          priority: string | null
           pune_multiplier: number | null
+          room_type: string | null
           source: string | null
           specification: string | null
+          style_tags: string[] | null
           sub_category: string | null
           surat_multiplier: number | null
           synonyms: string[] | null
@@ -1145,9 +1148,12 @@ export type Database = {
           mid_premium_price?: number
           mumbai_multiplier?: number | null
           premium_price?: number
+          priority?: string | null
           pune_multiplier?: number | null
+          room_type?: string | null
           source?: string | null
           specification?: string | null
+          style_tags?: string[] | null
           sub_category?: string | null
           surat_multiplier?: number | null
           synonyms?: string[] | null
@@ -1176,9 +1182,12 @@ export type Database = {
           mid_premium_price?: number
           mumbai_multiplier?: number | null
           premium_price?: number
+          priority?: string | null
           pune_multiplier?: number | null
+          room_type?: string | null
           source?: string | null
           specification?: string | null
+          style_tags?: string[] | null
           sub_category?: string | null
           surat_multiplier?: number | null
           synonyms?: string[] | null

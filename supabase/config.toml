@@ -68,3 +68,9 @@ verify_jwt = false
 
 [functions.test-gemini]
 verify_jwt = false
+
+[functions.import-style-pricing]
+verify_jwt = false
+
+[functions.calculate-wardrobe]
+verify_jwt = false
