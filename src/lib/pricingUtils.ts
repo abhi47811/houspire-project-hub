@@ -1,22 +1,27 @@
 /**
  * Pricing Utilities
  * City multipliers, GST rates, and price calculation functions
+ * Updated with citywise pricing data from 27 Excel files (Jan 2026)
  */
 
-// ============= CITY MULTIPLIERS (11 Cities) =============
+// ============= CITY MULTIPLIERS (6 Major Cities with Citywise Data) =============
+// These multipliers are now backed by 1,400+ city-specific prices in the database
 export const CITY_MULTIPLIERS: Record<string, number> = {
-  "Mumbai": 1.15,
-  "Delhi": 1.10,
-  "Bangalore": 1.08,
-  "Chennai": 1.05,
-  "Hyderabad": 1.03,
-  "Pune": 1.00,
-  "Kolkata": 0.98,
-  "Ahmedabad": 0.95,
-  "Jaipur": 0.92,
-  "Lucknow": 0.88,
-  "Surat": 0.85,
+  "Mumbai": 1.10,      // Most expensive - premium market
+  "Pune": 1.08,        // Growing market premium
+  "Bangalore": 1.05,   // IT hub premium
+  "Delhi": 1.00,       // Base reference (Delhi/Gurgaon)
+  "Chennai": 1.02,     // South India hub
+  "Hyderabad": 0.97,   // Most affordable of metros
+  "Kolkata": 0.95,     // East India base
+  "Ahmedabad": 0.92,   // West India value
+  "Jaipur": 0.90,      // North India value
+  "Lucknow": 0.88,     // UP market
+  "Surat": 0.85,       // Gujarat value market
 };
+
+// Cities with full citywise pricing data in database
+export const CITIES_WITH_DATA = ["Mumbai", "Delhi", "Bangalore", "Pune", "Hyderabad", "Chennai"];
 
 export const CITIES = Object.keys(CITY_MULTIPLIERS);
 
