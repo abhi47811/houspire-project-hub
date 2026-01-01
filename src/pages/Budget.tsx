@@ -64,11 +64,14 @@ import { ExportBudgetPDFButton } from '@/components/budget/ExportBudgetPDFButton
 import { useRecommendations } from '@/hooks/useRecommendations';
 
 interface AlternativeMatch {
-  pricing_item_id: string;
-  item_name: string;
-  category: string;
-  match_score: number;
-  tier_price: number;
+  pricing_item_id?: string;
+  id?: string;  // Legacy field
+  item_name?: string;
+  name?: string;  // Legacy field
+  category?: string;
+  match_score?: number;
+  confidence?: number;  // Legacy field
+  tier_price?: number;
 }
 
 interface BudgetItem {
@@ -433,16 +436,30 @@ export default function Budget() {
       const item = budgetItems.find(i => i.id === itemId);
       if (!item) return;
 
-      const newAmount = alternative.tier_price * item.quantity;
+      const altName = alternative.item_name || alternative.name || 'Unknown';
+      const altPricingId = alternative.pricing_item_id || alternative.id;
+      const altPrice = alternative.tier_price;
+
+      // If no price available, show a warning
+      if (altPrice === undefined) {
+        toast({
+          title: 'Price Not Available',
+          description: 'This alternative does not have pricing information.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const newAmount = altPrice * item.quantity;
       const newGst = newAmount * (item.gst_percent / 100);
 
       const { error } = await supabase
         .from('budget_items')
         .update({
-          item_name: alternative.item_name,
-          pricing_item_id: alternative.pricing_item_id,
-          user_selected_item_id: alternative.pricing_item_id,
-          rate: alternative.tier_price,
+          item_name: altName,
+          pricing_item_id: altPricingId,
+          user_selected_item_id: altPricingId,
+          rate: altPrice,
           amount: newAmount,
           gst_amount: newGst,
           total: newAmount + newGst,
@@ -455,7 +472,7 @@ export default function Budget() {
 
       toast({
         title: 'Item Updated',
-        description: `Changed to "${alternative.item_name}"`,
+        description: `Changed to "${altName}"`,
       });
 
       queryClient.invalidateQueries({ queryKey: ['budget-items', projectId] });
@@ -823,16 +840,24 @@ export default function Budget() {
                                   <div>
                                     <p className="text-xs text-muted-foreground mb-1">Alternatives:</p>
                                     <div className="space-y-1">
-                                      {item.alternative_matches.slice(0, 3).map((alt, i) => (
-                                        <button
-                                          key={i}
-                                          onClick={() => handleSelectAlternative(item.id, alt)}
-                                          className="w-full text-left text-xs p-1.5 rounded hover:bg-accent flex justify-between items-center"
-                                        >
-                                          <span>{alt.item_name}</span>
-                                          <span className="text-muted-foreground">₹{alt.tier_price.toLocaleString('en-IN')}</span>
-                                        </button>
-                                      ))}
+                                      {item.alternative_matches.slice(0, 3).map((alt, i) => {
+                                        const altName = alt.item_name || alt.name || 'Unknown';
+                                        const altPrice = alt.tier_price;
+                                        return (
+                                          <button
+                                            key={i}
+                                            onClick={() => handleSelectAlternative(item.id, alt)}
+                                            className="w-full text-left text-xs p-1.5 rounded hover:bg-accent flex justify-between items-center"
+                                          >
+                                            <span>{altName}</span>
+                                            {altPrice !== undefined ? (
+                                              <span className="text-muted-foreground">₹{altPrice.toLocaleString('en-IN')}</span>
+                                            ) : (
+                                              <span className="text-muted-foreground text-xs italic">N/A</span>
+                                            )}
+                                          </button>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 )}
