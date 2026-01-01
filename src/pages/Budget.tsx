@@ -314,6 +314,11 @@ export default function Budget() {
 
   const handleGenerateBudget = async () => {
     setIsGenerating(true);
+    toast({
+      title: 'Analyzing Room Images',
+      description: 'Using AI vision to extract items from your renders. This may take 30-60 seconds...',
+    });
+    
     try {
       const { data, error } = await supabase.functions.invoke('generate-budget', {
         body: { projectId, city: project?.city || 'Mumbai' }
@@ -321,9 +326,13 @@ export default function Budget() {
 
       if (error) throw error;
 
+      const matchRate = data?.itemsCount > 0 
+        ? Math.round((data?.matchedCount || 0) / data.itemsCount * 100)
+        : 0;
+
       toast({
-        title: 'Budget Generated',
-        description: `Generated ${data?.itemsCount || 0} budget items successfully.`,
+        title: 'Budget Generated from AI Vision',
+        description: `Extracted ${data?.itemsCount || 0} items from ${data?.rendersAnalyzed || 0} room(s). ${data?.matchedCount || 0} matched (${matchRate}%), ${data?.unmatchedCount || 0} unmatched.`,
       });
 
       queryClient.invalidateQueries({ queryKey: ['budget-items', projectId] });
