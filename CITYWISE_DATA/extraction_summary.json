@@ -1,0 +1,143 @@
+{
+  "totalFiles": 27,
+  "totalSheets": 110,
+  "totalRows": 3710,
+  "categories": {
+    "acrylic_shutters": {
+      "filename": "acrylic_shutters_citywise_rates_2025.xlsx",
+      "sheetCount": 7,
+      "rowCount": 77
+    },
+    "aluminium_profiles": {
+      "filename": "aluminium_profiles_citywise_rates_2025.xlsx",
+      "sheetCount": 6,
+      "rowCount": 92
+    },
+    "baskets": {
+      "filename": "baskets_citywise_rates_2025.xlsx",
+      "sheetCount": 4,
+      "rowCount": 114
+    },
+    "edgebanding": {
+      "filename": "edgebanding_citywise_rates_2025.xlsx",
+      "sheetCount": 6,
+      "rowCount": 102
+    },
+    "false_ceiling": {
+      "filename": "false_ceiling_citywise_rates_2025.xlsx",
+      "sheetCount": 2,
+      "rowCount": 61
+    },
+    "floor_tiles_complete": {
+      "filename": "floor_tiles_complete_citywise_rates_2025.xlsx",
+      "sheetCount": 2,
+      "rowCount": 101
+    },
+    "electrical_lighting": {
+      "filename": "electrical_lighting_citywise_rates_2025.xlsx",
+      "sheetCount": 3,
+      "rowCount": 205
+    },
+    "glass_shutters_panels": {
+      "filename": "glass_shutters_panels_citywise_rates_2025.xlsx",
+      "sheetCount": 7,
+      "rowCount": 124
+    },
+    "handles": {
+      "filename": "handles_citywise_rates_2025.xlsx",
+      "sheetCount": 6,
+      "rowCount": 116
+    },
+    "hardware_hinges_channels": {
+      "filename": "hardware_hinges_channels_citywise_rates_2025.xlsx",
+      "sheetCount": 3,
+      "rowCount": 75
+    },
+    "home_decor_complete": {
+      "filename": "home_decor_complete_citywise_rates_2025.xlsx",
+      "sheetCount": 2,
+      "rowCount": 385
+    },
+    "interior_paint_finishes": {
+      "filename": "interior_paint_finishes_citywise_rates_2025.xlsx",
+      "sheetCount": 4,
+      "rowCount": 98
+    },
+    "kitchen_dado_tiles": {
+      "filename": "kitchen_dado_tiles_citywise_rates_2025.xlsx",
+      "sheetCount": 2,
+      "rowCount": 87
+    },
+    "kitchen_sinks": {
+      "filename": "kitchen_sinks_citywise_rates_2025.xlsx",
+      "sheetCount": 6,
+      "rowCount": 117
+    },
+    "laminates": {
+      "filename": "laminates_citywise_rates_2025.xlsx",
+      "sheetCount": 3,
+      "rowCount": 90
+    },
+    "loose_furniture_citywise_rates_2025": {
+      "filename": "loose_furniture_citywise_rates_2025_COMPLETE.xlsx",
+      "sheetCount": 2,
+      "rowCount": 166
+    },
+    "mirror_panels": {
+      "filename": "mirror_panels_citywise_rates_2025.xlsx",
+      "sheetCount": 4,
+      "rowCount": 231
+    },
+    "plywood": {
+      "filename": "plywood_citywise_rates_2025.xlsx",
+      "sheetCount": 2,
+      "rowCount": 50
+    },
+    "quartz_granite": {
+      "filename": "quartz_granite_citywise_rates_2025.xlsx",
+      "sheetCount": 7,
+      "rowCount": 102
+    },
+    "veneers": {
+      "filename": "veneers_citywise_rates_2025.xlsx",
+      "sheetCount": 3,
+      "rowCount": 70
+    },
+    "wallpaper": {
+      "filename": "wallpaper_citywise_rates_2025.xlsx",
+      "sheetCount": 4,
+      "rowCount": 245
+    },
+    "window_furnishings": {
+      "filename": "window_furnishings_citywise_rates_2025.xlsx",
+      "sheetCount": 2,
+      "rowCount": 128
+    },
+    "wardrobe_organisers": {
+      "filename": "wardrobe_organisers_citywise_rates_2025.xlsx",
+      "sheetCount": 7,
+      "rowCount": 109
+    },
+    "wooden_panels": {
+      "filename": "wooden_panels_citywise_rates_2025.xlsx",
+      "sheetCount": 4,
+      "rowCount": 309
+    },
+    "wood_polish": {
+      "filename": "wood_polish_citywise_rates_2025.xlsx",
+      "sheetCount": 3,
+      "rowCount": 61
+    },
+    "stone_cladding": {
+      "filename": "stone_cladding_citywise_rates_2025.xlsx",
+      "sheetCount": 7,
+      "rowCount": 347
+    },
+    "mdf": {
+      "filename": "mdf_citywise_rates_2025.xlsx",
+      "sheetCount": 2,
+      "rowCount": 48
+    }
+  },
+  "processingDate": "2026-01-01T12:26:03.886Z"
+}

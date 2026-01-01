@@ -1,0 +1,31 @@
+-- CITYWISE PRICING DATA IMPORT
+-- Generated: 2026-01-01T12:26:04.713Z
+-- Total Categories: 27
+-- Total Rows: 3710
+
+-- Insert pricing items from citywise data
+
+-- Category: acrylic_shutters | Sheet: Substrate_Comparison
+-- Category: baskets | Sheet: Baskets_CityWise_Rates
+-- Category: edgebanding | Sheet: EdgeBanding_CityWise_Rates
+-- Category: false_ceiling | Sheet: False Ceiling City Rates
+-- Category: floor_tiles_complete | Sheet: Floor Tiles Complete
+-- Category: electrical_lighting | Sheet: Electrical Materials Rates
+-- Category: handles | Sheet: Handles_CityWise_Rates
+-- Category: hardware_hinges_channels | Sheet: Hardware_CityWise_Rates
+-- Category: home_decor_complete | Sheet: Decor Complete
+-- Category: interior_paint_finishes | Sheet: Interior Paint Finishes Rates
+-- Category: kitchen_dado_tiles | Sheet: Kitchen Dado Tiles
+-- Category: laminates | Sheet: Laminates_CityWise_Rates
+-- Category: loose_furniture_citywise_rates_2025 | Sheet: Loose Furniture Complete
+-- Category: mirror_panels | Sheet: Mirror Panels Rates
+-- Category: plywood | Sheet: Plywood_CityWise_Rates
+-- Category: veneers | Sheet: Veneers_CityWise_Rates
+-- Category: wallpaper | Sheet: Wallpaper Rates
+-- Category: window_furnishings | Sheet: Window Furnishings
+-- Category: wardrobe_organisers | Sheet: Organizer_Types
+-- Category: wooden_panels | Sheet: Wooden Panels Rates
+-- Category: wood_polish | Sheet: Wood Polish City Rates
+-- Category: stone_cladding | Sheet: Stone Cladding Rates
+-- Category: mdf | Sheet: MDF_CityWise_Rates
+-- Total INSERT statements: 0
