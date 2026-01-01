@@ -75,7 +75,7 @@ async function exactMatch(item: ExtractedItem, tier: string, city: string): Prom
     .eq('category', item.category)
     .eq('is_active', true)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (error || !data) return null;
 
@@ -101,7 +101,7 @@ async function synonymMatch(item: ExtractedItem, tier: string, city: string): Pr
   const normalized = normalizeItemName(item.name);
   
   // First, check if this is a known synonym
-  const { data: synonymData } = await supabase
+  const { data: synonymData, error: synonymError } = await supabase
     .from('item_synonyms')
     .select('canonical_name, confidence_score, category')
     .or(`canonical_name.ilike.${normalized},synonym.ilike.${normalized}`)
@@ -110,19 +110,19 @@ async function synonymMatch(item: ExtractedItem, tier: string, city: string): Pr
     .limit(1)
     .maybeSingle();
 
-  if (!synonymData) return null;
+  if (synonymError || !synonymData) return null;
 
   // Find pricing item by canonical name
-  const { data: pricingData } = await supabase
+  const { data: pricingData, error: pricingError } = await supabase
     .from('pricing_items')
     .select('*')
     .ilike('item_name', synonymData.canonical_name)
     .eq('category', item.category)
     .eq('is_active', true)
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  if (!pricingData) return null;
+  if (pricingError || !pricingData) return null;
 
   return {
     pricing_item_id: pricingData.id,
