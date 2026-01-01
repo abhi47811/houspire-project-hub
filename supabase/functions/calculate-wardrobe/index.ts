@@ -87,6 +87,7 @@ const SHUTTER_RATES = {
   'veneer_premium': 1200
 };
 
+// Hardware rates - will be fetched from citywise pricing database via get_city_price()
 const HARDWARE_RATES = {
   'hinge_budget': 180,
   'hinge_mid': 220,
@@ -104,18 +105,20 @@ const HARDWARE_RATES = {
   'sliding_track_extension_4ft': 1600
 };
 
+// City multipliers - updated with citywise pricing data (Jan 2026)
+// These match the database city_multipliers for consistency
 const CITY_MULTIPLIERS: Record<string, number> = {
-  'mumbai': 1.25,
-  'delhi': 1.20,
-  'bangalore': 1.15,
-  'hyderabad': 1.10,
-  'chennai': 1.10,
-  'pune': 1.05,
-  'kochi': 0.96,
+  'mumbai': 1.10,      // Most expensive
+  'pune': 1.08,        // Premium market
+  'bangalore': 1.05,   // IT hub
+  'delhi': 1.00,       // Base reference
+  'chennai': 1.02,     // South India hub
+  'hyderabad': 0.97,   // Most affordable of metros
   'kolkata': 0.95,
-  'ahmedabad': 0.93,
+  'ahmedabad': 0.92,
   'jaipur': 0.90,
-  'lucknow': 0.88
+  'lucknow': 0.88,
+  'surat': 0.85
 };
 
 // ============================================
@@ -282,12 +285,14 @@ function calculateShutterArea(
   return Math.round(total_sqft * 10) / 10;
 }
 
-function calculateHardware(
+async function calculateHardware(
   modules: Module[],
   type: 'swing' | 'sliding',
   finish_tier: string,
-  handle_type: string
-): { name: string; quantity: number; rate: number; amount: number }[] {
+  handle_type: string,
+  city: string,
+  supabaseClient: any
+): Promise<{ name: string; quantity: number; rate: number; amount: number }[]> {
   const hardware: { name: string; quantity: number; rate: number; amount: number }[] = [];
   const tier_suffix = `_${finish_tier}` as '_budget' | '_mid' | '_premium';
   
@@ -305,9 +310,22 @@ function calculateHardware(
     if (module.tracks) total_tracks += module.tracks;
   }
   
-  // Hinges (for swing)
+  // Hinges (for swing) - fetch city-specific price
   if (type === 'swing' && total_hinges > 0) {
-    const hinge_rate = HARDWARE_RATES[`hinge${tier_suffix}`] || HARDWARE_RATES.hinge_mid;
+    let hinge_rate = HARDWARE_RATES[`hinge${tier_suffix}`] || HARDWARE_RATES.hinge_mid;
+    
+    // Try to get city-specific price from database
+    try {
+      const { data: cityPrice } = await supabaseClient.rpc('get_city_price', {
+        p_item_name: 'Soft-Close Hinge',
+        p_category: 'hardware',
+        p_city: city
+      });
+      if (cityPrice) hinge_rate = cityPrice;
+    } catch (e) {
+      console.log('Using fallback hinge rate:', e);
+    }
+    
     hardware.push({
       name: 'Soft-Close Hinges',
       quantity: total_hinges,
@@ -338,9 +356,22 @@ function calculateHardware(
     }
   }
   
-  // Handles or G-profile
+  // Handles or G-profile - fetch city-specific price
   if (handle_type === 'standard' && total_handles > 0) {
-    const handle_rate = HARDWARE_RATES[`handle${tier_suffix}`] || HARDWARE_RATES.handle_mid;
+    let handle_rate = HARDWARE_RATES[`handle${tier_suffix}`] || HARDWARE_RATES.handle_mid;
+    
+    // Try to get city-specific price from database
+    try {
+      const { data: cityPrice } = await supabaseClient.rpc('get_city_price', {
+        p_item_name: 'Cabinet Handle',
+        p_category: 'handles',
+        p_city: city
+      });
+      if (cityPrice) handle_rate = cityPrice;
+    } catch (e) {
+      console.log('Using fallback handle rate:', e);
+    }
+    
     hardware.push({
       name: 'Handles',
       quantity: total_handles,
@@ -357,9 +388,22 @@ function calculateHardware(
     });
   }
   
-  // Drawer channels
+  // Drawer channels - fetch city-specific price
   if (total_drawer_channels > 0) {
-    const channel_rate = HARDWARE_RATES[`drawer_channel${tier_suffix}`] || HARDWARE_RATES.drawer_channel_mid;
+    let channel_rate = HARDWARE_RATES[`drawer_channel${tier_suffix}`] || HARDWARE_RATES.drawer_channel_mid;
+    
+    // Try to get city-specific price from database
+    try {
+      const { data: cityPrice } = await supabaseClient.rpc('get_city_price', {
+        p_item_name: 'Drawer Channel Soft-Close',
+        p_category: 'hardware',
+        p_city: city
+      });
+      if (cityPrice) channel_rate = cityPrice;
+    } catch (e) {
+      console.log('Using fallback channel rate:', e);
+    }
+    
     hardware.push({
       name: 'Drawer Channels (Soft-Close)',
       quantity: total_drawer_channels,
@@ -400,7 +444,7 @@ function determineFinishType(finish_tier: string, finish_type?: string): string 
 // MAIN CALCULATOR FUNCTION
 // ============================================
 
-function calculateWardrobe(input: WardrobeCalculatorInput): CalculationResult {
+async function calculateWardrobe(input: WardrobeCalculatorInput, supabaseClient: any): Promise<CalculationResult> {
   // Step 1: Calculate modules
   const modules = calculateModules(input.width_ft, input.type);
   
@@ -417,8 +461,8 @@ function calculateWardrobe(input: WardrobeCalculatorInput): CalculationResult {
   const shutter_rate = SHUTTER_RATES[shutter_key] || SHUTTER_RATES.laminate_budget;
   const shutter_cost = shutter_sqft * shutter_rate;
   
-  // Step 4: Calculate hardware
-  const hardware_items = calculateHardware(modules, input.type, input.finish_tier, input.handle_type);
+  // Step 4: Calculate hardware (with city-specific pricing)
+  const hardware_items = await calculateHardware(modules, input.type, input.finish_tier, input.handle_type, input.city, supabaseClient);
   const hardware_cost = hardware_items.reduce((sum, item) => sum + item.amount, 0);
   
   // Step 5: Labor cost (10% of material cost)
@@ -537,15 +581,17 @@ serve(async (req) => {
       );
     }
     
-    // Run calculator
-    const result = calculateWardrobe(input);
+    // Initialize Supabase client for city pricing
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+    
+    // Run calculator (with city-specific pricing)
+    const result = await calculateWardrobe(input, supabaseClient);
     
     // If project_id and room_id provided, save to database
     if (input.project_id && input.room_id) {
-      const supabaseClient = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
       
       // Save calculator suggestion
       const { data: suggestion, error: suggestionError } = await supabaseClient
