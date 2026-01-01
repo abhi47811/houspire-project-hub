@@ -217,12 +217,15 @@ Observe furniture scale, ceiling height, and spatial proportions to estimate:
 
 STEP 2: QUANTITY RULES BY CATEGORY
 
-A. ARCHITECTURAL ELEMENTS - MEASURE AREA/LENGTH:
+===============================================
+A. ARCHITECTURAL ELEMENTS - MEASURE AREA/LENGTH
+===============================================
 
 FLOORING:
 - Quantity: FULL floor area in sqft (NOT "1 sqft" or "2 sqft")
 - Examples: 15ft × 18ft = 270 sqft, 12ft × 14ft = 168 sqft
 - Room sizes: Small 100-150, Medium 150-300, Large 300-500 sqft
+- Detect type: wood/laminate, marble, tile, concrete, carpet
 - Unit: "sqft"
 
 WALL PAINT - CRITICAL DETECTION:
@@ -259,57 +262,326 @@ LINEAR ELEMENTS (pipes, ducts, molding):
 - Examples: Exposed pipes 30-50 rft, Ducting 15-40 rft, Molding = perimeter (40-80 rft)
 - Unit: "rft" (running feet)
 
-B. FURNITURE & DECOR - COUNT ITEMS:
-- Sofas, chairs, tables: Count each (1 sofa, 2 chairs, 1 table)
-- Cushions, plants, lamps: Count each (4 cushions, 3 plants)
-- Lighting fixtures: Count each (4 ceiling lights, 1 floor lamp)
-- Artwork: Count pieces (6 frames OR "1 gallery wall set")
-- Area rugs: Count as items (1 area rug), NOT sqft
-- Unit: "nos" (number of items)
+===============================================
+B. LIGHTING - COUNT EACH FIXTURE
+===============================================
 
-CRITICAL - ARCHITECTURAL EXAMPLES:
+CEILING LIGHTS:
+- Downlights/Recessed lights: Count each (e.g., "6 LED Downlights")
+- Spotlights: Count each
+- Unit: "nos"
 
-Living Room (18ft × 15ft, 10ft ceiling):
-✅ Concrete Floor: quantity: 270, unit: "sqft" (NOT 1 sqft!)
-✅ Interior Emulsion Paint: quantity: 560, unit: "sqft" (walls minus openings)
-✅ Wall Primer: quantity: 560, unit: "sqft" (same as paint)
-✅ Wall Putty: quantity: 560, unit: "sqft" (same as paint)
-✅ Brick Accent Wall: quantity: 150, unit: "sqft" (15ft × 10ft)
-✅ Exposed Concrete Ceiling: quantity: 270, unit: "sqft" (same as floor)
-✅ Ceiling Paint: quantity: 270, unit: "sqft" (if painted)
-✅ Exposed Industrial Pipes: quantity: 35, unit: "rft" (running across ceiling)
-✅ Metal Ducting: quantity: 20, unit: "rft"
+CHANDELIERS:
+- Count: 1 per room typically
+- Identify type: crystal, modern, contemporary, rustic
+- Identify size: small (3-4 light), medium (6-8 light), large (12+ light)
+- Example: "Crystal Chandelier 6 Light": quantity: 1, unit: "nos"
 
-FURNITURE EXAMPLES:
-✅ 3-Seater Leather Sofa: quantity: 1, unit: "nos"
-✅ Velvet Armchairs: quantity: 2, unit: "nos"
-✅ Wooden Coffee Table: quantity: 1, unit: "nos"
-✅ Throw Cushions: quantity: 4, unit: "nos"
-✅ Area Rug: quantity: 1, unit: "nos" (NOT sqft!)
-✅ Potted Plants: quantity: 3, unit: "nos"
-✅ Industrial Light Tracks: quantity: 4, unit: "nos"
+PENDANT LIGHTS:
+- Count each pendant (dining often has 3-5 over table)
+- Example: "Pendant Light Modern": quantity: 3, unit: "nos"
 
-WRONG EXAMPLES - NEVER DO THIS:
-❌ Concrete floor: quantity: 1, unit: "sqft" (IMPOSSIBLE - room is not 1 sqft!)
-❌ Wall paint: quantity: 1, unit: "sqft" (Should be 400-600 sqft)
-❌ Brick wall: quantity: 1, unit: "sqft" (Should be 150+ sqft)
-❌ Ceiling pipes: quantity: 6, unit: "rft" (Too short - should be 30-50 rft)
-❌ Sofa: quantity: 3, unit: "nos" (Counting seats, not sofas)
+CEILING FANS:
+- Count each fan
+- Identify type: regular, designer, BLDC
+- Example: "Designer Ceiling Fan": quantity: 1, unit: "nos"
+
+FLOOR LAMPS:
+- Count each (tripod lamp, arc lamp, standard lamp)
+- Example: "Floor Lamp Tripod": quantity: 2, unit: "nos"
+
+TABLE LAMPS:
+- Count each (bedside lamps, desk lamps)
+- Example: "Table Lamp Ceramic": quantity: 2, unit: "nos"
+
+WALL SCONCES:
+- Count (usually in pairs)
+- Example: "Wall Sconce Modern": quantity: 2, unit: "nos"
+
+TRACK LIGHTING:
+- Measure track length in rft + count spots separately
+- Example: "Track Lighting": quantity: 12, unit: "rft"
+
+LED STRIP/COVE LIGHTING:
+- Measure length in running feet (perimeter of cove)
+- Example: "LED Strip Warm": quantity: 45, unit: "rft"
+
+===============================================
+C. SOFT FURNISHINGS - MEASURE OR COUNT
+===============================================
+
+CURTAINS:
+- Measure: window width × 2 (for fullness) × drop height = sqft
+- Example: 2 windows × (5ft × 2) × 8ft = 160 sqft
+- Detect type: sheer, blackout, linen, velvet, silk
+- Example: "Blackout Curtains": quantity: 160, unit: "sqft"
+
+BLINDS:
+- Measure: window area in sqft
+- Detect type: roller, venetian, roman, vertical
+- Example: "Roller Blinds": quantity: 40, unit: "sqft"
+
+THROW BLANKETS:
+- Count each
+- Example: "Chenille Throw Blanket": quantity: 1, unit: "nos"
+
+THROW PILLOWS/CUSHIONS:
+- Count each individual cushion
+- Example: "Velvet Cushion": quantity: 4, unit: "nos"
+
+BEDDING SETS:
+- Count: 1 per bed
+- Detect type: cotton, linen, silk
+- Example: "Cotton Bedding Set King": quantity: 1, unit: "set"
+
+AREA RUGS:
+- Count as 1 item (NOT sqft!)
+- Example: "Handwoven Area Rug": quantity: 1, unit: "nos"
+
+===============================================
+D. FALSE CEILING - MEASURE AREA
+===============================================
+
+Detect type from visual appearance:
+- Smooth white/painted surface → "Gypsum False Ceiling"
+- Decorative molding/cornices → "POP False Ceiling"
+- Grid pattern visible → "Grid False Ceiling"
+- Wood panels/planks → "Wooden False Ceiling"
+- Metal/industrial look → "Metal False Ceiling"
+
+Quantity: Same as floor area (sqft)
+Example: "Gypsum False Ceiling": quantity: 270, unit: "sqft"
+
+COVE LIGHTING (if present):
+- Measure perimeter of cove in rft
+- Example: "Cove Lighting Profile": quantity: 66, unit: "rft"
+
+===============================================
+E. DOORS - COUNT AND IDENTIFY TYPE
+===============================================
+
+Count each door visible:
+- Entry doors
+- Bedroom doors
+- Bathroom doors
+- Closet/wardrobe doors
+- Balcony/patio doors
+
+Identify type:
+- Flush Door (plain, flat surface)
+- Panel Door (raised/recessed panels)
+- Glass Door (full or partial glass)
+- Sliding Door
+- Folding Door
+
+Standard size: 7ft × 3ft (include frame)
+Example: "Flush Door with Frame": quantity: 2, unit: "nos"
+
+===============================================
+F. WINDOWS - COUNT AND ESTIMATE SIZE
+===============================================
+
+Count each window visible:
+- Standard windows
+- Floor-to-ceiling windows
+- Bay windows
+- Skylights
+
+Estimate size category:
+- Small: 3ft × 3ft = 9 sqft
+- Medium: 4ft × 5ft = 20 sqft
+- Large: 6ft × 5ft = 30 sqft
+- Floor-to-ceiling: 8ft × 10ft = 80 sqft
+
+Identify type:
+- Sliding Window
+- Casement Window
+- Fixed Window
+- French Window
+
+Example: "UPVC Sliding Window": quantity: 3, unit: "nos"
+
+===============================================
+G. ELECTRICAL - COUNT POINTS
+===============================================
+
+SWITCHES:
+- Count visible switch plates
+- Example: "Modular Switch 6 Module": quantity: 4, unit: "nos"
+
+SOCKETS/OUTLETS:
+- Count visible electrical outlets
+- Example: "Power Socket 16A": quantity: 6, unit: "nos"
+
+AC UNITS:
+- Count each (split AC, window AC)
+- Example: "Split AC 1.5 Ton": quantity: 1, unit: "nos"
+
+===============================================
+H. KITCHEN - MEASURE AND COUNT (Kitchen images only)
+===============================================
+
+BASE CABINETS:
+- Measure total length in running feet
+- Example: "Modular Kitchen Base Unit": quantity: 12, unit: "rft"
+
+UPPER/WALL CABINETS:
+- Measure total length in running feet
+- Example: "Modular Kitchen Wall Unit": quantity: 10, unit: "rft"
+
+TALL UNITS:
+- Count each tall cabinet
+- Example: "Kitchen Tall Unit": quantity: 1, unit: "nos"
+
+COUNTERTOP:
+- Measure length × 2ft depth = sqft
+- Detect material: granite, quartz, marble, laminate
+- Example: "Quartz Countertop": quantity: 24, unit: "sqft"
+
+BACKSPLASH:
+- Measure length × 1.5ft height = sqft
+- Example: "Glass Backsplash": quantity: 18, unit: "sqft"
+
+APPLIANCES (count each):
+- Chimney: "Kitchen Chimney": quantity: 1, unit: "nos"
+- Hob/Cooktop: "Built-in Hob 4 Burner": quantity: 1, unit: "nos"
+- Oven: "Built-in Oven": quantity: 1, unit: "nos"
+- Sink: "Kitchen Sink Stainless": quantity: 1, unit: "nos"
+- Refrigerator: Count if visible
+
+===============================================
+I. BATHROOM - COUNT FIXTURES (Bathroom images only)
+===============================================
+
+TOILET/WC:
+- Count (usually 1)
+- Identify type: wall-hung, floor-mounted
+- Example: "EWC Wall Hung": quantity: 1, unit: "nos"
+
+WASH BASIN:
+- Count (1 or 2 for double vanity)
+- Identify type: countertop, wall-mounted, pedestal
+- Example: "Wash Basin Countertop": quantity: 1, unit: "nos"
+
+SHOWER:
+- Count shower areas
+- Identify type: regular, rain shower, handheld
+- Example: "Rain Shower Set": quantity: 1, unit: "set"
+
+BATHTUB:
+- Count if present
+- Identify type: freestanding, built-in, corner
+- Example: "Freestanding Bathtub": quantity: 1, unit: "nos"
+
+VANITY/CABINET:
+- Count units
+- Example: "Bathroom Vanity Unit": quantity: 1, unit: "nos"
+
+BATHROOM TILES:
+- Wall tiles: Measure wall area in sqft
+- Floor tiles: Measure floor area in sqft
+- Example: "Ceramic Wall Tiles": quantity: 120, unit: "sqft"
+- Example: "Vitrified Floor Tiles": quantity: 40, unit: "sqft"
+
+BATHROOM ACCESSORIES:
+- Mirror: Count
+- Towel rails, soap dispensers: Count
+
+===============================================
+J. FURNITURE - COUNT ITEMS PRECISELY
+===============================================
+
+SOFAS:
+- Count each sofa unit
+- Identify type: 2-seater, 3-seater, L-shaped, sectional
+- Example: "3-Seater Leather Sofa": quantity: 1, unit: "nos"
+
+BEDS:
+- Count each bed
+- Identify size: king, queen, single
+- Example: "King Size Upholstered Bed": quantity: 1, unit: "nos"
+
+DINING TABLES:
+- Count (usually 1)
+- Identify size: 4-seater, 6-seater, 8-seater
+- Example: "Dining Table 6 Seater": quantity: 1, unit: "nos"
+
+DINING CHAIRS:
+- Count each chair
+- Example: "Dining Chair Upholstered": quantity: 6, unit: "nos"
+
+WARDROBES:
+- Count units
+- Estimate width: 4ft, 6ft, 8ft
+- Example: "Sliding Wardrobe 6ft": quantity: 1, unit: "nos"
+
+TV UNITS:
+- Count
+- Example: "TV Unit Wall Mounted": quantity: 1, unit: "nos"
+
+STUDY/WORK TABLES:
+- Count each
+- Example: "Study Table with Storage": quantity: 1, unit: "nos"
+
+SIDE TABLES:
+- Count each
+- Example: "Bedside Table": quantity: 2, unit: "nos"
+
+COFFEE TABLES:
+- Count
+- Example: "Coffee Table Wooden": quantity: 1, unit: "nos"
+
+ARMCHAIRS/ACCENT CHAIRS:
+- Count each
+- Example: "Accent Chair Velvet": quantity: 2, unit: "nos"
+
+===============================================
+K. DECOR - COUNT ITEMS
+===============================================
+
+ARTWORK/WALL ART:
+- Count individual pieces or as gallery wall
+- Example: "Framed Art Print": quantity: 3, unit: "nos"
+
+MIRRORS (decorative):
+- Count each
+- Example: "Decorative Wall Mirror": quantity: 1, unit: "nos"
+
+PLANTS:
+- Count each pot/planter
+- Example: "Indoor Plant with Pot": quantity: 4, unit: "nos"
+
+VASES:
+- Count each
+- Example: "Decorative Vase Ceramic": quantity: 2, unit: "nos"
+
+CLOCKS:
+- Count
+- Example: "Wall Clock Modern": quantity: 1, unit: "nos"
+
+SCULPTURES:
+- Count
+- Example: "Decorative Sculpture": quantity: 1, unit: "nos"
+
+===============================================
+CRITICAL REMINDERS - NEVER DO THIS:
+===============================================
+❌ Flooring: quantity: 1, unit: "sqft" (Should be 150-500 sqft)
+❌ Wall paint: quantity: 1, unit: "sqft" (Should be 400-700 sqft)
+❌ False ceiling: quantity: 2, unit: "sqft" (Should be 150-500 sqft)
+❌ Curtains: quantity: 1, unit: "nos" (Should be sqft for fabric)
 ❌ Area rug: quantity: 120, unit: "sqft" (Should be 1 nos)
+❌ Pipes: quantity: 6, unit: "rft" (Should be 30-50 rft)
 
-CRITICAL REMINDER:
-- Architectural elements need REALISTIC measurements (150-500 sqft for floors, 400-700 sqft for wall paint)
-- ALWAYS include Wall Primer + Wall Putty as separate items when walls are painted
-- Furniture/decor are COUNTABLE items (1, 2, 4, 6)
-- NEVER use "1 sqft" for a full room floor/ceiling/wall
-- NEVER use "2 rft" or "6 rft" for pipes running across entire ceiling
-
+===============================================
+OUTPUT FORMAT
+===============================================
 For each item return:
 {
-  "item_name": "specific name",
-  "category": "flooring|wall_treatment|ceiling|furniture|lighting|decor|fixtures",
-  "specification": "material, color, finish, style",
-  "quantity": <MEASURE architectural in sqft/rft, COUNT furniture in nos>,
+  "item_name": "specific name matching pricing database",
+  "category": "flooring|wall_treatment|ceiling|lighting|soft_furnishings|false_ceiling|doors|windows|electrical|kitchen|bathroom|furniture|decor|fixtures",
+  "specification": "material, color, finish, style details",
+  "quantity": <MEASURE architectural in sqft/rft, COUNT items in nos>,
   "unit": "sqft|rft|nos|set"
 }
 
