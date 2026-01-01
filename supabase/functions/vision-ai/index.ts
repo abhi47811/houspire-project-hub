@@ -205,20 +205,57 @@ Return JSON with scores (0-100) for each category and overall, plus any issues f
 
       case "itemizeBudget":
         model = "google/gemini-2.5-pro";
-        systemPrompt = `You are an expert interior design estimator. Analyze the room renders and itemize all materials and furniture visible.
+        systemPrompt = `You are an expert interior design estimator. Analyze the room render and itemize all furniture, decor, and fixtures visible.
+
+CRITICAL QUANTITY RULES:
+1. Count FUNCTIONAL ITEMS, not components:
+   - 1 sofa (NOT 3 seats), 1 dining table (NOT 4 legs), 1 bookshelf (NOT 5 shelves)
+
+2. Group SETS appropriately:
+   - Multiple cushions on one sofa: count individually (2, 4, 6 cushions)
+   - Multiple dining chairs: count each chair individually  
+   - Pair of curtain panels: "1 set" or "2 panels"
+
+3. Use CORRECT UNITS:
+   - Furniture: "nos" (1 sofa, 2 chairs, 1 table)
+   - Rugs/Carpets: "nos" (1 area rug, NOT sqft)
+   - Curtains: "set" per window OR "nos" for panels
+   - Cushions: "nos" per cushion
+   - Lighting: "nos" (1 floor lamp, 4 ceiling lights)
+   - Artwork: count individual pieces OR "1 set" if gallery wall
+
+4. Be PRECISE - count what you SEE:
+   - If 2 armchairs visible, quantity = 2
+   - If 4 cushions on sofa, quantity = 4
+   - If 6 framed photos, quantity = 6
+   - Don't estimate - count carefully
+
+EXAMPLES:
+✅ "3-Seater Sofa", quantity: 1, unit: "nos"
+✅ "Throw Cushions", quantity: 4, unit: "nos", spec: "grey and beige fabric"
+✅ "Area Rug", quantity: 1, unit: "nos", spec: "6x8 ft, grey/brown pattern"
+✅ "Armchair", quantity: 2, unit: "nos"
+✅ "Ceiling Light Fixtures", quantity: 4, unit: "nos"
+✅ "Framed Artwork", quantity: 6, unit: "nos"
+
+❌ "Sofa", quantity: 3 (wrong - counting seats not sofas)
+❌ "Area rug", quantity: 48, unit: "sqft" (wrong - should be 1 rug)
+❌ "Cushions", quantity: 1 when 4 visible (wrong - count all)
+
 For each item provide:
-- item_name: specific product name
-- category: (Flooring, Wall Treatment, Ceiling, Furniture, Lighting, Fixtures)
-- specification: detailed specs
-- quantity: estimated count/area
-- unit: (sqft, nos, rft, etc.)
-Return as JSON array.`;
+- item_name: furniture/decor type (e.g., "Leather Sofa", "Floor Lamp", "Throw Cushion")
+- category: furniture, lighting, decor, wall_treatment, ceiling, flooring, fixtures
+- specification: material, color, style, dimensions (e.g., "brown leather, contemporary style")
+- quantity: COUNT CAREFULLY - actual number of items visible
+- unit: "nos" for countable items, "set" for grouped items, "sqft" for area coverage
+
+Return as JSON array: [{"item_name": string, "category": string, "specification": string, "quantity": number, "unit": string}]`;
         const imageContents = (imageUrls || []).map((url: string) => ({
           type: "image_url",
           image_url: { url },
         }));
         userContent = [
-          { type: "text", text: "Itemize all materials and furniture from these room renders for budget estimation." },
+          { type: "text", text: "Carefully count and itemize all visible furniture, lighting, and decor from this room image. Count items precisely - don't estimate." },
           ...imageContents,
         ];
         break;
