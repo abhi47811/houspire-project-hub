@@ -16,6 +16,7 @@ import { LibraryAnalytics } from '@/components/admin/LibraryAnalytics';
 import { LoadSmartDefaults } from '@/components/admin/LoadSmartDefaults';
 import { LibraryCuratorUpload } from '@/components/admin/LibraryCuratorUpload';
 import { QualityViolationsPanel } from '@/components/admin/QualityViolationsPanel';
+import { PricingDataImport } from '@/components/admin/PricingDataImport';
 
 export default function Admin() {
   // Fetch pending approvals count
@@ -116,7 +117,10 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="pricing">
-          <PricingManagement />
+          <div className="space-y-6">
+            <PricingDataImport />
+            <PricingManagement />
+          </div>
         </TabsContent>
 
         <TabsContent value="defaults">
