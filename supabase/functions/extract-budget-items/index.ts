@@ -93,6 +93,7 @@ serve(async (req) => {
           const gstAmount = (amount * pricingItem.gst_percent) / 100
           const total = amount + gstAmount
 
+          // Note: amount, gst_amount, total are generated columns - don't insert them
           budgetItems.push({
             project_id,
             room_id,
@@ -106,14 +107,11 @@ serve(async (req) => {
             quantity: item.quantity,
             unit: pricingItem.unit,
             rate,
-            amount,
             pricing_item_id: matchResult.pricing_item_id,
             match_strategy: matchResult.match_strategy,
             match_confidence: matchResult.match_confidence,
             alternative_matches: matchResult.alternative_matches,
             gst_percent: pricingItem.gst_percent,
-            gst_amount: gstAmount,
-            total,
             budget_tier: budgetTier,
             status: 'pending',
             user_edited: false
@@ -121,6 +119,7 @@ serve(async (req) => {
         }
       } else {
         // No match found - create unmatched item
+        // Note: amount, gst_amount, total are generated columns - don't insert them
         budgetItems.push({
           project_id,
           room_id,
@@ -134,16 +133,13 @@ serve(async (req) => {
           quantity: item.quantity,
           unit: 'nos',
           rate: 0,
-          amount: 0,
           pricing_item_id: null,
           match_strategy: null,
           match_confidence: 0,
           alternative_matches: [],
           gst_percent: 18,
-          gst_amount: 0,
-          total: 0,
           budget_tier: budgetTier,
-          status: 'unmatched',
+          status: 'pending', // Must be pending, approved, or rejected - not 'unmatched'
           user_edited: false
         })
       }
@@ -176,13 +172,20 @@ serve(async (req) => {
       })
     }
 
+    // Calculate total from rate * quantity + GST since we can't use generated columns
+    const totalAmount = budgetItems.reduce((sum, item) => {
+      const amount = (item.rate || 0) * (item.quantity || 0)
+      const gst = (amount * (item.gst_percent || 0)) / 100
+      return sum + amount + gst
+    }, 0)
+
     return new Response(
       JSON.stringify({
         success: true,
         items_extracted: extractedItems.length,
         items_matched: budgetItems.filter(i => i.pricing_item_id).length,
         items_unmatched: budgetItems.filter(i => !i.pricing_item_id).length,
-        total_amount: budgetItems.reduce((sum, item) => sum + (item.total || 0), 0)
+        total_amount: totalAmount
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -361,13 +364,20 @@ Return ONLY valid JSON array. Example for industrial style:
   }
 }
 
-// Helper: Fetch image as base64
+// Helper: Fetch image as base64 (chunked to avoid stack overflow)
 async function fetchImageAsBase64(url: string): Promise<string> {
   const response = await fetch(url)
-  const blob = await response.blob()
-  const buffer = await blob.arrayBuffer()
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
-  return base64
+  const buffer = await response.arrayBuffer()
+  const bytes = new Uint8Array(buffer)
+  
+  // Process in chunks to avoid stack overflow with large images
+  const chunkSize = 8192
+  let base64 = ''
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.slice(i, Math.min(i + chunkSize, bytes.length))
+    base64 += String.fromCharCode(...chunk)
+  }
+  return btoa(base64)
 }
 
 // Helper: Get tier-based price
