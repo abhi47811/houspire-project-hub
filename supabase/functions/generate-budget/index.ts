@@ -152,95 +152,39 @@ async function findBestMatch(
   return null;
 }
 
-// Analyze room image using AI vision
+// Analyze room image using vision-ai edge function
 async function analyzeRoomWithVision(
+  supabaseUrl: string,
   imageUrl: string,
   roomType: string
 ): Promise<any[]> {
-  const apiKey = OPENROUTER_API_KEY || LOVABLE_API_KEY;
+  console.log(`Calling vision-ai for budget itemization (${roomType})...`);
   
-  if (!apiKey) {
-    console.log("No API key configured, using fallback extraction");
-    return [];
-  }
-  
-  const apiUrl = OPENROUTER_API_KEY 
-    ? "https://openrouter.ai/api/v1/chat/completions"
-    : "https://ai.gateway.lovable.dev/v1/chat/completions";
-  
-  const systemPrompt = `You are an expert interior design estimator. Analyze this room image and extract ALL visible items for budget estimation.
-
-IMPORTANT: Be thorough and identify EVERY item visible in the image:
-- Furniture: sofas, chairs, tables, beds, wardrobes, shelves, TV units, desks
-- Lighting: chandeliers, pendant lights, floor lamps, table lamps, ceiling lights, spotlights, LED strips
-- Decor: cushions, throws, rugs, curtains, artwork, mirrors, plants, vases
-- Flooring: tiles, marble, wood, carpet
-- Wall treatment: paint, wallpaper, paneling, accent walls
-- Ceiling: false ceiling, cove lighting, fans
-- Fixtures: electrical points, switches, AC units
-
-For EACH item, provide:
-- item_name: specific descriptive name (e.g., "brown leather 3-seater sofa", "industrial tripod floor lamp")
-- category: one of [flooring, wall_treatment, ceiling, furniture, lighting, fixtures, decor]
-- specification: detailed specs like material, color, size, style
-- quantity: count (be precise - count each item)
-- unit: sqft, nos, rft, mtr, set as appropriate
-
-Return ONLY a JSON array of items. Be comprehensive - miss nothing!`;
-
   try {
-    const response = await fetch(apiUrl, {
-      method: "POST",
+    const response = await fetch(`${supabaseUrl}/functions/v1/vision-ai`, {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        ...(OPENROUTER_API_KEY && {
-          "HTTP-Referer": "https://houspire.app",
-          "X-Title": "Houspire Budget Extraction"
-        })
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { 
-            role: "user", 
-            content: [
-              { type: "text", text: `Analyze this ${roomType || 'room'} image and extract ALL items for budget estimation. Be thorough!` },
-              { type: "image_url", image_url: { url: imageUrl } }
-            ]
-          }
-        ],
-        response_format: { type: "json_object" },
+        action: 'itemizeBudget',
+        imageUrls: [imageUrl],
       }),
     });
-
+    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Vision API error: ${response.status} - ${errorText}`);
+      console.error('Vision-AI error:', response.status, errorText);
       return [];
     }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
     
-    if (!content) {
-      console.error("No content in vision response");
-      return [];
-    }
-
-    try {
-      const parsed = JSON.parse(content);
-      // Handle both array and object with items array
-      const items = Array.isArray(parsed) ? parsed : (parsed.items || parsed.budget_items || []);
-      console.log(`Vision extracted ${items.length} items from image`);
-      return items;
-    } catch (e) {
-      console.error("Failed to parse vision response:", e);
-      return [];
-    }
+    const data = await response.json();
+    const items = data.result?.items || data.items || [];
+    console.log(`Vision-AI extracted ${items.length} items with proper quantities`);
+    return items;
   } catch (error) {
-    console.error("Vision API call failed:", error);
+    console.error('Failed to call vision-ai:', error);
     return [];
   }
 }
@@ -316,7 +260,7 @@ serve(async (req) => {
       console.log(`Analyzing render ${render.id} for room type: ${roomType}`);
 
       // Extract items using AI vision
-      const extractedItems = await analyzeRoomWithVision(render.image_url, roomType);
+      const extractedItems = await analyzeRoomWithVision(supabaseUrl, render.image_url, roomType);
 
       for (let i = 0; i < extractedItems.length; i++) {
         const item = extractedItems[i];
