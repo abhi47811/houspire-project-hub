@@ -14,24 +14,62 @@ import { supabase } from '@/integrations/supabase/client';
  */
 const CATEGORY_MAP: Record<string, string[]> = {
   // Vision-AI output -> possible database categories (case-insensitive search)
+  // Wall treatments & finishes
   'wall_treatment': ['Finishes', 'finishes', 'Wall Finishes', 'materials'],
-  'wall_paint': ['Finishes', 'finishes', 'Wall Finishes'],
-  'finishes': ['Finishes', 'finishes', 'Wall Finishes'],
+  'wall_paint': ['Finishes', 'finishes', 'Wall Finishes', 'materials'],
+  'finishes': ['Finishes', 'finishes', 'Wall Finishes', 'materials'],
+  'materials': ['materials', 'Finishes', 'finishes'],
+  'walls': ['Walls', 'walls', 'WALLS', 'Wall Finishes', 'Finishes', 'materials'],
+  
+  // Ceiling
   'ceiling': ['Ceiling', 'ceiling', 'FALSE_CEILING', 'False Ceiling & Wall'],
   'false_ceiling': ['FALSE_CEILING', 'false_ceiling', 'Ceiling', 'False Ceiling & Wall'],
-  'flooring': ['flooring', 'Flooring', 'FLOORING'],
+  
+  // Flooring
+  'flooring': ['flooring', 'Flooring', 'FLOORING', 'materials'],
+  
+  // Lighting
   'lighting': ['lighting', 'Lighting', 'LIGHTING'],
+  
+  // Soft furnishings
   'soft_furnishings': ['soft_furnishings', 'Soft Furnishings', 'SOFT_FURNISHINGS', 'Soft Furnishing'],
-  'furniture': ['furniture', 'Furniture', 'FURNITURE'],
+  
+  // Furniture & storage
+  'furniture': ['furniture', 'Furniture', 'FURNITURE', 'Storage', 'storage'],
+  'storage': ['Storage', 'storage', 'furniture', 'Furniture', 'wardrobe'],
+  'wardrobe': ['wardrobe', 'Storage', 'storage', 'furniture', 'Furniture'],
+  
+  // Decor
   'decor': ['decor', 'Decor', 'DECOR', 'Plants'],
+  'plants': ['Plants', 'decor', 'Decor'],
+  
+  // Doors & hardware
   'doors': ['DOORS', 'Doors', 'doors', 'hardware', 'Hardware'],
+  'hardware': ['hardware', 'Hardware', 'DOORS', 'Fixtures'],
+  
+  // Windows & glass
   'windows': ['WINDOWS', 'Windows', 'windows', 'glass'],
+  'glass': ['glass', 'WINDOWS', 'Windows', 'windows'],
+  
+  // Electrical
   'electrical': ['Electrical', 'electrical', 'ELECTRICAL'],
-  'kitchen': ['KITCHEN', 'Kitchen', 'kitchen', 'cabinetry', 'countertops', 'appliances'],
+  
+  // Kitchen
+  'kitchen': ['KITCHEN', 'Kitchen', 'kitchen', 'cabinetry', 'countertops', 'appliances', 'backsplash'],
+  'cabinetry': ['cabinetry', 'KITCHEN', 'Kitchen', 'furniture'],
+  'countertops': ['countertops', 'KITCHEN', 'Kitchen', 'materials'],
+  'appliances': ['appliances', 'KITCHEN', 'Kitchen', 'Electrical'],
+  'backsplash': ['backsplash', 'KITCHEN', 'materials', 'Finishes'],
+  
+  // Bathroom
   'bathroom': ['BATHROOM', 'Bathroom', 'bathroom', 'Fixtures', 'plumbing'],
-  'fixtures': ['Fixtures', 'fixtures', 'plumbing', 'hardware'],
+  'fixtures': ['Fixtures', 'fixtures', 'plumbing', 'hardware', 'BATHROOM'],
+  'plumbing': ['plumbing', 'Fixtures', 'BATHROOM', 'bathroom'],
+  
+  // Misc
   'linear_elements': ['Linear Elements', 'linear_elements', 'LINEAR_ELEMENTS'],
-  'walls': ['Walls', 'walls', 'WALLS', 'Wall Finishes'],
+  'railing': ['Railing', 'railing', 'hardware', 'Hardware'],
+  'fireplace': ['Fireplace', 'fireplace', 'decor', 'Decor'],
 };
 
 /**
