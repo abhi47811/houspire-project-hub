@@ -54,6 +54,7 @@ function buildComprehensivePrompt(input: PromptBuilderInput): string {
 /**
  * Build architectural preservation prompt section
  * CRITICAL: This MUST come FIRST in every AI prompt to ensure doors/windows are preserved
+ * Enhanced with NO-FURNITURE ZONES and ceiling preservation
  */
 function buildArchitecturalPreservationPrompt(room: any): string {
   // Extract door/window counts from room_analysis (the correct source!)
@@ -62,6 +63,11 @@ function buildArchitecturalPreservationPrompt(room: any): string {
   const windows = analysis.window_count || 0;
   const doorPositions = analysis.door_positions || [];
   const windowPositions = analysis.window_positions || [];
+  
+  // Extract ceiling details
+  const hasFalseCeiling = analysis.has_false_ceiling || analysis.ceiling_type || analysis.ceiling_details;
+  const ceilingType = analysis.ceiling_type || 'standard';
+  const ceilingDetails = analysis.ceiling_details || '';
   
   // Get dimensions from analysis or room directly
   const lengthFeet = room.length_feet || analysis.detected_length_feet;
@@ -72,15 +78,28 @@ function buildArchitecturalPreservationPrompt(room: any): string {
     ? `${lengthFeet}ft x ${widthFeet}ft x ${heightFeet}ft`
     : "as shown in cleaned image";
   
-  // Build detailed door descriptions if positions available
+  // Build detailed door descriptions with NO-FURNITURE ZONES
   let doorDetails = "";
+  let noFurnitureZones = "";
   if (doorPositions.length > 0) {
     doorDetails = doorPositions.map((d: any, i: number) => {
       const position = typeof d === 'string' ? d : d.position;
-      return `   - Door ${i+1}: EXACT LOCATION: ${position}`;
+      const doorType = typeof d === 'object' ? d.type : 'door';
+      return `   - Door ${i+1}: EXACT LOCATION: ${position} (${doorType})`;
     }).join('\n');
+    
+    // Create explicit NO-FURNITURE ZONES for each door
+    noFurnitureZones = doorPositions.map((d: any, i: number) => {
+      const position = typeof d === 'string' ? d : d.position;
+      return `   ⛔ NO-FURNITURE ZONE ${i+1}: ${position}
+      - This doorway/opening must remain COMPLETELY CLEAR
+      - NO shelves, cabinets, sofas, or ANY objects blocking this opening
+      - 3-foot clear walkway path MUST be visible in front of this door
+      - A person must be able to walk through freely`;
+    }).join('\n\n');
   } else if (doors > 0) {
     doorDetails = `   - EXACTLY ${doors} door(s) - DO NOT MOVE from their positions in the cleaned image`;
+    noFurnitureZones = `   ⛔ ALL ${doors} DOOR(S) MUST HAVE 3-FOOT CLEARANCE - NO FURNITURE BLOCKING ANY DOOR`;
   }
   
   // Build detailed window descriptions if positions available
@@ -94,48 +113,123 @@ function buildArchitecturalPreservationPrompt(room: any): string {
     windowDetails = `   - EXACTLY ${windows} window(s) - DO NOT MOVE from their positions in the cleaned image`;
   }
   
+  // Build ceiling preservation section
+  let ceilingSection = `
+### 🏗️ CEILING ARCHITECTURE - MUST BE PRESERVED EXACTLY:
+   - Study the cleaned image ceiling CAREFULLY before generating
+   - Look for: false ceiling drops, coves, recessed areas, lighting channels, decorative details
+   - ANY ceiling architectural work you see MUST appear IDENTICALLY in your render`;
+  
+  if (hasFalseCeiling) {
+    ceilingSection += `
+
+   🔒 FALSE CEILING DETECTED: ${ceilingType}${ceilingDetails ? ` - ${ceilingDetails}` : ''}
+   - This room has architectural ceiling work - PRESERVE IT EXACTLY
+   - Ceiling coves, drops, levels, and profiles must match the cleaned image PERFECTLY
+   - Recessed lighting positions must be maintained
+   - Ceiling texture, finish, and color must match original
+   - DO NOT simplify or flatten the ceiling design`;
+  }
+  
+  ceilingSection += `
+   
+   ✅ ALLOWED: Adding ceiling lights or fans in appropriate locations
+   ❌ FORBIDDEN: Removing, simplifying, or altering ceiling architectural details
+   ❌ FORBIDDEN: Changing ceiling height, shape, or decorative elements
+   
+   ⚠️ FALSE CEILING CHECK: Study the cleaned image for any ceiling architectural work.
+   If you see drops, coves, recessed areas, or lighting channels - REPLICATE THEM EXACTLY.`;
+  
   return `
-## 🚨 CRITICAL - ARCHITECTURAL PRESERVATION (ABSOLUTE PRIORITY #1) 🚨
+## 🚨🚨🚨 SYSTEM CONSTRAINTS - ABSOLUTE PRIORITY - CANNOT BE OVERRIDDEN 🚨🚨🚨
+
+You are generating a RENOVATION visualization, NOT designing a new room.
+The cleaned image shows an EXISTING room with FIXED architecture.
+
+### ⛔ HARD RULES (violation = image REJECTED):
+1. Every door in cleaned image → MUST appear in output at EXACT same position
+2. Every doorway/opening → MUST be UNBLOCKED (no furniture in front!)
+3. Every window → MUST appear on SAME wall at SAME position
+4. Ceiling architecture → MUST match the cleaned image EXACTLY
+5. No furniture within 3 feet of ANY door or opening
+6. Camera angle → MUST match cleaned image EXACTLY
+
+These rules OVERRIDE ALL styling preferences. If unsure, PRESERVE over decorate.
+
+---
+
+## 🚨 ARCHITECTURAL PRESERVATION (ABSOLUTE PRIORITY #1) 🚨
 
 **BEFORE ANYTHING ELSE - READ THIS CAREFULLY:**
 
 The cleaned image shows the EXACT room layout. Your render MUST match this layout PERFECTLY.
 Think of this as renovating a REAL room - you CANNOT move walls, doors, or windows.
 
-### 🔒 MANDATORY PRESERVATION (NON-NEGOTIABLE):
+### 🔒 MANDATORY DOOR PRESERVATION (NON-NEGOTIABLE):
 
-1. **DOORS: EXACTLY ${doors} door(s) REQUIRED - POSITIONS ARE FIXED**
+**DOORS: EXACTLY ${doors} door(s) REQUIRED - POSITIONS ARE FIXED**
 ${doorDetails || '   - Study the cleaned image carefully and keep ALL doors in EXACT same locations'}
+
    ❌ FORBIDDEN: Adding doors, removing doors, moving doors to different walls
-   ❌ FORBIDDEN: Blocking doors with furniture, cabinets, or any objects
+   ❌ FORBIDDEN: Blocking doors with furniture, cabinets, shelving, or any objects
+   ❌ FORBIDDEN: Placing sofas, armchairs, or seating that blocks door access
    ❌ FORBIDDEN: Changing which wall a door is on
    ✅ REQUIRED: Doors remain on the SAME walls as in cleaned image
    ✅ REQUIRED: Door openings are clearly visible and functional
-   ✅ REQUIRED: 3-foot clearance in front of each door
+   ✅ REQUIRED: 3-foot clearance in front of each door - MANDATORY
 
-2. **WINDOWS: EXACTLY ${windows} window(s) REQUIRED - POSITIONS ARE FIXED**
+### ⛔ NO-FURNITURE ZONES (CRITICAL - DO NOT VIOLATE):
+${noFurnitureZones || '   - Keep ALL doors/doorways/openings completely clear of furniture'}
+
+   THINK: "Would a person be able to walk through each door freely?"
+   If ANY door is blocked by furniture → THE RENDER IS WRONG AND WILL BE REJECTED
+
+### 🔒 MANDATORY WINDOW PRESERVATION:
+
+**WINDOWS: EXACTLY ${windows} window(s) REQUIRED - POSITIONS ARE FIXED**
 ${windowDetails || '   - Study the cleaned image carefully and keep ALL windows in EXACT same locations'}
+
    ❌ FORBIDDEN: Adding windows, removing windows, moving windows to different walls
-   ❌ FORBIDDEN: Blocking windows with furniture or heavy curtains
+   ❌ FORBIDDEN: Blocking windows with tall furniture that covers them
    ❌ FORBIDDEN: Changing which wall a window is on
    ❌ FORBIDDEN: Making windows smaller or larger
    ✅ REQUIRED: Windows remain on the SAME walls as in cleaned image
    ✅ REQUIRED: Natural light patterns match the cleaned image
    ✅ REQUIRED: Window frames and sills visible
 
-3. **ROOM LAYOUT: ${dimensions}**
+${ceilingSection}
+
+### 📐 ROOM LAYOUT: ${dimensions}
    - The cleaned image shows the EXACT room shape - DO NOT ALTER IT
    - If cleaned image shows window on right wall → render MUST show window on right wall
    - If cleaned image shows door on left wall → render MUST show door on left wall
    - Wall positions are FIXED - you're decorating, not remodeling
 
-4. **ABSOLUTE RULES:**
-   - Treat the cleaned image as ARCHITECTURAL DRAWINGS - they are FIXED
-   - You are an INTERIOR DESIGNER, not an ARCHITECT
-   - You CAN: Change paint colors, add furniture, update flooring, add decor
-   - You CANNOT: Move/add/remove doors, move/add/remove windows, change room shape
+### 📋 PRE-GENERATION VERIFICATION CHECKLIST (MANDATORY):
 
-5. **🎥 CAMERA ANGLE / VIEWPOINT: MUST MATCH EXACTLY**
+Before you finalize the image, verify EACH of these:
+
+☑ DOOR CHECK: Can I see ALL ${doors} doors from the cleaned image?
+   - Each door is at its EXACT original position
+   - Each door/doorway is UNBLOCKED - no furniture in front
+
+☑ FURNITURE PLACEMENT CHECK: Is any furniture blocking a door?
+   - If YES → MOVE THE FURNITURE AWAY, NOT the door
+   - Sofas, shelves, cabinets MUST NOT block any opening
+
+☑ WINDOW CHECK: Are all ${windows} windows on correct walls?
+   - Windows at EXACT same positions as cleaned image
+
+☑ CEILING CHECK: Does my render match the ceiling from the cleaned image?
+   - False ceiling details preserved exactly
+   - Ceiling shape, drops, coves correct
+
+☑ CAMERA CHECK: Is viewpoint identical to cleaned image?
+   - Same angle, height, position
+
+IF ANY CHECK FAILS → FIX IT BEFORE GENERATING
+
+### 🎥 CAMERA ANGLE / VIEWPOINT: MUST MATCH EXACTLY
    - Study the cleaned image viewpoint - this is your EXACT camera position
    - DO NOT rotate the view or change the perspective
    - If cleaned image shows frontal view → render MUST be frontal view
@@ -144,21 +238,18 @@ ${windowDetails || '   - Study the cleaned image carefully and keep ALL windows 
    - You are photographing from the SAME spot as the original
    
    ⚠️ CRITICAL: Changing the camera angle is like moving to a different room!
-   The client expects to see THEIR room from THEIR perspective.
 
-### ⚠️ COMPARISON CHECK:
+### ⚠️ FINAL COMPARISON CHECK:
 Before generating, mentally compare:
 - Camera is at the EXACT same position and angle as cleaned image
-- If cleaned image looks straight ahead, your render must look straight ahead
-- If cleaned image looks at a corner, your render must look at that corner
-- Cleaned image shows window on RIGHT wall → Your render MUST show window on RIGHT wall
-- Cleaned image shows door on LEFT wall → Your render MUST show door on LEFT wall
-- Cleaned image shows 2 windows → Your render MUST show EXACTLY 2 windows
+- ALL ${doors} doors visible and UNBLOCKED
+- ALL ${windows} windows on correct walls
+- Ceiling architecture matches EXACTLY
 - If you move ANY architectural element OR camera angle, the render is WRONG
 
-**THINK OF IT THIS WAY:** You're showing a client how their EXISTING room will look after renovation.
+**REMEMBER:** You're showing a client how their EXISTING room will look after renovation.
 You CANNOT move their windows or doors - that would require major construction!
-You CANNOT change the camera angle - the client is standing in ONE spot!`;
+You CANNOT block their doorways - that would make the room unusable!`;
 }
 
 // ============================================================================
