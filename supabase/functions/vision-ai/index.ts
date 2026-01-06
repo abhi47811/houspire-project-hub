@@ -136,19 +136,22 @@ serve(async (req) => {
 CRITICAL DISTINCTION - Identify these elements correctly:
 - WINDOWS: Have frames, show outdoor views or natural light, transparent glass showing outside
 - MIRRORS: Reflect the room interior, show room's own contents, often have decorative frames
-- DOORS: Entry/exit points, have handles, may be open or closed
+- DOORS: Entry/exit points, have handles, may be open or closed. INCLUDE open doorways/archways that serve as room entry/exit points.
 - AC UNITS: Wall-mounted cooling units, often white/beige rectangles on walls
+- FALSE CEILING: Dropped ceiling sections, coves, recessed areas, decorative ceiling work
 
 Analyze the room image and extract with high accuracy:
 1. Room dimensions (estimate length, width, height in feet based on visual cues)
 2. Window count and positions (ONLY count if showing outdoor view/natural light)
 3. Mirror count and positions (count separately from windows)
-4. Door count and positions (entry doors, closet doors, balcony doors)
-5. Ceiling features (fans, lights, AC ducts)
+4. Door count and positions (entry doors, closet doors, balcony doors, OPEN DOORWAYS/ARCHWAYS)
+   - IMPORTANT: Count ALL openings that serve as entry/exit points, including open doorframes without doors
+5. Ceiling features (fans, lights, AC ducts, FALSE CEILING details)
 6. Outlet count (electrical outlets visible)
 7. AC unit count
-8. Other architectural features (moldings, columns, arches, niches, built-in wardrobes)
-9. Suggested design styles (3-5 options with confidence percentage)
+8. Ceiling architecture (false ceiling, coves, drops, decorative details)
+9. Other architectural features (moldings, columns, arches, niches, built-in wardrobes)
+10. Suggested design styles (3-5 options with confidence percentage)
 
 Return as structured JSON with this format:
 {
@@ -162,12 +165,15 @@ Return as structured JSON with this format:
   "window_positions": [{"position": string, "size": string}],
   "mirror_positions": [{"position": string, "size": string}],
   "door_positions": [{"position": string, "type": string}],
+  "has_false_ceiling": boolean,
+  "ceiling_type": string (e.g., "flat", "false_ceiling_with_cove", "tray_ceiling", "coffered", "exposed_beams"),
+  "ceiling_details": string (describe any architectural ceiling work: coves, drops, recessed lighting channels, decorative elements),
   "other_features": [{"type": string, "position": string}],
   "measurement_confidence": number (0-100),
   "suggested_styles": [{"name": string, "confidence": number, "description": string}]
 }`;
         userContent = [
-          { type: "text", text: "Analyze this room image for interior design renovation. Pay special attention to distinguishing mirrors from windows - mirrors reflect room contents while windows show outdoor views." },
+          { type: "text", text: "Analyze this room image for interior design renovation. Pay special attention to: 1) Distinguishing mirrors from windows - mirrors reflect room contents while windows show outdoor views. 2) Count ALL doors AND open doorways/archways that serve as entry/exit points. 3) Detect any false ceiling or decorative ceiling work (coves, drops, recessed areas)." },
           { type: "image_url", image_url: { url: imageUrl } },
         ];
         break;
