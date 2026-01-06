@@ -14,7 +14,9 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  Library
+  Library,
+  Send,
+  Wand2
 } from 'lucide-react';
 import { versionControlService } from '@/services/features/versionControlService';
 import { Button } from '@/components/ui/button';
@@ -136,6 +138,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const [latestScore, setLatestScore] = useState<any | null>(null);
   const [changeRequestOpen, setChangeRequestOpen] = useState(false);
   const [changeRequest, setChangeRequest] = useState('');
+  const [quickRefinementPrompt, setQuickRefinementPrompt] = useState('');
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [comparisonSlider, setComparisonSlider] = useState([50]);
   const [comparisonView, setComparisonView] = useState<'original' | 'cleaned' | 'final'>('final');
@@ -1467,6 +1470,62 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
           </div>
         )}
       </div>
+
+      {/* Quick Refinement Input - shows after generation */}
+      {hasRender && !room.phase_5_completed && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Wand2 className="h-5 w-5 text-primary" />
+              <h4 className="font-medium text-sm">Quick Refinement</h4>
+              <span className="text-xs text-muted-foreground">— make small adjustments without full regeneration</span>
+            </div>
+            
+            <div className="flex gap-2">
+              <Textarea
+                placeholder="e.g., 'Remove the shelving unit blocking the doorway', 'Add false ceiling details', 'Move sofa away from door'..."
+                value={quickRefinementPrompt}
+                onChange={(e) => setQuickRefinementPrompt(e.target.value)}
+                className="min-h-[80px] flex-1 bg-background"
+              />
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex flex-wrap gap-1.5">
+                {['Fix door blocking', 'Add ceiling details', 'Better lighting', 'More realistic'].map((suggestion) => (
+                  <Button
+                    key={suggestion}
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs px-2 bg-background/50 hover:bg-background"
+                    onClick={() => setQuickRefinementPrompt(prev => prev ? `${prev}, ${suggestion.toLowerCase()}` : suggestion)}
+                  >
+                    + {suggestion}
+                  </Button>
+                ))}
+              </div>
+              
+              <Button
+                onClick={() => {
+                  if (quickRefinementPrompt.trim()) {
+                    handleRegenerate({ refinementPrompt: quickRefinementPrompt.trim() });
+                    setQuickRefinementPrompt('');
+                  }
+                }}
+                disabled={!quickRefinementPrompt.trim() || isGenerating}
+                className="gap-2"
+              >
+                {isGenerating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Refine Render
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quality Control Panel - NEW */}
       {hasRender && (
