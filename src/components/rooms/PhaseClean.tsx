@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2, ImageOff, RefreshCw, Wand2, Eraser } from 'lucide-react';
+import { Sparkles, Check, X, AlertTriangle, AlertCircle, RotateCcw, Flag, ChevronLeft, ChevronRight, Loader2, ImageOff, RefreshCw, Wand2, Eraser, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
@@ -60,6 +60,7 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [batchCleanupOpen, setBatchCleanupOpen] = useState(false);
   const [isValidatingPreservation, setIsValidatingPreservation] = useState(false);
+  const [isBypassing, setIsBypassing] = useState(false);
 
   // Fetch room analysis for architectural preservation data
   const { data: roomAnalysis } = useQuery({
@@ -441,6 +442,80 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
     });
   };
 
+  // Bypass cleaning - use original image as cleaned
+  const handleBypassCleaning = async () => {
+    if (!originalImage?.storage_path) {
+      toast({
+        title: 'No Original Image',
+        description: 'Please upload an original image first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsBypassing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Create a cleaned image record pointing to the original
+      const { error: imageError } = await supabase
+        .from('room_images')
+        .insert({
+          room_id: room.id,
+          storage_path: originalImage.storage_path,
+          image_type: 'cleaned',
+          phase: 3,
+          file_name: `bypassed_${Date.now()}.jpg`,
+          resolution: '1920x1080',
+        });
+
+      if (imageError) throw imageError;
+
+      // Mark phase 3 as completed
+      const { error: roomError } = await supabase
+        .from('rooms')
+        .update({
+          phase_3_completed: true,
+          current_phase: Math.max(room.current_phase, 4),
+        })
+        .eq('id', room.id);
+
+      if (roomError) throw roomError;
+
+      // Log activity
+      try {
+        await supabase.rpc('log_project_activity', {
+          p_project_id: projectId,
+          p_user_id: user?.id,
+          p_activity_type: 'cleaning_bypassed',
+          p_description: 'Room cleaning bypassed - image does not require cleaning',
+          p_room_id: room.id,
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
+
+      toast({
+        title: 'Cleaning Bypassed',
+        description: 'Original image will be used. Moving to Phase 4.',
+      });
+
+      // Refresh data
+      await Promise.all([
+        refetchCleaned(),
+        queryClient.invalidateQueries({ queryKey: ['room', room.id] }),
+      ]);
+    } catch (error) {
+      handleApiError(error, {
+        showToast: true,
+        defaultMessage: 'Failed to bypass cleaning.',
+        onRetry: handleBypassCleaning,
+      });
+    } finally {
+      setIsBypassing(false);
+    }
+  };
+
   const getStatusBadge = () => {
     switch (cleaningStatus) {
       case 'processing':
@@ -675,18 +750,38 @@ export function PhaseClean({ room, projectId }: PhaseCleanProps) {
       <div className="pt-4 border-t space-y-2">
         {/* Start Cleaning Button - show when pending and not processing */}
         {cleaningStatus === 'pending' && !isProcessing && (
-          <Button 
-            className="w-full" 
-            onClick={handleStartCleaning}
-            disabled={submitJob.isPending}
-          >
-            {submitJob.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="mr-2 h-4 w-4" />
-            )}
-            Start AI Cleaning
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              className="flex-1" 
+              onClick={handleStartCleaning}
+              disabled={submitJob.isPending || isBypassing}
+            >
+              {submitJob.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4" />
+              )}
+              Start AI Cleaning
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline"
+                  onClick={handleBypassCleaning}
+                  disabled={submitJob.isPending || isBypassing || !originalImage?.signedUrl}
+                >
+                  {isBypassing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <SkipForward className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Bypass cleaning (image doesn't need cleaning)</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         )}
 
         {/* Approve Button - show when completed and NOT already approved */}
