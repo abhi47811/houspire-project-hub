@@ -18,7 +18,6 @@ const corsHeaders = {
 };
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -404,111 +403,33 @@ async function callLovableAI(
   };
 }
 
-async function callOpenRouter(
-  cleanedImageUrl: string,
-  prompt: string,
-  libraryReferenceUrl?: string
-): Promise<{ imageUrl: string; model: string; latency: number }> {
-  const startTime = Date.now();
-
-  if (!OPENROUTER_API_KEY) {
-    throw new Error("OPENROUTER_API_KEY not configured");
-  }
-
-  console.log("Attempting generation with OpenRouter fallback...");
-
-  const content: any[] = [
-    {
-      type: "text",
-      text: prompt,
-    },
-    {
-      type: "image_url",
-      image_url: { url: cleanedImageUrl },
-    },
-  ];
-
-  if (libraryReferenceUrl) {
-    content.push({
-      type: "image_url",
-      image_url: { url: libraryReferenceUrl },
-    });
-  }
-
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": SUPABASE_URL || "https://houspire.com",
-      "X-Title": "Houspire Interior Design",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        {
-          role: "user",
-          content,
-        },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenRouter HTTP ${response.status}: ${errorText}`);
-  }
-
-  const data = await response.json();
-  const latency = Date.now() - startTime;
-
-  const images = data.choices?.[0]?.message?.images;
-  const contentResponse = data.choices?.[0]?.message?.content;
-
-  let imageUrl: string | null = null;
-
-  if (images && images.length > 0) {
-    imageUrl = images[0].image_url?.url || images[0];
-  } else if (contentResponse && typeof contentResponse === "string" && contentResponse.startsWith("data:image")) {
-    imageUrl = contentResponse;
-  }
-
-  if (!imageUrl) {
-    throw new Error("No image in OpenRouter response");
-  }
-
-  console.log(`✅ OpenRouter fallback succeeded in ${latency}ms`);
-
-  return {
-    imageUrl,
-    model: "google/gemini-2.5-flash",
-    latency,
-  };
-}
-
 async function generateRenderWithFallback(
   cleanedImageUrl: string,
   prompt: string,
-  libraryReferenceUrl?: string
+  libraryReferenceUrl?: string,
+  maxRetries: number = 3
 ): Promise<{ imageUrl: string; model: string; latency: number; provider: string }> {
-  try {
-    const result = await callLovableAI(cleanedImageUrl, prompt, libraryReferenceUrl);
-    return { ...result, provider: "lovable" };
-  } catch (lovableError) {
-    console.warn("⚠️ Lovable AI failed:", lovableError instanceof Error ? lovableError.message : String(lovableError));
-
-    if (OPENROUTER_API_KEY) {
-      try {
-        const result = await callOpenRouter(cleanedImageUrl, prompt, libraryReferenceUrl);
-        return { ...result, provider: "openrouter" };
-      } catch (openrouterError) {
-        console.error("❌ OpenRouter fallback also failed:", openrouterError instanceof Error ? openrouterError.message : String(openrouterError));
-        throw new Error(`All AI providers failed. Lovable: ${lovableError instanceof Error ? lovableError.message : "Unknown"}. OpenRouter: ${openrouterError instanceof Error ? openrouterError.message : "Unknown"}`);
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🎨 Attempt ${attempt}/${maxRetries} with gemini-3-pro-image-preview...`);
+      const result = await callLovableAI(cleanedImageUrl, prompt, libraryReferenceUrl);
+      return { ...result, provider: "lovable" };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`⚠️ Attempt ${attempt} failed:`, lastError.message);
+      
+      if (attempt < maxRetries) {
+        // Exponential backoff: 2s, 4s, 8s
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`⏳ Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-    } else {
-      throw lovableError;
     }
   }
+  
+  throw new Error(`All ${maxRetries} generation attempts failed. Last error: ${lastError?.message}`);
 }
 
 // ============================================================================
@@ -526,8 +447,8 @@ serve(async (req) => {
   try {
     const { action, cleanedImageUrl, roomId, projectId, manualPrompt, customRequirements, refinementPrompt } = await req.json();
 
-    if (!LOVABLE_API_KEY && !OPENROUTER_API_KEY) {
-      throw new Error("No AI API keys configured");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY not configured");
     }
 
     switch (action) {
