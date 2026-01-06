@@ -7,10 +7,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.vision-ai]
-verify_jwt = true
+verify_jwt = false
 
 [functions.image-processing]
-verify_jwt = true
+verify_jwt = false
 
 [functions.generate-ai]
 verify_jwt = false
