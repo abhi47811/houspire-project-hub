@@ -1250,6 +1250,7 @@ async function processJob(supabase: any, job: any): Promise<void> {
 
       case "generation": {
         const basePrompt = job.payload?.prompt || "";
+        const refinementPrompt = job.payload?.refinementPrompt || "";
         const MAX_STRUCTURE_RETRIES = 3; // More retries with progressive strength reduction
         
         // Fetch room_analysis for door/window counts (critical for staging lock)
@@ -1331,7 +1332,13 @@ async function processJob(supabase: any, job: any): Promise<void> {
           // Build prompts
           const essentialElements = buildEssentialElements(windowCount > 0);
           const smartDefaultDetails = buildSmartDefaultPromptDetails(smartDefaultData);
-          const designPrompt = basePrompt + smartDefaultDetails + essentialElements;
+          
+          // If refinement prompt is provided, prepend it to the design prompt
+          let designPrompt = basePrompt + smartDefaultDetails + essentialElements;
+          if (refinementPrompt) {
+            designPrompt = `PRIORITY REFINEMENT REQUEST: ${refinementPrompt}\n\nBase design: ${designPrompt}`;
+            console.log('📝 Refinement prompt included:', refinementPrompt.slice(0, 100));
+          }
           const stagingLockPrompt = buildVirtualStagingLockPrompt(doorCount, windowCount);
           
           try {
