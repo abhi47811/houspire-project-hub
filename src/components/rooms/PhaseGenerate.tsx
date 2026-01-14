@@ -141,6 +141,8 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const [changeRequest, setChangeRequest] = useState('');
   const [quickRefinementPrompt, setQuickRefinementPrompt] = useState('');
   const [isRefining, setIsRefining] = useState(false);
+  const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
+  const [regeneratePrompt, setRegeneratePrompt] = useState('');
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [comparisonSlider, setComparisonSlider] = useState([50]);
   const [comparisonView, setComparisonView] = useState<'original' | 'cleaned' | 'final'>('final');
@@ -1778,11 +1780,10 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         )}
         
         <div className="grid grid-cols-2 gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <Dialog open={regenerateDialogOpen} onOpenChange={setRegenerateDialogOpen}>
+            <DialogTrigger asChild>
               <Button 
                 variant="outline" 
-                onClick={() => handleRegenerate()}
                 disabled={isGenerating}
               >
                 {isGenerating ? (
@@ -1792,11 +1793,61 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
                 )}
                 {hasRender ? 'Regenerate' : 'Generate'}
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Regenerate {getShortcutHint(SHORTCUTS.regenerate)}</p>
-            </TooltipContent>
-          </Tooltip>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{hasRender ? 'Regenerate Render' : 'Generate Render'}</DialogTitle>
+                <DialogDescription>
+                  {hasRender 
+                    ? 'Describe what you\'d like to change or improve. Leave empty to regenerate with the same settings.'
+                    : 'Optionally describe specific requirements for the render.'
+                  }
+                </DialogDescription>
+              </DialogHeader>
+              <Textarea
+                placeholder="e.g., 'Add false ceiling', 'Make lighting warmer', 'Remove the shelving unit'..."
+                value={regeneratePrompt}
+                onChange={(e) => setRegeneratePrompt(e.target.value)}
+                className="min-h-[100px]"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {['Better lighting', 'Add ceiling details', 'More realistic', 'Fix furniture placement'].map((suggestion) => (
+                  <Button
+                    key={suggestion}
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs px-2"
+                    onClick={() => setRegeneratePrompt(prev => prev ? `${prev}, ${suggestion.toLowerCase()}` : suggestion)}
+                  >
+                    + {suggestion}
+                  </Button>
+                ))}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setRegenerateDialogOpen(false);
+                  setRegeneratePrompt('');
+                }}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setRegenerateDialogOpen(false);
+                    handleRegenerate(regeneratePrompt.trim() ? { refinementPrompt: regeneratePrompt.trim() } : undefined);
+                    setRegeneratePrompt('');
+                  }}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                  )}
+                  {hasRender ? 'Regenerate' : 'Generate'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Dialog open={changeRequestOpen} onOpenChange={setChangeRequestOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" disabled={!hasRender}>
