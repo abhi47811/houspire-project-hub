@@ -1611,8 +1611,8 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
         )}
       </div>
 
-      {/* Quick Refinement Input - shows after generation */}
-      {hasRender && !room.phase_5_completed && (
+      {/* Quick Refinement Input - shows whenever there's a render */}
+      {hasRender && (
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center gap-2">
