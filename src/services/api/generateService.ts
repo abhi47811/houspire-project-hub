@@ -85,6 +85,23 @@ export const generateService = {
   },
 
   /**
+   * Refine an existing render with targeted edits (keeps everything else the same)
+   */
+  async refineRender(
+    existingRenderUrl: string,
+    refinementPrompt: string,
+    projectId?: string,
+    roomId?: string
+  ): Promise<GenerateResponse<RenderResult>> {
+    return callGenerateAI<RenderResult>('refineRender', {
+      existingRenderUrl,
+      refinementPrompt,
+      projectId,
+      roomId,
+    });
+  },
+
+  /**
    * Generate render with automatic retry
    */
   async generateRenderWithRetry(

@@ -731,6 +731,132 @@ serve(async (req) => {
         );
       }
 
+      case "refineRender": {
+        // ============================================================================
+        // TARGETED REFINEMENT - Edit existing render without full regeneration
+        // ============================================================================
+        console.log("=".repeat(80));
+        console.log("REFINE RENDER - Targeted image editing...");
+        console.log("=".repeat(80));
+
+        const { existingRenderUrl, refinementPrompt: refinePrompt } = await req.json();
+
+        if (!existingRenderUrl) {
+          throw new Error("existingRenderUrl is required for refineRender action");
+        }
+
+        if (!refinePrompt || !refinePrompt.trim()) {
+          throw new Error("refinementPrompt is required for refineRender action");
+        }
+
+        console.log("Existing render URL:", existingRenderUrl.slice(0, 80) + "...");
+        console.log("Refinement prompt:", refinePrompt);
+
+        // Build a prompt that instructs the AI to ONLY make the requested changes
+        const refinementEditPrompt = `## TARGETED IMAGE REFINEMENT TASK
+
+You are editing an EXISTING interior design render. Your task is VERY SPECIFIC:
+
+### REQUESTED CHANGE:
+${refinePrompt}
+
+### CRITICAL INSTRUCTIONS:
+1. Keep EVERYTHING in the image EXACTLY as it is, EXCEPT for the specific change requested above
+2. Do NOT modify:
+   - Room layout or dimensions
+   - Other furniture positions (unless specifically mentioned)
+   - Lighting conditions (unless specifically mentioned)
+   - Color scheme (unless specifically mentioned)
+   - Architectural elements (walls, windows, doors)
+   - Camera angle or perspective
+   - Overall style and aesthetic
+
+3. Make the MINIMAL change needed to address the request
+4. Preserve the magazine-quality, photorealistic appearance
+5. The result should look like a natural part of the original design
+
+### OUTPUT:
+Generate a refined version of the image with ONLY the requested change applied.
+The rest of the image should be pixel-perfect identical to the original.`;
+
+        console.log("Calling Lovable AI for targeted edit...");
+
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-pro-image-preview",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: refinementEditPrompt,
+                  },
+                  {
+                    type: "image_url",
+                    image_url: { url: existingRenderUrl },
+                  },
+                ],
+              },
+            ],
+            modalities: ["image", "text"],
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Refinement API error:", response.status, errorText);
+          throw new Error(`Refinement failed: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        const refinedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+
+        if (!refinedImageUrl) {
+          throw new Error("No refined image returned from AI");
+        }
+
+        const latencyMs = Date.now() - startTime;
+        console.log(`\n✅ Refinement complete in ${latencyMs}ms`);
+
+        // Log API call
+        await logApiCall(supabase, {
+          projectId,
+          roomId,
+          service: "lovable-ai",
+          endpoint: "/v1/chat/completions",
+          model: "google/gemini-3-pro-image-preview",
+          inputTokens: Math.ceil(refinementEditPrompt.length / 4),
+          outputTokens: 0,
+          costUsd: 0.03, // Lower cost for refinement
+          latencyMs,
+          status: "success",
+          errorMessage: null,
+          metadata: {
+            action: "refineRender",
+            refinementPrompt: refinePrompt,
+          },
+        });
+
+        return new Response(
+          JSON.stringify({
+            imageUrl: refinedImageUrl,
+            model: "google/gemini-3-pro-image-preview",
+            provider: "lovable",
+            latency: latencyMs,
+            refinementApplied: refinePrompt,
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
