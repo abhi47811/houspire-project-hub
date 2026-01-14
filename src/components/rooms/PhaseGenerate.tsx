@@ -49,6 +49,7 @@ import { useQualityControl } from '@/hooks/useQualityControl';
 import { buildRichPrompt, buildRefinementPrompt, getRoomTemplate } from '@/lib/promptTemplates';
 import { handleApiError } from '@/lib/api-error';
 import { useEnhancedKeyboardShortcuts, getShortcutHint, SHORTCUTS } from '@/hooks/useEnhancedKeyboardShortcuts';
+import { generateService } from '@/services/api/generateService';
 
 interface RegenerateOptions {
   useSmartDefaults?: boolean;
@@ -139,6 +140,7 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
   const [changeRequestOpen, setChangeRequestOpen] = useState(false);
   const [changeRequest, setChangeRequest] = useState('');
   const [quickRefinementPrompt, setQuickRefinementPrompt] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [comparisonSlider, setComparisonSlider] = useState([50]);
   const [comparisonView, setComparisonView] = useState<'original' | 'cleaned' | 'final'>('final');
@@ -1109,6 +1111,144 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
     }
   }, [cleanedImage, currentRender, renderImage, currentJob, room.phase_5_completed, room.current_phase, room.id, room.selected_style, room.custom_prompt, room.generation_path, isSubmittingJob]);
 
+  // Handle quick refinement - uses targeted image editing (not full regeneration)
+  const handleQuickRefinement = async () => {
+    if (!quickRefinementPrompt.trim()) {
+      toast({
+        title: 'No Changes Specified',
+        description: 'Please describe the changes you want.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!renderUrl) {
+      toast({
+        title: 'No Render Available',
+        description: 'Generate a render first before refining.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsRefining(true);
+    const refinementText = quickRefinementPrompt.trim();
+    setQuickRefinementPrompt('');
+
+    try {
+      toast({
+        title: 'Refining Render',
+        description: 'Applying targeted changes to your render...',
+      });
+
+      // Call the targeted refine endpoint (edits existing render)
+      const result = await generateService.refineRender(
+        renderUrl,
+        refinementText,
+        projectId,
+        room.id
+      );
+
+      if (result?.result?.imageUrl) {
+        // Upload the refined image to storage
+        const base64Data = result.result.imageUrl;
+        const isBase64 = base64Data.startsWith('data:image');
+        
+        let imageUrlToSave = base64Data;
+        let storagePath = '';
+        
+        if (isBase64) {
+          // Convert base64 to blob and upload
+          const base64Content = base64Data.split(',')[1];
+          const binaryString = atob(base64Content);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { type: 'image/png' });
+          
+          const fileName = `refined-${Date.now()}.png`;
+          storagePath = `${projectId}/${room.id}/renders/${fileName}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('room-images')
+            .upload(storagePath, blob, { contentType: 'image/png' });
+          
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            throw new Error('Failed to save refined image');
+          }
+          
+          // Get signed URL for the uploaded image
+          const { data: signedData } = await supabase.storage
+            .from('room-images')
+            .createSignedUrl(storagePath, 3600 * 24 * 7); // 7 day URL
+          
+          imageUrlToSave = signedData?.signedUrl || storagePath;
+        }
+        
+        // Create new render version
+        const { data: latestRender } = await supabase
+          .from('renders')
+          .select('version_number')
+          .eq('room_id', room.id)
+          .order('version_number', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        const nextVersion = (latestRender?.version_number || 0) + 1;
+        
+        // Insert new render
+        const { error: insertError } = await supabase
+          .from('renders')
+          .insert({
+            room_id: room.id,
+            image_url: imageUrlToSave,
+            storage_path: storagePath || imageUrlToSave,
+            prompt_used: `[Refinement] ${refinementText}`,
+            model_used: 'google/gemini-3-pro-image-preview',
+            provider: 'lovable',
+            version_number: nextVersion,
+            parent_render_id: currentRender?.id || null,
+          });
+        
+        if (insertError) {
+          console.error('Insert error:', insertError);
+        }
+        
+        // Also create a version entry
+        await versionControlService.createVersion({
+          room_id: room.id,
+          render_url: imageUrlToSave,
+          storage_path: storagePath || imageUrlToSave,
+          style_config: { refinement: true },
+          generation_params: { type: 'refinement' },
+          prompt_used: `[Refinement] ${refinementText}`,
+          notes: refinementText,
+        });
+
+        toast({
+          title: '✅ Refinement Complete',
+          description: 'Your render has been updated with the requested changes.',
+        });
+
+        // Refresh render data
+        refetchRender();
+        refetchRenderImage();
+        queryClient.invalidateQueries({ queryKey: ['render-versions', room.id] });
+      }
+    } catch (error: any) {
+      console.error('Refinement failed:', error);
+      toast({
+        title: 'Refinement Failed',
+        description: error.message || 'Failed to apply refinement. Try regenerating instead.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRefining(false);
+    }
+  };
+
   const handleSubmitChangeRequest = async () => {
     if (!changeRequest.trim()) {
       toast({
@@ -1506,21 +1646,16 @@ export function PhaseGenerate({ room, projectId }: PhaseGenerateProps) {
               </div>
               
               <Button
-                onClick={() => {
-                  if (quickRefinementPrompt.trim()) {
-                    handleRegenerate({ refinementPrompt: quickRefinementPrompt.trim() });
-                    setQuickRefinementPrompt('');
-                  }
-                }}
-                disabled={!quickRefinementPrompt.trim() || isGenerating}
+                onClick={handleQuickRefinement}
+                disabled={!quickRefinementPrompt.trim() || isRefining || isGenerating}
                 className="gap-2"
               >
-                {isGenerating ? (
+                {isRefining ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
-                Refine Render
+                {isRefining ? 'Refining...' : 'Refine Render'}
               </Button>
             </div>
           </CardContent>
